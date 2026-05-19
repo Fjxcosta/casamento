@@ -260,20 +260,63 @@
       position: relative;
     }
     .close-btn {
-      position: absolute;
-      top: 10px;
-      right: 12px;
-      background: none;
-      border: none;
-      font-size: 1.4rem;
+      /* Item 1°: close-btn fica fixo no topo do modal mesmo ao rolar/girar.
+         Antes era position:absolute — sumia em paisagem quando o modal rolava. */
+      position: sticky;
+      top: 0;
+      float: right;
+      margin-top: -0.5rem;
+      margin-right: -0.5rem;
+      background: var(--cor-off-white);
+      border: 1px solid var(--cor-borda-suave);
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
       cursor: pointer;
       color: var(--cor-bronze);
       line-height: 1;
-      padding: 0.2rem 0.5rem;
-      transition: color 0.2s ease-in-out;
+      font-size: 1.3rem;
+      transition: color 0.2s ease-in-out, transform 0.1s ease;
+      z-index: 10;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .close-btn:hover {
       color: var(--cor-erro);
+      transform: scale(1.1);
+    }
+    /* Item 2°: campo de senha com botão para mostrar/ocultar */
+    .campo-senha {
+      position: relative;
+      display: block;
+      width: 100%;
+    }
+    .campo-senha input {
+      width: 100%;
+      box-sizing: border-box;
+      padding-right: 2.5rem !important;
+      display: block;
+    }
+    .btn-olho-senha {
+      position: absolute;
+      right: 0.4rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1.1rem;
+      color: var(--cor-bronze);
+      padding: 0.3rem 0.5rem;
+      line-height: 1;
+      user-select: none;
+      z-index: 2;
+    }
+    .btn-olho-senha:hover {
+      color: var(--cor-primaria);
     }
     .form-group {
       margin-bottom: 1rem;
@@ -845,7 +888,10 @@
       <div style="font-family:'Cinzel',serif; font-size:0.75rem; color:var(--cor-primaria); letter-spacing:0.15em; margin-bottom:1.5rem;">SISTEMA DE GESTÃO</div>
       <div class="form-group">
         <label for="inputSenhaSistema" class="obrigatorio" style="text-align:left;">Digite a senha de acesso</label>
-        <input type="password" id="inputSenhaSistema" placeholder="Senha" autocomplete="off" onkeydown="if(event.key==='Enter') validarSenhaSistema()">
+        <div class="campo-senha">
+          <input type="password" id="inputSenhaSistema" placeholder="Senha" autocomplete="off" onkeydown="if(event.key==='Enter') validarSenhaSistema()">
+          <button type="button" class="btn-olho-senha" onclick="alternarVisibilidadeSenha('inputSenhaSistema', this)" aria-label="Mostrar/ocultar senha">👁</button>
+        </div>
       </div>
       <div id="erroSenhaSistema" style="color:var(--cor-erro); font-size:0.85rem; margin-bottom:0.75rem; display:none;"></div>
       <button class="btn-success" onclick="validarSenhaSistema()" style="width:100%;">Entrar</button>
@@ -903,7 +949,10 @@
       </p>
       <div class="form-group">
         <label for="senhaLimparDados" class="obrigatorio">Digite a senha para confirmar</label>
-        <input type="password" id="senhaLimparDados" placeholder="Senha" autocomplete="off">
+        <div class="campo-senha">
+          <input type="password" id="senhaLimparDados" placeholder="Senha" autocomplete="off">
+          <button type="button" class="btn-olho-senha" onclick="alternarVisibilidadeSenha('senhaLimparDados', this)" aria-label="Mostrar/ocultar senha">👁</button>
+        </div>
       </div>
       <div class="actions">
         <button class="btn-danger" onclick="confirmarLimparDados()">Apagar tudo</button>
@@ -2508,6 +2557,39 @@
     }
 
     // ----- Tela de senha -----
+    // Item 2°: mostra/oculta a senha quando o usuário clica no olho
+    function alternarVisibilidadeSenha(idCampo, botao) {
+      const inp = document.getElementById(idCampo);
+      if (!inp) return;
+      if (inp.type === 'password') {
+        inp.type = 'text';
+        if (botao) botao.textContent = '🙈';
+      } else {
+        inp.type = 'password';
+        if (botao) botao.textContent = '👁';
+      }
+    }
+
+    // Item 4°: sessão válida por 24h. Grava timestamp no localStorage; ao
+    // recarregar, se ainda estiver dentro do prazo, pula a tela de senha.
+    const SESSAO_DURACAO_MS = 24 * 60 * 60 * 1000; // 24h em milissegundos
+    const SESSAO_CHAVE = 'gestaoCasamento_sessao';
+    function gravarSessaoValida() {
+      try {
+        localStorage.setItem(SESSAO_CHAVE, String(Date.now()));
+      } catch (e) { /* localStorage pode estar bloqueado — segue sem persistir */ }
+    }
+    function sessaoAindaValida() {
+      try {
+        const ts = Number(localStorage.getItem(SESSAO_CHAVE) || 0);
+        if (!ts) return false;
+        return (Date.now() - ts) < SESSAO_DURACAO_MS;
+      } catch (e) { return false; }
+    }
+    function limparSessao() {
+      try { localStorage.removeItem(SESSAO_CHAVE); } catch (e) { /* ignora */ }
+    }
+
     function validarSenhaSistema() {
       const inp = document.getElementById('inputSenhaSistema');
       const erro = document.getElementById('erroSenhaSistema');
@@ -2520,16 +2602,22 @@
         if (inp) { inp.value = ''; inp.focus(); }
         return;
       }
-      // Senha correta → esconde a tela, carrega dados da nuvem, inicializa o sistema
+      // Senha correta → grava sessão, esconde a tela, carrega dados e inicializa
+      gravarSessaoValida();
+      entrarNoSistema();
+    }
+
+    // Entra no sistema após a validação (ou após detectar sessão válida).
+    // Separada para ser reusada tanto pela validação manual quanto pela
+    // sessão persistida.
+    function entrarNoSistema() {
       const tela = document.getElementById('telaSenha');
       if (tela) tela.style.display = 'none';
       setIndicadorSync('salvando', 'Carregando...');
       carregarDaNuvem().then(ok => {
         if (ok) {
-          // Inicializa só DEPOIS dos dados estarem em memória
           if (typeof inicializar === 'function') inicializar();
         } else {
-          // Falhou: pede para recarregar
           alert('Não foi possível carregar os dados. Recarregue a página.');
         }
       });
@@ -6284,197 +6372,443 @@ function atualizarValoresBuffet() {
       const larguraPagina = doc.internal.pageSize.getWidth();
       const alturaPagina = doc.internal.pageSize.getHeight();
       const margem = 15;
+      const larguraUtil = larguraPagina - 2 * margem;
+      // === Paleta usada no PDF (RGB) ===
+      const COR_BRONZE = [184, 146, 91];
+      const COR_CHAMPAGNE = [212, 184, 134];
+      const COR_AREIA = [233, 224, 209];
+      const COR_TEXTO = [60, 46, 31];
+      const COR_TEXTO_CLARO = [120, 120, 120];
+      const COR_SUCESSO = [122, 142, 92];
+      const COR_ERRO = [168, 90, 74];
+
       let y = margem;
 
-      // ----- Cabeçalho com o monograma -----
-      try {
-        const larguraLogo = 32;
-        const alturaLogo = 32;
-        doc.addImage(MONOGRAMA_BASE64, 'JPEG', (larguraPagina - larguraLogo) / 2, y, larguraLogo, alturaLogo);
-        y += alturaLogo + 4;
-      } catch (e) {
-        // se a imagem falhar, segue sem ela
-        y += 4;
+      // ===== Auxiliares de layout =====
+      function novaPagina() {
+        doc.addPage();
+        y = margem + 8; // espaço para o cabeçalho
+        desenharCabecalhoPagina();
       }
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(16);
-      // Cor dourada (alinhada com a paleta do sistema)
-      doc.setTextColor(184, 134, 11);
-      doc.text('Relatório de Gestão de Casamento', larguraPagina / 2, y, { align: 'center' });
-      y += 7;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.setTextColor(90, 90, 90);
-      const agora = new Date();
-      doc.text('Gerado em ' + agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR'), larguraPagina / 2, y, { align: 'center' });
-      y += 8;
-      doc.setDrawColor(200, 200, 200);
-      doc.line(margem, y, larguraPagina - margem, y);
-      y += 8;
-
-      // Função auxiliar: garante espaço na página, senão cria nova
       function garantirEspaco(altura) {
-        if (y + altura > alturaPagina - margem) {
-          doc.addPage();
-          y = margem;
+        if (y + altura > alturaPagina - margem - 10) { // -10 do rodapé
+          novaPagina();
         }
       }
-      // Função auxiliar: escreve um título de seção
+      // Cabeçalho fino no topo de páginas internas (não na capa)
+      function desenharCabecalhoPagina() {
+        doc.setDrawColor(COR_CHAMPAGNE[0], COR_CHAMPAGNE[1], COR_CHAMPAGNE[2]);
+        doc.setLineWidth(0.2);
+        doc.line(margem, margem + 5, larguraPagina - margem, margem + 5);
+        doc.setFont('times', 'italic');
+        doc.setFontSize(8);
+        doc.setTextColor(COR_TEXTO_CLARO[0], COR_TEXTO_CLARO[1], COR_TEXTO_CLARO[2]);
+        doc.text('Paula & Fábio Jr — Backup do sistema', margem, margem + 3);
+      }
+      // Título de seção principal (capa de seção)
       function tituloSecao(texto) {
-        garantirEspaco(12);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(12);
-        doc.setTextColor(136, 78, 160);
+        garantirEspaco(20);
+        // Bloco com fundo champagne claro e texto bronze
+        doc.setFillColor(COR_AREIA[0], COR_AREIA[1], COR_AREIA[2]);
+        doc.rect(margem, y, larguraUtil, 9, 'F');
+        doc.setFont('times', 'bold');
+        doc.setFontSize(13);
+        doc.setTextColor(COR_BRONZE[0], COR_BRONZE[1], COR_BRONZE[2]);
+        doc.text(texto.toUpperCase(), margem + 3, y + 6);
+        y += 12;
+      }
+      // Subtítulo (categoria dentro de seção)
+      function subTitulo(texto) {
+        garantirEspaco(8);
+        doc.setFont('times', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(COR_BRONZE[0], COR_BRONZE[1], COR_BRONZE[2]);
         doc.text(texto, margem, y);
+        // Linha fina champagne abaixo
+        doc.setDrawColor(COR_CHAMPAGNE[0], COR_CHAMPAGNE[1], COR_CHAMPAGNE[2]);
+        doc.setLineWidth(0.3);
+        doc.line(margem, y + 1.5, larguraPagina - margem, y + 1.5);
+        y += 5;
+      }
+      // Texto comum (uma linha "rótulo: valor")
+      function linhaInfo(rotulo, valor) {
+        garantirEspaco(5);
+        doc.setFont('times', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(COR_TEXTO[0], COR_TEXTO[1], COR_TEXTO[2]);
+        const larguraRotulo = doc.getTextWidth(rotulo + ': ');
+        doc.text(rotulo + ':', margem, y);
+        doc.setFont('times', 'normal');
+        const txt = (valor === undefined || valor === null || valor === '') ? '—' : String(valor);
+        const linhas = doc.splitTextToSize(txt, larguraUtil - larguraRotulo);
+        doc.text(linhas, margem + larguraRotulo, y);
+        y += Math.max(4.5, linhas.length * 4);
+      }
+      // Linha em branco
+      function espaco(mm) { y += (mm || 3); }
+
+      // Cabeçalho de tabela com fundo dourado
+      function cabecalhoTabela(colunas, larguras) {
+        garantirEspaco(7);
+        // Fundo dourado
+        doc.setFillColor(COR_BRONZE[0], COR_BRONZE[1], COR_BRONZE[2]);
+        doc.rect(margem, y, larguraUtil, 6, 'F');
+        // Texto
+        doc.setFont('times', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(255, 255, 255);
+        let x = margem + 1.5;
+        for (let i = 0; i < colunas.length; i++) {
+          doc.text(String(colunas[i]).toUpperCase(), x, y + 4);
+          x += larguras[i];
+        }
+        // Bordas verticais brancas entre colunas (separadores no cabeçalho)
+        doc.setDrawColor(255, 255, 255);
+        doc.setLineWidth(0.2);
+        let xb = margem;
+        for (let i = 0; i < larguras.length - 1; i++) {
+          xb += larguras[i];
+          doc.line(xb, y, xb, y + 6);
+        }
+        // Borda inferior do cabeçalho (linha fina escura para separar do corpo)
+        doc.setDrawColor(140, 110, 65);
+        doc.setLineWidth(0.3);
+        doc.line(margem, y + 6, larguraPagina - margem, y + 6);
         y += 6;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        doc.setTextColor(50, 50, 50);
       }
-      // Função auxiliar: escreve uma linha simples (rótulo: valor)
-      function linha(rotulo, valor) {
-        garantirEspaco(6);
-        const texto = rotulo + ': ' + (valor || '-');
-        const linhas = doc.splitTextToSize(texto, larguraPagina - 2 * margem);
-        doc.text(linhas, margem, y);
-        y += linhas.length * 5;
+      // Linha de tabela
+      function linhaTabela(valores, larguras, opts) {
+        opts = opts || {};
+        doc.setFont('times', opts.bold ? 'bold' : 'normal');
+        doc.setFontSize(8);
+        const alturas = valores.map((v, i) => {
+          const txt = v === undefined || v === null ? '' : String(v);
+          const lns = doc.splitTextToSize(txt, larguras[i] - 1.5);
+          return lns.length * 3.6;
+        });
+        const altura = Math.max(5, ...alturas) + 1;
+        garantirEspaco(altura);
+        // Fundo zebrado opcional
+        if (opts.fundo) {
+          doc.setFillColor(250, 247, 242);
+          doc.rect(margem, y, larguraUtil, altura, 'F');
+        }
+        // Texto
+        if (opts.cor) doc.setTextColor(opts.cor[0], opts.cor[1], opts.cor[2]);
+        else doc.setTextColor(COR_TEXTO[0], COR_TEXTO[1], COR_TEXTO[2]);
+        let x = margem + 1.5;
+        for (let i = 0; i < valores.length; i++) {
+          const txt = valores[i] === undefined || valores[i] === null ? '' : String(valores[i]);
+          const lns = doc.splitTextToSize(txt, larguras[i] - 1.5);
+          doc.text(lns, x, y + 3.5);
+          x += larguras[i];
+        }
+        // Bordas: verticais entre colunas + laterais + inferior
+        doc.setDrawColor(200, 190, 170);
+        doc.setLineWidth(0.15);
+        // Borda esquerda
+        doc.line(margem, y, margem, y + altura);
+        // Borda direita
+        doc.line(larguraPagina - margem, y, larguraPagina - margem, y + altura);
+        // Bordas verticais entre colunas
+        let xb = margem;
+        for (let i = 0; i < larguras.length - 1; i++) {
+          xb += larguras[i];
+          doc.line(xb, y, xb, y + altura);
+        }
+        // Borda inferior
+        doc.line(margem, y + altura, larguraPagina - margem, y + altura);
+        y += altura;
       }
 
-      // ----- Dados gerais do casamento -----
-      tituloSecao('Dados do casamento');
-      linha('Data', dados.dataCasamento ? dataPorExtenso(dados.dataCasamento) : 'não definida');
-      linha('Hora', dados.horaCasamento);
-      linha('Local do casamento', dados.localCasamento);
-      linha('Endereço do casamento', dados.enderecoCasamento);
-      linha('Local da festa', dados.localFesta);
-      linha('Endereço da festa', dados.enderecoFesta);
-      y += 3;
+      // ===== Capa (página 1) =====
+      try {
+        const lOgo = 50;
+        doc.addImage(MONOGRAMA_BASE64, 'JPEG',
+          (larguraPagina - lOgo) / 2, y + 30, lOgo, lOgo);
+      } catch (e) { /* segue sem monograma */ }
+      // Nome do casal em "script" (vamos usar times-italic como aproximação)
+      doc.setFont('times', 'italic');
+      doc.setFontSize(34);
+      doc.setTextColor(COR_BRONZE[0], COR_BRONZE[1], COR_BRONZE[2]);
+      doc.text('Paula & Fábio Jr', larguraPagina / 2, y + 100, { align: 'center' });
+      // Subtítulo formal em Cinzel-like
+      doc.setFont('times', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(COR_TEXTO[0], COR_TEXTO[1], COR_TEXTO[2]);
+      doc.text('S I S T E M A   D E   G E S T Ã O', larguraPagina / 2, y + 110, { align: 'center' });
+      // Data do casamento
+      doc.setFontSize(11);
+      doc.setFont('times', 'italic');
+      doc.setTextColor(COR_TEXTO_CLARO[0], COR_TEXTO_CLARO[1], COR_TEXTO_CLARO[2]);
+      const dataCas = dados.dataCasamento ? dataPorExtenso(dados.dataCasamento) : 'Data do casamento não definida';
+      doc.text(dataCas, larguraPagina / 2, y + 130, { align: 'center' });
+      // Ornamento dourado central
+      doc.setDrawColor(COR_CHAMPAGNE[0], COR_CHAMPAGNE[1], COR_CHAMPAGNE[2]);
+      doc.setLineWidth(0.5);
+      doc.line(larguraPagina / 2 - 30, y + 140, larguraPagina / 2 + 30, y + 140);
+      // Carimbo de geração
+      doc.setFont('times', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(COR_TEXTO_CLARO[0], COR_TEXTO_CLARO[1], COR_TEXTO_CLARO[2]);
+      const agora = new Date();
+      const carimboTxt = 'Backup gerado em ' +
+        agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR');
+      doc.text(carimboTxt, larguraPagina / 2, alturaPagina - margem - 10, { align: 'center' });
+      doc.setFontSize(8);
+      doc.text('Este documento contém: convidados e financeiro.', larguraPagina / 2, alturaPagina - margem - 5, { align: 'center' });
 
-      // ----- Resumo financeiro -----
-      let totalContratado = 0, totalPago = 0;
-      dados.despesas.forEach(d => {
-        totalContratado += Number(d.valorContratado) || 0;
-        totalPago += Number(d.valorPago) || 0;
+      // ===== Sumário/Resumo (página 2) =====
+      novaPagina();
+      tituloSecao('Sumário');
+      // Estatísticas-resumo (usa dados em memória)
+      const totalConvidados = dados.convidados.length;
+      const confirmadosCount = dados.convidados.filter(c => c.status === 'Confirmado').length;
+      const totalAcompanhantes = dados.convidados.reduce((s, c) =>
+        s + (Array.isArray(c.acompanhantes) ? c.acompanhantes.length : 0), 0);
+      const totalPessoas = totalConvidados + totalAcompanhantes;
+      const totalFornecedores = (dados.fornecedores || []).length;
+      let _totContratado = 0, _totPago = 0;
+      (dados.fornecedores || []).forEach(f => {
+        _totContratado += Number(f.valorContratado) || 0;
+        _totPago += Number(f.valorPago) || 0;
       });
-      const orcamentoPdf = Number(dados.orcamentoTotal) || 0;
-      tituloSecao('Resumo financeiro');
-      linha('Orçamento total', orcamentoPdf > 0 ? formatarMoeda(orcamentoPdf) : 'não definido');
-      linha('Total contratado', formatarMoeda(totalContratado));
-      linha('Total pago', formatarMoeda(totalPago));
-      linha('Total pendente', formatarMoeda(totalContratado - totalPago));
-      if (orcamentoPdf > 0) {
-        const saldoPdf = orcamentoPdf - totalContratado;
-        const percentPdf = Math.round((totalContratado / orcamentoPdf) * 100);
-        linha('Saldo do orçamento', `${formatarMoeda(saldoPdf)} (${percentPdf}% comprometido)`);
-      }
-      y += 3;
+      (dados.despesas || []).forEach(d => {
+        _totContratado += Number(d.valorContratado) || 0;
+        _totPago += Number(d.valorPago) || 0;
+      });
+      subTitulo('Convidados');
+      linhaInfo('Titulares cadastrados', totalConvidados);
+      linhaInfo('Acompanhantes', totalAcompanhantes);
+      linhaInfo('Total de pessoas', totalPessoas);
+      linhaInfo('Presença confirmada (titulares)', confirmadosCount);
+      espaco(4);
+      subTitulo('Financeiro');
+      linhaInfo('Orçamento total', (Number(dados.orcamentoTotal) || 0) > 0 ? formatarMoeda(dados.orcamentoTotal) : 'não definido');
+      linhaInfo('Total contratado (fornecedores + despesas)', formatarMoeda(_totContratado));
+      linhaInfo('Total pago', formatarMoeda(_totPago));
+      linhaInfo('Total restante a pagar', formatarMoeda(_totContratado - _totPago));
+      linhaInfo('Fornecedores cadastrados', totalFornecedores);
 
-      // ----- Convidados -----
-      const confirmados = dados.convidados.filter(c => c.status === 'Confirmado').length;
-      tituloSecao('Convidados (' + dados.convidados.length + ' no total, ' + confirmados + ' confirmados)');
-      if (dados.convidados.length === 0) {
-        linha('', 'Nenhum convidado cadastrado');
-      } else {
-        dados.convidados.forEach(c => {
-          linha('•', `${c.nome} | ${c.lado || '-'} | ${c.categoria || '-'} | Presença: ${c.status || '-'}`);
+      // ===== Seção: Convidados =====
+      novaPagina();
+      tituloSecao('Convidados');
+      // Por lado
+      ['Noiva', 'Noivo'].forEach(lado => {
+        espaco(2);
+        subTitulo('Lado ' + lado);
+        const doLado = dados.convidados.filter(c => c.lado === lado);
+        const titularesL = doLado.length;
+        const acompL = doLado.reduce((s, c) => s + (Array.isArray(c.acompanhantes) ? c.acompanhantes.length : 0), 0);
+        linhaInfo('Resumo', `${titularesL} titular(es) + ${acompL} acompanhante(s) = ${titularesL + acompL} pessoa(s)`);
+        if (doLado.length === 0) {
+          doc.setFont('times', 'italic');
+          doc.setFontSize(9);
+          doc.setTextColor(COR_TEXTO_CLARO[0], COR_TEXTO_CLARO[1], COR_TEXTO_CLARO[2]);
+          doc.text('Sem convidados cadastrados deste lado.', margem, y);
+          y += 5;
+          return;
+        }
+        // Agrupa por categoria na ordem fixa
+        const ORDEM = ['Família', 'Padrinhos', 'Madrinhas', 'Trabalho', 'Amigos', 'Crianças', 'Outros'];
+        const grupos = {};
+        doLado.forEach(c => {
+          const cat = c.categoria || 'Outros';
+          if (!grupos[cat]) grupos[cat] = [];
+          grupos[cat].push(c);
         });
-      }
-      y += 3;
-
-      // ----- Compromissos -----
-      tituloSecao('Compromissos (' + dados.compromissos.length + ')');
-      if (dados.compromissos.length === 0) {
-        linha('', 'Nenhum compromisso cadastrado');
-      } else {
-        dados.compromissos.forEach(c => {
-          linha('•', `${c.titulo} | ${c.data || '-'} ${c.hora || ''} | ${c.local || '-'} | ${c.status || '-'} | Prioridade: ${c.prioridade || '-'}`);
+        const categorias = Object.keys(grupos).sort((a, b) => {
+          const ia = ORDEM.indexOf(a); const ib = ORDEM.indexOf(b);
+          return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
         });
-      }
-      y += 3;
-
-      // ----- Despesas -----
-      tituloSecao('Despesas (' + dados.despesas.length + ')');
-      if (dados.despesas.length === 0) {
-        linha('', 'Nenhuma despesa cadastrada');
-      } else {
-        dados.despesas.forEach(d => {
-          linha('•', `${d.categoria} - ${d.descricao || '-'} | Contratado: ${formatarMoeda(d.valorContratado)} | Pago: ${formatarMoeda(d.valorPago)} | ${d.status || '-'}`);
+        // Cabeçalho da tabela de convidados
+        // Larguras (somam larguraUtil = 180mm)
+        const cols = ['#', 'Nome', 'Status', 'Telefone', 'Detalhes'];
+        const larguras = [8, 50, 28, 32, 62];
+        let contador = 0;
+        categorias.forEach(cat => {
+          espaco(2);
+          // Mini-título da categoria
+          garantirEspaco(6);
+          doc.setFont('times', 'bold');
+          doc.setFontSize(9);
+          doc.setTextColor(COR_BRONZE[0], COR_BRONZE[1], COR_BRONZE[2]);
+          doc.text(cat + ' (' + grupos[cat].length + ')', margem, y);
+          y += 4;
+          cabecalhoTabela(cols, larguras);
+          grupos[cat].forEach((c, idx) => {
+            contador++;
+            const detalhes = [];
+            if (c.categoria === 'Família' && c.parentescoNoivo && c.parentescoNoivo.grau) {
+              const dq = c.parentescoNoivo.parenteDeQuem === 'Ambos' ? 'dos dois' : 'do(a) ' + (c.parentescoNoivo.parenteDeQuem || '').toLowerCase();
+              detalhes.push(c.parentescoNoivo.grau + ' ' + dq);
+            }
+            if (c.categoria === 'Crianças' && c.idade !== undefined && c.idade !== null) {
+              detalhes.push(c.idade + ' anos (' + (Number(c.idade) >= 8 ? 'paga buffet' : 'não paga') + ')');
+            }
+            if (c.observacoes && String(c.observacoes).trim()) detalhes.push('Obs: ' + c.observacoes);
+            linhaTabela(
+              [contador, c.nome || '', c.status || '', c.telefone || '', detalhes.join(' • ')],
+              larguras,
+              { fundo: idx % 2 === 0 }
+            );
+            // Acompanhantes (linha indentada abaixo)
+            const acomp = Array.isArray(c.acompanhantes) ? c.acompanhantes : [];
+            acomp.forEach(a => {
+              if (!a) return;
+              const partes = [];
+              if (a.parentesco) partes.push(a.parentesco);
+              if (a.tipo === 'Criança' && a.idade !== undefined && a.idade !== null) {
+                partes.push(a.idade + ' anos');
+              }
+              if (a.parentescoNoivo && a.parentescoNoivo.grau) {
+                const dq = a.parentescoNoivo.parenteDeQuem === 'Ambos' ? 'dos dois' : 'do(a) ' + (a.parentescoNoivo.parenteDeQuem || '').toLowerCase();
+                partes.push(a.parentescoNoivo.grau + ' ' + dq);
+              }
+              if (a.papelPadrinho) partes.push(a.papelPadrinho.toLowerCase());
+              if (a.observacoes) partes.push('Obs: ' + a.observacoes);
+              garantirEspaco(4);
+              doc.setFont('times', 'italic');
+              doc.setFontSize(8);
+              doc.setTextColor(COR_TEXTO_CLARO[0], COR_TEXTO_CLARO[1], COR_TEXTO_CLARO[2]);
+              const txtAc = '   > ' + (a.nome || 'sem nome') + (partes.length ? ' — ' + partes.join(', ') : '');
+              const lns = doc.splitTextToSize(txtAc, larguraUtil - 2);
+              doc.text(lns, margem + 2, y + 3);
+              // Borda inferior fina
+              const alturaAc = Math.max(4, lns.length * 3.5);
+              doc.setDrawColor(220, 215, 205);
+              doc.setLineWidth(0.1);
+              doc.line(margem, y + alturaAc, larguraPagina - margem, y + alturaAc);
+              y += alturaAc;
+            });
+          });
+          espaco(3);
         });
-      }
-      y += 3;
+      });
 
-      // ----- Fornecedores -----
-      tituloSecao('Fornecedores (' + dados.fornecedores.length + ')');
-      if (dados.fornecedores.length === 0) {
-        linha('', 'Nenhum fornecedor cadastrado');
-      } else {
-        dados.fornecedores.forEach(f => {
-          linha('•', `${f.nome} | ${f.categoria || '-'} | ${f.status || '-'} | Contratado: ${formatarMoeda(f.valorContratado)} | Pago: ${formatarMoeda(f.valorPago)}`);
-        });
+      // ===== Seção: Financeiro =====
+      novaPagina();
+      tituloSecao('Financeiro');
+      // Resumo geral
+      subTitulo('Resumo');
+      linhaInfo('Orçamento total', (Number(dados.orcamentoTotal) || 0) > 0 ? formatarMoeda(dados.orcamentoTotal) : 'não definido');
+      linhaInfo('Total contratado', formatarMoeda(_totContratado));
+      linhaInfo('Total pago', formatarMoeda(_totPago));
+      linhaInfo('Restante a pagar', formatarMoeda(_totContratado - _totPago));
+      if ((Number(dados.orcamentoTotal) || 0) > 0) {
+        const pct = Math.round((_totContratado / dados.orcamentoTotal) * 100);
+        linhaInfo('Comprometido do orçamento', pct + '%');
       }
-      y += 3;
+      espaco(4);
 
-      // ----- Mesas -----
-      tituloSecao('Mesas (' + dados.mesas.length + ')');
-      if (dados.mesas.length === 0) {
-        linha('', 'Nenhuma mesa cadastrada');
+      // Tabela de fornecedores
+      subTitulo('Fornecedores (' + ((dados.fornecedores || []).length) + ')');
+      const fornArr = dados.fornecedores || [];
+      if (fornArr.length === 0) {
+        doc.setFont('times', 'italic');
+        doc.setFontSize(9);
+        doc.setTextColor(COR_TEXTO_CLARO[0], COR_TEXTO_CLARO[1], COR_TEXTO_CLARO[2]);
+        doc.text('Nenhum fornecedor cadastrado.', margem, y);
+        y += 5;
       } else {
-        dados.mesas.forEach(m => {
-          const assentos = Array.isArray(m.assentos) ? m.assentos : [];
-          const ocupacao = assentos.filter(a => a !== null).length;
-          const nomeFormato = { redonda: 'Redonda', quadrada: 'Quadrada', retangular: 'Retangular' }[m.formato] || 'Redonda';
-          linha('•', `${m.nome} (${nomeFormato}) | Lugares: ${m.capacidade} | Ocupação: ${ocupacao}/${m.capacidade}`);
-          // lista quem está sentado, se houver
-          const sentados = assentos
-            .map((a, i) => a ? `cad. ${i + 1}: ${a}` : null)
-            .filter(Boolean);
-          if (sentados.length > 0) {
-            linha('   ', sentados.join(' | '));
+        const colsF = ['#', 'Nome / Categoria', 'Status', 'Contratado', 'Pago', 'Restante'];
+        const largF = [8, 55, 27, 30, 30, 30];
+        cabecalhoTabela(colsF, largF);
+        fornArr.forEach((f, idx) => {
+          const restante = (Number(f.valorContratado) || 0) - (Number(f.valorPago) || 0);
+          let nomeCat = (f.nome || '') + '\n' + (f.categoria || '');
+          // Para Buffet mostra valor/pessoa
+          if (f.categoria === 'Buffet' && Number(f.valorPorPessoa) > 0) {
+            nomeCat += ' (' + formatarMoeda(f.valorPorPessoa) + '/pessoa)';
+          }
+          linhaTabela(
+            [idx + 1, nomeCat, f.status || '', formatarMoeda(f.valorContratado), formatarMoeda(f.valorPago), formatarMoeda(restante)],
+            largF,
+            { fundo: idx % 2 === 0 }
+          );
+          // Sub-linha com parcelas, se houver
+          const parc = Array.isArray(f.parcelas) ? f.parcelas : [];
+          if (parc.length > 0) {
+            const pagas = parc.filter(p => p.pagamento && dataValida(p.pagamento)).length;
+            garantirEspaco(4);
+            doc.setFont('times', 'italic');
+            doc.setFontSize(7.5);
+            doc.setTextColor(COR_TEXTO_CLARO[0], COR_TEXTO_CLARO[1], COR_TEXTO_CLARO[2]);
+            const txtP = '   > ' + parc.length + ' parcela(s), ' + pagas + ' paga(s). Vencimentos: ' +
+              parc.map(p => p.vencimento || '—').join(', ');
+            const lns = doc.splitTextToSize(txtP, larguraUtil - 2);
+            doc.text(lns, margem + 2, y + 3);
+            y += Math.max(4, lns.length * 3.3);
+          }
+          // Próximo vencimento se houver
+          if (f.dataAssinatura) {
+            doc.setFont('times', 'italic');
+            doc.setFontSize(7.5);
+            doc.setTextColor(COR_TEXTO_CLARO[0], COR_TEXTO_CLARO[1], COR_TEXTO_CLARO[2]);
+            doc.text('   Contrato assinado em ' + f.dataAssinatura, margem + 2, y + 3);
+            y += 3.5;
           }
         });
       }
+      espaco(4);
 
-      // ----- Checklist de tarefas -----
-      const tarefas = Array.isArray(dados.tarefas) ? dados.tarefas : [];
-      const feitas = tarefas.filter(t => t.concluida).length;
-      tituloSecao(`Checklist de tarefas (${feitas}/${tarefas.length} concluídas)`);
-      if (tarefas.length === 0) {
-        linha('', 'Nenhuma tarefa cadastrada');
-      } else {
-        tarefas.forEach(t => {
-          const marca = t.concluida ? '[X]' : '[ ]';
-          let txt = t.texto;
-          const extras = [];
-          if (t.prioridade && t.prioridade !== 'Baixa') extras.push('Prioridade: ' + t.prioridade);
-          if (t.dataLimite) extras.push('Limite: ' + t.dataLimite);
-          if (extras.length) txt += '  (' + extras.join(' | ') + ')';
-          linha(marca, txt);
+      // Despesas avulsas
+      const despArr = dados.despesas || [];
+      if (despArr.length > 0) {
+        subTitulo('Despesas avulsas (' + despArr.length + ')');
+        const colsD = ['#', 'Categoria / Descrição', 'Status', 'Contratado', 'Pago', 'Vencimento'];
+        const largD = [8, 60, 27, 28, 28, 29];
+        cabecalhoTabela(colsD, largD);
+        despArr.forEach((d, idx) => {
+          const txt = (d.categoria || '') + (d.descricao ? '\n' + d.descricao : '');
+          linhaTabela(
+            [idx + 1, txt, d.status || '', formatarMoeda(d.valorContratado), formatarMoeda(d.valorPago), d.dataVencimento || '—'],
+            largD,
+            { fundo: idx % 2 === 0 }
+          );
         });
       }
 
-      // ----- Lista de espera -----
-      const espera = Array.isArray(dados.listaEspera) ? dados.listaEspera : [];
-      tituloSecao(`Lista de espera (${espera.length})`);
-      if (espera.length === 0) {
-        linha('', 'Vazia');
-      } else {
-        espera.forEach((p, i) => {
-          linha('•', `#${i + 1} ${p.nome} — ${p.categoria || '-'} | Lado: ${p.lado || '-'}`);
-        });
-      }
-
-      // ----- Rodapé com numeração de páginas -----
+      // ===== Moldura e rodapé numerado em todas as páginas =====
       const totalPaginas = doc.internal.getNumberOfPages();
+      // Margem da moldura: um pouco fora da margem de conteúdo, para
+      // a borda "respirar" e não tocar no texto.
+      const molduraMargem = margem - 5; // 10mm da borda física da folha
       for (let i = 1; i <= totalPaginas; i++) {
         doc.setPage(i);
+        // Borda externa: bronze, mais grossa
+        doc.setDrawColor(COR_BRONZE[0], COR_BRONZE[1], COR_BRONZE[2]);
+        doc.setLineWidth(0.8);
+        doc.rect(
+          molduraMargem,
+          molduraMargem,
+          larguraPagina - 2 * molduraMargem,
+          alturaPagina - 2 * molduraMargem
+        );
+        // Borda interna: champagne, mais fina (2mm para dentro)
+        doc.setDrawColor(COR_CHAMPAGNE[0], COR_CHAMPAGNE[1], COR_CHAMPAGNE[2]);
+        doc.setLineWidth(0.3);
+        doc.rect(
+          molduraMargem + 2,
+          molduraMargem + 2,
+          larguraPagina - 2 * (molduraMargem + 2),
+          alturaPagina - 2 * (molduraMargem + 2)
+        );
+        // Linha fina acima do rodapé (separador)
+        doc.setDrawColor(COR_CHAMPAGNE[0], COR_CHAMPAGNE[1], COR_CHAMPAGNE[2]);
+        doc.setLineWidth(0.2);
+        doc.line(margem, alturaPagina - margem - 4, larguraPagina - margem, alturaPagina - margem - 4);
+        // Texto do rodapé
+        doc.setFont('times', 'italic');
         doc.setFontSize(8);
-        doc.setTextColor(150, 150, 150);
-        doc.text('Paula & Fábio Jr — página ' + i + ' de ' + totalPaginas, larguraPagina / 2, alturaPagina - 8, { align: 'center' });
+        doc.setTextColor(COR_TEXTO_CLARO[0], COR_TEXTO_CLARO[1], COR_TEXTO_CLARO[2]);
+        doc.text('Paula & Fábio Jr', margem, alturaPagina - margem);
+        doc.text('Página ' + i + ' de ' + totalPaginas, larguraPagina - margem, alturaPagina - margem, { align: 'right' });
       }
 
       const hoje = new Date();
       const carimbo = `${String(hoje.getDate()).padStart(2,'0')}-${String(hoje.getMonth()+1).padStart(2,'0')}-${hoje.getFullYear()}`;
-      doc.save(`relatorio-casamento-${carimbo}.pdf`);
+      doc.save(`backup-paula-fabio-${carimbo}.pdf`);
     }
 
     // ----- Novas funcionalidades para convidados -----
@@ -7038,6 +7372,12 @@ function atualizarValoresBuffet() {
     // usuário digita a senha correta na telaSenha (ver validarSenhaSistema).
     // Apenas garantimos que o foco vá para o campo de senha ao carregar.
     window.addEventListener('load', () => {
+      // Item 4°: se a sessão ainda está dentro das 24h, pula a tela de senha
+      if (sessaoAindaValida()) {
+        entrarNoSistema();
+        return;
+      }
+      // Senão, foca no campo de senha para o usuário digitar
       const inp = document.getElementById('inputSenhaSistema');
       if (inp) inp.focus();
     });
@@ -7098,6 +7438,8 @@ function atualizarValoresBuffet() {
             localStorage.removeItem('gestaoCasamento');
             localStorage.removeItem('gestaoCasamento_backup');
             localStorage.removeItem('gestaoCasamento_ultimaExportacao');
+            // Item 4°: invalida a sessão para que ao recarregar peça senha de novo
+            limparSessao();
           } catch (e) { /* ignora — pode estar bloqueado */ }
           alert('Dados apagados com sucesso. A página será recarregada.');
           location.reload();
