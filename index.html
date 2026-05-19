@@ -4822,10 +4822,29 @@
         return a.localeCompare(b);
       });
       let contador = 0;
+      // Helper local (mesma lógica do listarConvidadosPorLado)
+      const CATEGORIAS_MISTAS_LE = new Set(['Família', 'Amigos', 'Trabalho', 'Outros']);
+      function _contarACLE(arr) {
+        let adultos = 0, criancas = 0;
+        arr.forEach(({ c }) => {
+          if (c.categoria === 'Crianças') criancas++; else adultos++;
+          const acomp = Array.isArray(c.acompanhantes) ? c.acompanhantes : [];
+          acomp.forEach(a => { if (a && a.tipo === 'Criança') criancas++; else adultos++; });
+        });
+        return { adultos, criancas, total: adultos + criancas };
+      }
+      function _formatarContagemLE(cat, arr) {
+        const ct = _contarACLE(arr);
+        if (CATEGORIAS_MISTAS_LE.has(cat) && ct.criancas > 0) {
+          return { total: ct.total, sufixo: ` — Adultos (${ct.adultos}) — Crianças (${ct.criancas})` };
+        }
+        return { total: ct.total, sufixo: '' };
+      }
       categorias.forEach(cat => {
         const titulo = document.createElement('h4');
         titulo.style.cssText = 'margin-top:1rem; margin-bottom:0.3rem; border-bottom:1px solid var(--cor-borda-suave); padding-bottom:0.2rem;';
-        titulo.textContent = `${cat} (${grupos[cat].length})`;
+        const ct = _formatarContagemLE(cat, grupos[cat]);
+        titulo.textContent = `${cat} (${ct.total})${ct.sufixo}`;
         cont.appendChild(titulo);
         grupos[cat].forEach(({ c, idxOriginal }) => {
           contador++;
@@ -6993,10 +7012,37 @@ function atualizarValoresBuffet() {
         det.appendChild(acoes);
         cont.appendChild(det);
       }
+      // Helper para contagem adultos/crianças dentro de um conjunto de
+      // titulares (cada item tem .c). Considera os ACOMPANHANTES também.
+      // Critério: criança = titular com categoria 'Crianças' OU acompanhante
+      // com tipo 'Criança'. Adulto = todo o resto.
+      function _contarAdultosCriancas(arr) {
+        let adultos = 0, criancas = 0;
+        arr.forEach(({ c }) => {
+          if (c.categoria === 'Crianças') criancas++; else adultos++;
+          const acomp = Array.isArray(c.acompanhantes) ? c.acompanhantes : [];
+          acomp.forEach(a => {
+            if (a && a.tipo === 'Criança') criancas++; else adultos++;
+          });
+        });
+        return { adultos, criancas, total: adultos + criancas };
+      }
+      // Categorias "mistas" — só nelas mostramos a divisão adulto/criança.
+      // Padrinhos/Madrinhas/Crianças são homogêneas e ficam com contagem simples.
+      const CATEGORIAS_MISTAS = new Set(['Família', 'Amigos', 'Trabalho', 'Outros']);
+      function _formatarContagemCategoria(cat, arr) {
+        const c = _contarAdultosCriancas(arr);
+        if (CATEGORIAS_MISTAS.has(cat) && c.criancas > 0) {
+          // Formato: "Cat (Total) — Adultos (X) — Crianças (Y)"
+          return { total: c.total, sufixo: ` — Adultos (${c.adultos}) — Crianças (${c.criancas})` };
+        }
+        return { total: c.total, sufixo: '' };
+      }
       categorias.forEach(cat => {
         const titulo = document.createElement('h4');
         titulo.style.cssText = 'margin-top:1rem; margin-bottom:0.3rem; border-bottom:1px solid var(--cor-borda-suave); padding-bottom:0.2rem;';
-        titulo.textContent = `${cat} (${grupos[cat].length})`;
+        const ct = _formatarContagemCategoria(cat, grupos[cat]);
+        titulo.textContent = `${cat} (${ct.total})${ct.sufixo}`;
         cont.appendChild(titulo);
         // Família: subdivide em "parente da Noiva", "parente do Noivo", "dos dois"
         if (cat === 'Família') {
@@ -7018,7 +7064,9 @@ function atualizarValoresBuffet() {
             if (!arr || arr.length === 0) return;
             const subTit = document.createElement('div');
             subTit.style.cssText = 'margin-top:0.6rem; margin-bottom:0.3rem; font-size:0.8rem; color:var(--cor-bronze); font-weight:600; text-transform:uppercase; letter-spacing:0.05em;';
-            subTit.textContent = `${label} (${arr.length})`;
+            // Família é mista — também leva divisão adultos/crianças por sub-grupo
+            const ctSub = _formatarContagemCategoria('Família', arr);
+            subTit.textContent = `${label} (${ctSub.total})${ctSub.sufixo}`;
             cont.appendChild(subTit);
             _ordenarGrupo(arr, 'grau').forEach(({ c, idxOriginal }) => {
               _renderizarConvidadoNoModal(c, idxOriginal);
