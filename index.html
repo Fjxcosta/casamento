@@ -3318,24 +3318,26 @@
     }
     function abrirModalParentescoParaConvidado() {
       modalParentescoAlvo = 'convidado';
-      // Pré-preenche se já tem definido
-      if (parentescoConvidadoAtual) {
-        document.getElementById('grauParentesco').value = parentescoConvidadoAtual.grau || '';
+      // SEMPRE zera os campos do modal primeiro, para garantir que valores
+      // antigos (de uma chamada anterior ao modal, possivelmente para
+      // acompanhante) não vazem para o titular novo.
+      document.getElementById('grauParentesco').value = '';
+      document.getElementById('parenteDeQuem').value = '';
+      // Pré-preenche SE o titular atual já tem parentesco definido
+      if (parentescoConvidadoAtual && parentescoConvidadoAtual.grau) {
+        document.getElementById('grauParentesco').value = parentescoConvidadoAtual.grau;
         document.getElementById('parenteDeQuem').value = parentescoConvidadoAtual.parenteDeQuem || '';
-      } else {
-        document.getElementById('grauParentesco').value = '';
-        document.getElementById('parenteDeQuem').value = '';
       }
       abrirModalParentesco();
     }
     function abrirModalParentescoParaAcompanhante() {
       modalParentescoAlvo = 'acompanhante';
-      if (parentescoAcompanhanteAtual) {
-        document.getElementById('grauParentesco').value = parentescoAcompanhanteAtual.grau || '';
+      // Mesma blindagem: zera primeiro, preenche depois se houver dado válido
+      document.getElementById('grauParentesco').value = '';
+      document.getElementById('parenteDeQuem').value = '';
+      if (parentescoAcompanhanteAtual && parentescoAcompanhanteAtual.grau) {
+        document.getElementById('grauParentesco').value = parentescoAcompanhanteAtual.grau;
         document.getElementById('parenteDeQuem').value = parentescoAcompanhanteAtual.parenteDeQuem || '';
-      } else {
-        document.getElementById('grauParentesco').value = '';
-        document.getElementById('parenteDeQuem').value = '';
       }
       abrirModalParentesco();
     }
@@ -3467,6 +3469,9 @@
       alternarCampoIdadeConvidado();
       // Reseta o parentesco e oculta o grupo
       parentescoConvidadoAtual = null;
+      // Também zera o estado do parentesco de acompanhante — se ficou um
+      // valor de uma sessão de cadastro anterior, ele não deve vazar.
+      parentescoAcompanhanteAtual = null;
       const grupoP = document.getElementById('grupoParentescoConvidado');
       if (grupoP) grupoP.style.display = 'none';
       atualizarResumoParentescoConvidado();
@@ -4788,11 +4793,15 @@
       if (!cont) return;
       cont.innerHTML = '';
       const grupos = {};
+      function _chaveGrupoLE(cat) {
+        if (cat === 'Padrinhos' || cat === 'Madrinhas') return 'Padrinhos/Madrinhas';
+        return cat || 'Sem categoria';
+      }
       dados.listaEspera.forEach((c, idxOriginal) => {
         if (c.lado !== lado) return;
-        const cat = c.categoria || 'Sem categoria';
-        if (!grupos[cat]) grupos[cat] = [];
-        grupos[cat].push({ c, idxOriginal });
+        const chave = _chaveGrupoLE(c.categoria);
+        if (!grupos[chave]) grupos[chave] = [];
+        grupos[chave].push({ c, idxOriginal });
       });
       const categorias = Object.keys(grupos);
       if (categorias.length === 0) {
@@ -4811,8 +4820,8 @@
         resumo.textContent = `Total: ${totalLado} pessoa(s) na espera.`;
       }
       cont.appendChild(resumo);
-      // Mesma ordem fixa dos convidados
-      const ORDEM_CATEGORIAS = ['Família', 'Padrinhos', 'Madrinhas', 'Trabalho', 'Amigos', 'Crianças', 'Outros', 'Sem categoria'];
+      // Mesma ordem fixa dos convidados (Padrinhos/Madrinhas unificados)
+      const ORDEM_CATEGORIAS = ['Família', 'Padrinhos/Madrinhas', 'Trabalho', 'Amigos', 'Crianças', 'Outros', 'Sem categoria'];
       categorias.sort((a, b) => {
         const ia = ORDEM_CATEGORIAS.indexOf(a);
         const ib = ORDEM_CATEGORIAS.indexOf(b);
@@ -6628,11 +6637,13 @@ function atualizarValoresBuffet() {
           y += 5;
           return;
         }
-        // Agrupa por categoria na ordem fixa
-        const ORDEM = ['Família', 'Padrinhos', 'Madrinhas', 'Trabalho', 'Amigos', 'Crianças', 'Outros'];
+        // Agrupa por categoria na ordem fixa.
+        // Item 2°: Padrinhos e Madrinhas no mesmo grupo "Padrinhos/Madrinhas"
+        const ORDEM = ['Família', 'Padrinhos/Madrinhas', 'Trabalho', 'Amigos', 'Crianças', 'Outros'];
         const grupos = {};
         doLado.forEach(c => {
-          const cat = c.categoria || 'Outros';
+          let cat = c.categoria || 'Outros';
+          if (cat === 'Padrinhos' || cat === 'Madrinhas') cat = 'Padrinhos/Madrinhas';
           if (!grupos[cat]) grupos[cat] = [];
           grupos[cat].push(c);
         });
@@ -6836,13 +6847,19 @@ function atualizarValoresBuffet() {
       const cont = document.getElementById(containerId);
       if (!cont) return;
       cont.innerHTML = '';
-      // Agrupa convidados por categoria, mantendo o índice ORIGINAL para editar/excluir
+      // Agrupa convidados por categoria, mantendo o índice ORIGINAL para editar/excluir.
+      // Item 2°: Padrinhos e Madrinhas viram um GRUPO ÚNICO chamado
+      // "Padrinhos/Madrinhas" (mantém-se a categoria interna do dado).
       const grupos = {};
+      function _chaveGrupo(cat) {
+        if (cat === 'Padrinhos' || cat === 'Madrinhas') return 'Padrinhos/Madrinhas';
+        return cat || 'Outros';
+      }
       dados.convidados.forEach((c, idxOriginal) => {
         if (c.lado !== lado) return;
-        const cat = c.categoria || 'Outros';
-        if (!grupos[cat]) grupos[cat] = [];
-        grupos[cat].push({ c, idxOriginal });
+        const chave = _chaveGrupo(c.categoria);
+        if (!grupos[chave]) grupos[chave] = [];
+        grupos[chave].push({ c, idxOriginal });
       });
       const categorias = Object.keys(grupos);
       if (categorias.length === 0) {
@@ -6867,7 +6884,8 @@ function atualizarValoresBuffet() {
       cont.appendChild(resumo);
 
       // Item 5°: ordem fixa das categorias (não alfabética)
-      const ORDEM_CATEGORIAS = ['Família', 'Padrinhos', 'Madrinhas', 'Trabalho', 'Amigos', 'Crianças', 'Outros'];
+      // Padrinhos e Madrinhas estão unidos em "Padrinhos/Madrinhas"
+      const ORDEM_CATEGORIAS = ['Família', 'Padrinhos/Madrinhas', 'Trabalho', 'Amigos', 'Crianças', 'Outros'];
       categorias.sort((a, b) => {
         const ia = ORDEM_CATEGORIAS.indexOf(a);
         const ib = ORDEM_CATEGORIAS.indexOf(b);
@@ -7078,6 +7096,12 @@ function atualizarValoresBuffet() {
         let arrOrd;
         if (cat === 'Amigos') {
           arrOrd = _ordenarGrupo(grupos[cat], 'alfabetica');
+        } else if (cat === 'Padrinhos/Madrinhas') {
+          // Item 2°: Padrinhos primeiro, depois Madrinhas (mantém categoria interna)
+          const padrs = grupos[cat].filter(({c}) => c.categoria === 'Padrinhos');
+          const madrs = grupos[cat].filter(({c}) => c.categoria === 'Madrinhas');
+          const outros = grupos[cat].filter(({c}) => c.categoria !== 'Padrinhos' && c.categoria !== 'Madrinhas');
+          arrOrd = padrs.concat(madrs).concat(outros);
         } else {
           arrOrd = grupos[cat];
         }
