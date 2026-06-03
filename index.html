@@ -2595,6 +2595,165 @@
       try { localStorage.removeItem(SESSAO_CHAVE); } catch (e) { /* ignora */ }
     }
 
+    // ===== Controle de sessão única (1 acesso por vez) =====
+    // Como o sistema usa UMA senha compartilhada e UMA linha de dados na nuvem,
+    // dois acessos simultâneos se sobre-escreveriam. Para impedir isso usamos um
+    // "lock" (cadeado) guardado no Supabase, numa LINHA SEPARADA da tabela —
+    // assim a lógica de sessão NUNCA toca nos dados do casamento.
+    const LOCK_TIPO = 'session_lock';
+    const INATIVIDADE_MS = 2 * 60 * 1000;   // 2 min sem interação -> logout
+    const LOCK_TTL_MS = 150 * 1000;         // 2,5 min: cobre fechamento "bruto" (queda/crash)
+    const HEARTBEAT_MS = 30 * 1000;         // renova o cadeado a cada 30s
+    let meuToken = null;                    // identifica ESTA aba/dispositivo
+    let lockRowId = null;                   // id da linha-cadeado na nuvem
+    let _heartbeatTimer = null;
+    let _inatividadeTimer = null;
+    let _logoutEmAndamento = false;
+
+    function gerarToken() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+    }
+
+    // Lê a linha-cadeado. Retorna {id,token,ts} | null (não existe) | undefined (erro).
+    async function lerLock() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('dados_casamento')
+          .select('id,"Dados"');
+        if (error) throw error;
+        const linha = (data || []).find(r => r.Dados && r.Dados._tipo === LOCK_TIPO);
+        if (!linha) return null;
+        return { id: linha.id, token: linha.Dados.token || null, ts: Number(linha.Dados.ts || 0) };
+      } catch (e) {
+        console.warn('Sessão: falha ao ler o cadeado.', e);
+        return undefined;
+      }
+    }
+
+    async function escreverLock(idExistente, token, ts) {
+      const payload = { _tipo: LOCK_TIPO, token: token, ts: ts };
+      try {
+        if (idExistente) {
+          const { error } = await supabaseClient.from('dados_casamento')
+            .update({ "Dados": payload }).eq('id', idExistente);
+          if (error) throw error;
+          lockRowId = idExistente;
+        } else {
+          const { data, error } = await supabaseClient.from('dados_casamento')
+            .insert({ "Dados": payload }).select('id');
+          if (error) throw error;
+          lockRowId = data && data[0] && data[0].id;
+        }
+        return true;
+      } catch (e) {
+        console.warn('Sessão: falha ao escrever o cadeado.', e);
+        return false;
+      }
+    }
+
+    // Tenta tomar o cadeado.
+    // Retorna: true (consegui) | false (há outro acesso ativo) | 'falhou' (mecanismo indisponível).
+    async function adquirirLock() {
+      if (!supabaseClient) return 'falhou';
+      meuToken = meuToken || gerarToken();
+      const atual = await lerLock();
+      if (atual === undefined) return 'falhou'; // não consegui verificar -> não trava o casal
+      const agora = Date.now();
+      const ocupadoPorOutro = atual && atual.token && atual.token !== meuToken
+        && (agora - atual.ts) < LOCK_TTL_MS;
+      if (ocupadoPorOutro) return false;
+      const ok = await escreverLock(atual ? atual.id : null, meuToken, Date.now());
+      if (!ok) return 'falhou'; // sem permissão de escrita -> não trava o casal
+      // Guarda anti-corrida: confirma que o cadeado ainda é meu.
+      await new Promise(r => setTimeout(r, 800));
+      const conf = await lerLock();
+      if (conf && conf.token && conf.token !== meuToken && (Date.now() - conf.ts) < LOCK_TTL_MS) {
+        return false;
+      }
+      return true;
+    }
+
+    function iniciarHeartbeat() {
+      pararHeartbeat();
+      _heartbeatTimer = setInterval(async () => {
+        const atual = await lerLock();
+        if (atual && atual.token && atual.token !== meuToken && (Date.now() - atual.ts) < LOCK_TTL_MS) {
+          forcarLogout('Sua sessão foi encerrada porque outro acesso foi aberto.');
+          return;
+        }
+        escreverLock(lockRowId, meuToken, Date.now());
+      }, HEARTBEAT_MS);
+    }
+    function pararHeartbeat() {
+      if (_heartbeatTimer) { clearInterval(_heartbeatTimer); _heartbeatTimer = null; }
+    }
+
+    // Libera o cadeado (só se ainda for meu). Usado no logout normal.
+    async function liberarLock() {
+      pararHeartbeat();
+      if (!supabaseClient || !lockRowId) return;
+      try {
+        const atual = await lerLock();
+        if (atual && atual.token === meuToken) {
+          await escreverLock(lockRowId, null, 0);
+        }
+      } catch (e) { /* o TTL limpa sozinho se isto falhar */ }
+    }
+
+    // Liberação no fechamento da aba/janela: usa fetch keepalive porque o
+    // cliente Supabase normal pode não terminar durante o "unload".
+    function liberarLockBeacon() {
+      if (!lockRowId) return;
+      try {
+        const url = SUPABASE_URL + '/rest/v1/dados_casamento?id=eq.' + encodeURIComponent(lockRowId);
+        fetch(url, {
+          method: 'PATCH',
+          keepalive: true,
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({ "Dados": { _tipo: LOCK_TIPO, token: null, ts: 0 } })
+        });
+      } catch (e) { /* o TTL cobre se falhar */ }
+    }
+
+    // Inatividade: 2 min sem interação -> logout automático.
+    function resetarInatividade() {
+      if (_logoutEmAndamento) return;
+      if (_inatividadeTimer) clearTimeout(_inatividadeTimer);
+      _inatividadeTimer = setTimeout(() => {
+        forcarLogout('Você ficou 2 minutos inativo. Faça login novamente.');
+      }, INATIVIDADE_MS);
+    }
+    function iniciarMonitorInatividade() {
+      ['mousemove','mousedown','keydown','touchstart','scroll','click','wheel'].forEach(ev =>
+        document.addEventListener(ev, resetarInatividade, { passive: true }));
+      resetarInatividade();
+    }
+    function pararMonitorInatividade() {
+      if (_inatividadeTimer) { clearTimeout(_inatividadeTimer); _inatividadeTimer = null; }
+    }
+
+    // Desloga: para timers, libera o cadeado e volta para a tela de senha.
+    function forcarLogout(mensagem) {
+      if (_logoutEmAndamento) return;
+      _logoutEmAndamento = true;
+      pararMonitorInatividade();
+      pararHeartbeat();
+      liberarLock();          // assíncrono, melhor-esforço
+      limparSessao();
+      const tela = document.getElementById('telaSenha');
+      if (tela) tela.style.display = 'flex';
+      const inp = document.getElementById('inputSenhaSistema');
+      if (inp) inp.value = '';
+      const erro = document.getElementById('erroSenhaSistema');
+      if (erro && mensagem) { erro.textContent = mensagem; erro.style.display = 'block'; }
+      setTimeout(() => { _logoutEmAndamento = false; if (inp) inp.focus(); }, 200);
+    }
+
     function validarSenhaSistema() {
       const inp = document.getElementById('inputSenhaSistema');
       const erro = document.getElementById('erroSenhaSistema');
@@ -2613,12 +2772,35 @@
     }
 
     // Entra no sistema após a validação (ou após detectar sessão válida).
-    // Separada para ser reusada tanto pela validação manual quanto pela
-    // sessão persistida.
-    function entrarNoSistema() {
+    // Antes de liberar o acesso, tenta tomar o cadeado de sessão única.
+    async function entrarNoSistema() {
       const tela = document.getElementById('telaSenha');
+      const erro = document.getElementById('erroSenhaSistema');
+      setIndicadorSync('salvando', 'Verificando acesso...');
+      const res = await adquirirLock();
+      if (res === false) {
+        // Já existe outro acesso ativo -> bloqueia este.
+        if (tela) tela.style.display = 'flex';
+        if (erro) {
+          erro.textContent = 'Já existe um acesso ativo neste sistema. Aguarde alguns minutos (a sessão anterior expira por inatividade) e tente novamente.';
+          erro.style.display = 'block';
+        }
+        const inp = document.getElementById('inputSenhaSistema');
+        if (inp) { inp.value = ''; inp.focus(); }
+        limparSessao(); // não deixa a "sessão de 24h" furar o controle
+        setIndicadorSync('erro', 'Acesso bloqueado');
+        return;
+      }
+      if (res === 'falhou') {
+        // Mecanismo de cadeado indisponível (ex.: sem permissão na nuvem).
+        // Entra mesmo assim para não trancar o casal fora dos próprios dados.
+        console.warn('Sessão única indisponível — entrando sem bloqueio compartilhado.');
+      }
+      _logoutEmAndamento = false;
       if (tela) tela.style.display = 'none';
       setIndicadorSync('salvando', 'Carregando...');
+      iniciarHeartbeat();
+      iniciarMonitorInatividade();
       carregarDaNuvem().then(ok => {
         if (ok) {
           if (typeof inicializar === 'function') inicializar();
@@ -7461,6 +7643,12 @@ function atualizarValoresBuffet() {
       const inp = document.getElementById('inputSenhaSistema');
       if (inp) inp.focus();
     });
+
+    // Item: ao fechar a aba/janela (X), libera o cadeado e encerra a sessão,
+    // para que outro acesso possa entrar imediatamente. O TTL na nuvem é a
+    // rede de segurança caso o navegador feche sem disparar estes eventos.
+    window.addEventListener('pagehide', () => { liberarLockBeacon(); limparSessao(); });
+    window.addEventListener('beforeunload', () => { liberarLockBeacon(); limparSessao(); });
 
     // ===== Item 2°: Limpar dados (com senha) =====
     // Apaga TODOS os dados do sistema. Exige senha hardcoded e confirmação dupla.
