@@ -1102,6 +1102,10 @@
           <input type="text" id="enderecoCasamento" placeholder="Endereço completo do casamento">
         </div>
         <div class="form-group">
+          <label for="celebrante">Celebrante (padre/pastor/oficiante)</label>
+          <input type="text" id="celebrante" placeholder="Nome de quem realizará a celebração">
+        </div>
+        <div class="form-group">
           <label for="localFesta">Local da festa</label>
           <input type="text" id="localFesta" placeholder="Local da festa">
         </div>
@@ -2446,6 +2450,7 @@
       horaCasamento: '',
       localCasamento: '',
       enderecoCasamento: '',
+      celebrante: '',
       localFesta: '',
       enderecoFesta: '',
       orcamentoTotal: 0,
@@ -3010,6 +3015,7 @@
       const hora = document.getElementById('horaCasamento').value;
       const local = document.getElementById('localCasamento').value.trim();
       const endereco = document.getElementById('enderecoCasamento').value.trim();
+      const celebrante = document.getElementById('celebrante').value.trim();
       const localFesta = document.getElementById('localFesta').value.trim();
       const enderecoFesta = document.getElementById('enderecoFesta').value.trim();
       // validar data
@@ -3021,6 +3027,7 @@
       dados.horaCasamento = hora;
       dados.localCasamento = local;
       dados.enderecoCasamento = endereco;
+      dados.celebrante = celebrante;
       dados.localFesta = localFesta;
       dados.enderecoFesta = enderecoFesta;
       salvarDados();
@@ -6129,6 +6136,7 @@ function atualizarValoresBuffet() {
       document.getElementById('horaCasamento').value = dados.horaCasamento || '';
       document.getElementById('localCasamento').value = dados.localCasamento || '';
       document.getElementById('enderecoCasamento').value = dados.enderecoCasamento || '';
+      document.getElementById('celebrante').value = dados.celebrante || '';
       document.getElementById('localFesta').value = dados.localFesta || '';
       document.getElementById('enderecoFesta').value = dados.enderecoFesta || '';
     }
@@ -6371,7 +6379,7 @@ function atualizarValoresBuffet() {
         // Aplica os dados importados sobre o objeto existente, preservando
         // chaves ausentes com valores padrão.
         const padrao = {
-          dataCasamento: '', horaCasamento: '', localCasamento: '', enderecoCasamento: '',
+          dataCasamento: '', horaCasamento: '', localCasamento: '', enderecoCasamento: '', celebrante: '',
           localFesta: '', enderecoFesta: '', orcamentoTotal: 0,
           compromissos: [], convidados: [], mesas: [], despesas: [], fornecedores: [],
           tarefas: [], listaEspera: [], padrinhos: [], cronograma: [],
