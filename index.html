@@ -1690,7 +1690,7 @@
         <!-- Lista dinâmica de parcelas (vencimento e pagamento por parcela) -->
         <div id="listaParcelasFornecedor" style="margin-top:0.5rem; display:none;"></div>
         <!-- Botão para adicionar parcelamento -->
-        <button type="button" class="btn-primary" onclick="abrirModal('modalParcelamentoFornecedor')" style="margin-top:0.5rem;">Adicionar Parcelamento</button>
+        <button type="button" class="btn-primary" onclick="abrirModal('modalParcelamentoFornecedor'); atualizarHintEntrada();" style="margin-top:0.5rem;">Gerar parcelamento (entrada + parcelas)</button>
         <!-- LINHA 8: Status do contrato + Prioridade -->
         <div class="linha-campo label-acima" style="margin-top:1rem;">
           <div class="form-group" style="flex:1;">
@@ -2048,35 +2048,46 @@
   <div class="modal" id="modalParcelamentoFornecedor" aria-hidden="true">
     <div class="modal-content" style="max-width:600px;">
       <button class="close-btn" onclick="fecharModal('modalParcelamentoFornecedor')">&times;</button>
-      <h3>Parcelamento do Fornecedor</h3>
+      <h3>Gerar parcelamento</h3>
+      <p style="font-size:0.9rem; color:#6b5a42; margin-bottom:0.75rem;">
+        Monta as parcelas automaticamente: entrada (opcional) + saldo dividido em parcelas iguais com vencimento mensal. Depois você pode ajustar qualquer valor ou data na lista.
+      </p>
       <div class="form-group">
-        <label for="parcelasPagamento">Quantidade de parcelas</label>
+        <label><input type="checkbox" id="temEntradaParcelamento" onclick="toggleCampoEntradaParcelamento()"> Tem entrada?</label>
+      </div>
+      <div id="grupoValorEntradaParcelamento" style="display:none; padding:0.75rem; background:var(--cor-off-white); border:1px solid var(--cor-borda-suave); border-radius:6px; margin-bottom:0.75rem;">
+        <div class="form-group">
+          <label for="valorEntradaParcelamento">Valor da entrada</label>
+          <input type="text" id="valorEntradaParcelamento" placeholder="R$ 0,00" inputmode="numeric" oninput="aplicarMascaraMoeda(this); atualizarHintEntrada()" onblur="finalizarCampoMoeda(this); atualizarHintEntrada()">
+          <small id="hintEntrada" style="color:var(--cor-bronze); display:block; margin-top:0.25rem;"></small>
+        </div>
+        <div class="linha-campo label-acima">
+          <div class="form-group" style="flex:1;">
+            <label for="vencEntradaParcelamento">Vencimento da entrada</label>
+            <input type="text" id="vencEntradaParcelamento" placeholder="dd/mm/aaaa" inputmode="numeric" oninput="aplicarMascaraData(this)">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label for="pagEntradaParcelamento">Pago em (se já pagou)</label>
+            <input type="text" id="pagEntradaParcelamento" placeholder="dd/mm/aaaa" inputmode="numeric" oninput="aplicarMascaraData(this)">
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="parcelasPagamento">Quantidade de parcelas do saldo</label>
         <input type="number" id="parcelasPagamento" min="1" value="1">
+        <small style="color:#777; display:block; margin-top:0.25rem;">O saldo (total − entrada) é dividido igualmente neste número de parcelas.</small>
       </div>
       <div class="form-group">
-        <label><input type="checkbox" id="temEntradaParcelamento" onclick="toggleCampoEntradaParcelamento()"> Há entrada?</label>
-      </div>
-      <div class="form-group" id="grupoValorEntradaParcelamento" style="display:none;">
-        <label for="valorEntradaParcelamento">Valor da entrada</label>
-        <input type="text" id="valorEntradaParcelamento" placeholder="R$ 0,00" inputmode="numeric" oninput="aplicarMascaraMoeda(this)" onblur="finalizarCampoMoeda(this)">
-      </div>
-      <div class="form-group">
-        <label for="datasParcelamento">Datas de vencimento (separadas por ponto-e-vírgula)</label>
-        <input type="text" id="datasParcelamento" placeholder="dd/mm/aaaa; dd/mm/aaaa; ...">
-      </div>
-      <div class="form-group">
-        <label for="valoresParcelamento">Valor de cada parcela (separados por ponto-e-vírgula)</label>
-        <input type="text" id="valoresParcelamento" placeholder="R$ 1.000,00; R$ 1.000,00; ...">
-        <small style="color:#777; display:block; margin-top:0.25rem;">
-          Use ponto-e-vírgula entre os valores. A vírgula é decimal (ex.: R$ 333,34).
-        </small>
+        <label for="vencPrimeiraParcela">Vencimento da 1ª parcela do saldo</label>
+        <input type="text" id="vencPrimeiraParcela" placeholder="dd/mm/aaaa" inputmode="numeric" oninput="aplicarMascaraData(this)">
+        <small style="color:#777; display:block; margin-top:0.25rem;">As demais vencem de mês em mês a partir desta data.</small>
       </div>
       <div class="form-group">
         <label for="obsParcelamento">Observações</label>
         <textarea id="obsParcelamento" rows="2"></textarea>
       </div>
       <div class="actions">
-        <button class="btn-success" onclick="salvarParcelamentoFornecedor()">Salvar</button>
+        <button class="btn-success" onclick="salvarParcelamentoFornecedor()">Gerar parcelas</button>
         <button class="btn-secondary" onclick="fecharModal('modalParcelamentoFornecedor')">Cancelar</button>
       </div>
     </div>
@@ -7820,79 +7831,111 @@ blocoRsvp +
       const grp = document.getElementById('grupoValorEntradaParcelamento');
       if (!chk || !grp) return;
       grp.style.display = chk.checked ? 'block' : 'none';
+      atualizarHintEntrada();
     }
-    // Converte os dados do modal de parcelamento em um array de parcelas
-    // no formato que o resto do sistema entende:
-    // [{vencimento: 'dd/mm/aaaa', pagamento: '', valor: number}, ...]
-    // Validações:
-    // - Quantidade de datas precisa bater com quantidade de valores
-    // - Quantidade total precisa bater com qtd parcelas (+1 se há entrada)
-    // - Cada data precisa estar em dd/mm/aaaa
-    // Em caso de erro, mostra alert e não fecha o modal.
+
+    // Total a pagar do fornecedor atualmente no formulário (já considera Buffet).
+    function obterTotalFornecedorAtual() {
+      const t = moedaParaNumero((document.getElementById('totalPagarFornecedor') || {}).value);
+      if (t > 0) return t;
+      const cat = (document.getElementById('categoriaFornecedor') || {}).value;
+      const base = moedaParaNumero((document.getElementById('valorContratadoFornecedor') || {}).value) || 0;
+      if (cat === 'Buffet' && typeof calcularConvidadosPagantes === 'function') {
+        return base * calcularConvidadosPagantes();
+      }
+      return base;
+    }
+
+    // Mostra quanto a entrada representa em % do total, em tempo real.
+    function atualizarHintEntrada() {
+      const hint = document.getElementById('hintEntrada');
+      if (!hint) return;
+      const total = obterTotalFornecedorAtual();
+      const entrada = moedaParaNumero((document.getElementById('valorEntradaParcelamento') || {}).value) || 0;
+      if (total > 0 && entrada > 0) {
+        const pct = (entrada / total) * 100;
+        hint.textContent = `Equivale a ${pct.toFixed(1)}% do total (${formatarMoeda(total)}).`;
+      } else {
+        hint.textContent = '';
+      }
+    }
+
+    // Soma meses a uma data dd/mm/aaaa, preservando o dia (ajusta fim de mês).
+    function somarMesesData(ddmmaaaa, meses) {
+      const m = String(ddmmaaaa || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (!m) return '';
+      let dia = Number(m[1]), mes = Number(m[2]) - 1, ano = Number(m[3]);
+      const d = new Date(ano, mes + meses, 1);
+      const ultimoDia = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      d.setDate(Math.min(dia, ultimoDia));
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      return `${dd}/${mm}/${d.getFullYear()}`;
+    }
+
+    // GERADOR: monta as parcelas (entrada + saldo igualmente dividido) e joga
+    // na lista inline, que é a fonte da verdade ao salvar.
     function salvarParcelamentoFornecedor() {
-      const qtdRaw = document.getElementById('parcelasPagamento').value;
-      const qtd = Number(qtdRaw) || 1;
+      const total = obterTotalFornecedorAtual();
+      if (total <= 0) {
+        alert('Informe primeiro o "Valor total a pagar" do fornecedor.');
+        return;
+      }
+      const qtd = Number(document.getElementById('parcelasPagamento').value) || 0;
       if (qtd < 1) {
-        alert('A quantidade de parcelas deve ser ao menos 1.');
+        alert('A quantidade de parcelas do saldo deve ser ao menos 1.');
         return;
       }
       const temEntrada = document.getElementById('temEntradaParcelamento').checked;
-      const valorEntradaStr = document.getElementById('valorEntradaParcelamento').value || '';
-      const valorEntrada = temEntrada ? (moedaParaNumero(valorEntradaStr) || 0) : 0;
-      const datasStr = document.getElementById('datasParcelamento').value || '';
-      const valoresStr = document.getElementById('valoresParcelamento').value || '';
+      const valorEntrada = temEntrada ? (moedaParaNumero(document.getElementById('valorEntradaParcelamento').value) || 0) : 0;
+      const vencEntrada = temEntrada ? (document.getElementById('vencEntradaParcelamento').value || '').trim() : '';
+      const pagEntrada = temEntrada ? (document.getElementById('pagEntradaParcelamento').value || '').trim() : '';
+      const vencPrimeira = (document.getElementById('vencPrimeiraParcela').value || '').trim();
       const obs = document.getElementById('obsParcelamento').value || '';
-      // Quebra as listas por ponto-e-vírgula (vírgula é decimal em pt-BR).
-      const datas = datasStr.split(';').map(s => s.trim()).filter(Boolean);
-      const valores = valoresStr.split(';').map(s => s.trim()).filter(Boolean);
-      // Quantidade esperada de datas/valores: qtd (+ 1 se há entrada)
-      const totalEsperado = temEntrada ? (qtd + 1) : qtd;
-      if (datas.length !== totalEsperado) {
-        alert(`Informe ${totalEsperado} data(s) separadas por vírgula (você informou ${datas.length}).` +
-              (temEntrada ? ' A primeira data é da entrada.' : ''));
-        return;
+
+      if (temEntrada) {
+        if (valorEntrada <= 0) { alert('Informe o valor da entrada (ou desmarque "Tem entrada?").'); return; }
+        if (valorEntrada > total) { alert('A entrada não pode ser maior que o total a pagar.'); return; }
+        if (vencEntrada && !dataValida(vencEntrada)) { alert('O vencimento da entrada deve estar em dd/mm/aaaa.'); return; }
+        if (pagEntrada && !dataValida(pagEntrada)) { alert('A data de pagamento da entrada deve estar em dd/mm/aaaa.'); return; }
       }
-      if (valores.length !== totalEsperado) {
-        alert(`Informe ${totalEsperado} valor(es) separados por vírgula (você informou ${valores.length}).` +
-              (temEntrada ? ' O primeiro valor é o da entrada.' : ''));
-        return;
-      }
-      // Valida cada data
-      for (let i = 0; i < datas.length; i++) {
-        if (!dataValida(datas[i])) {
-          alert(`A data "${datas[i]}" não está no formato dd/mm/aaaa.`);
-          return;
-        }
-      }
-      // Monta o array de parcelas com a estrutura padrão do sistema
+      if (vencPrimeira && !dataValida(vencPrimeira)) { alert('O vencimento da 1ª parcela deve estar em dd/mm/aaaa.'); return; }
+
+      const saldo = total - valorEntrada;
+      // Divide o saldo em qtd parcelas; a última absorve o arredondamento.
+      const base = Math.floor((saldo / qtd) * 100) / 100;
       const parcelas = [];
-      for (let i = 0; i < datas.length; i++) {
-        const valorNum = moedaParaNumero(valores[i]) || 0;
-        parcelas.push({
-          vencimento: datas[i],
-          pagamento: '',
-          valor: valorNum
-        });
+      if (temEntrada) {
+        parcelas.push({ vencimento: vencEntrada, pagamento: pagEntrada, valor: valorEntrada });
       }
-      // Guarda metadados (entrada/observações) para histórico
-      window.parcelamentoFornecedorAtual = {
-        parcelas, temEntrada, valorEntrada, observacoes: obs
-      };
-      // Reflete as parcelas na LISTA INLINE, que é a fonte da verdade ao salvar.
+      let acumulado = 0;
+      for (let i = 0; i < qtd; i++) {
+        let valor = (i === qtd - 1) ? Math.round((saldo - acumulado) * 100) / 100 : base;
+        acumulado += base;
+        const venc = vencPrimeira ? somarMesesData(vencPrimeira, i) : '';
+        parcelas.push({ vencimento: venc, pagamento: '', valor: valor });
+      }
+
+      // Guarda metadados (para histórico).
+      window.parcelamentoFornecedorAtual = { parcelas, temEntrada, valorEntrada, observacoes: obs };
+
+      // Reflete na LISTA INLINE (fonte da verdade).
       const qtdEl = document.getElementById('parcelasFornecedor');
       if (qtdEl) {
         qtdEl.value = parcelas.length;
         gerarCamposParcelas();
         for (let i = 0; i < parcelas.length; i++) {
           const vEl = document.getElementById(`parcelaVenc${i}`);
+          const pEl = document.getElementById(`parcelaPag${i}`);
           const valEl = document.getElementById(`parcelaValor${i}`);
           if (vEl) vEl.value = parcelas[i].vencimento || '';
+          if (pEl) pEl.value = parcelas[i].pagamento || '';
           if (valEl) valEl.value = formatarMoeda(Number(parcelas[i].valor) || 0);
         }
         if (typeof atualizarValoresBuffet === 'function') atualizarValoresBuffet();
       }
       fecharModal('modalParcelamentoFornecedor');
-      alert('Parcelamento aplicado. Marque a data de pagamento de cada parcela conforme for pagando.');
+      alert('Parcelas geradas! Confira a lista e marque "Pago em" conforme for pagando.');
     }
 
     // ===== Inicialização =====
