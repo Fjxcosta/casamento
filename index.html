@@ -1682,10 +1682,10 @@
         </div>
         <!-- LINHA 7: Modal de parcelamento (mantido como estava) -->
         <!-- Quantidade de parcelas — para todos -->
-        <div class="form-group" id="grupoParcelas" style="display:none;">
+        <div class="form-group" id="grupoParcelas">
           <label for="parcelasFornecedor">Quantidade de parcelas</label>
-          <input type="number" id="parcelasFornecedor" min="1" value="1" onchange="gerarCamposParcelas()">
-          <small style="color:#777;">Use 1 para pagamento à vista.</small>
+          <input type="number" id="parcelasFornecedor" min="1" value="1" onchange="gerarCamposParcelas(); atualizarValoresBuffet();">
+          <small style="color:#777;">Use 1 para pagamento à vista. Informe o <strong>valor de cada parcela</strong> manualmente (ex.: entrada + saldo, ou valores variados).</small>
         </div>
         <!-- Lista dinâmica de parcelas (vencimento e pagamento por parcela) -->
         <div id="listaParcelasFornecedor" style="margin-top:0.5rem; display:none;"></div>
@@ -5780,8 +5780,10 @@
           for (let i = 0; i < qtdPar; i++) {
             const vencInput = document.getElementById(`parcelaVenc${i}`);
             const pagInput = document.getElementById(`parcelaPag${i}`);
+            const valInput = document.getElementById(`parcelaValor${i}`);
             if (vencInput && f.parcelas[i] && f.parcelas[i].vencimento) vencInput.value = normalizarData(f.parcelas[i].vencimento);
             if (pagInput && f.parcelas[i] && f.parcelas[i].pagamento) pagInput.value = normalizarData(f.parcelas[i].pagamento);
+            if (valInput && f.parcelas[i] && Number(f.parcelas[i].valor) > 0) valInput.value = formatarMoeda(Number(f.parcelas[i].valor));
           }
         }
       }
@@ -5850,38 +5852,40 @@
       // O usuário não digita mais valorPago nem %entrada diretamente — eles
       // são calculados a partir das datas de pagamento das parcelas.
       const percentualRestante = Number(document.getElementById('percentualRestanteFornecedor').value) || 0;
-      // FONTE DAS PARCELAS:
-      // - Se o usuário usou o modal "Adicionar Parcelamento", usa essas parcelas.
-      // - Caso contrário, lê dos inputs ocultos (compat com fluxo antigo).
+      // FONTE DAS PARCELAS: sempre a lista inline (vencimento, pagamento e VALOR
+      // por parcela). O valor de cada parcela é digitado manualmente, permitindo
+      // entrada + saldo, ou pagamentos de valores variados até fechar o total.
       let parcelas = [];
-      let parcelamentoMeta = null; // observações, indica se tem entrada (para histórico)
-      if (window.parcelamentoFornecedorAtual && Array.isArray(window.parcelamentoFornecedorAtual.parcelas)) {
-        parcelas = window.parcelamentoFornecedorAtual.parcelas.map(p => ({
-          vencimento: p.vencimento || '',
-          pagamento: p.pagamento || '',
-          valor: Number(p.valor) || 0
-        }));
+      let parcelamentoMeta = null;
+      const qtdPar = Number((document.getElementById('parcelasFornecedor') || {}).value) || 0;
+      for (let i = 0; i < qtdPar; i++) {
+        const vEl = document.getElementById(`parcelaVenc${i}`);
+        const pEl = document.getElementById(`parcelaPag${i}`);
+        const valEl = document.getElementById(`parcelaValor${i}`);
+        const venc = vEl ? vEl.value.trim() : '';
+        const pag = pEl ? pEl.value.trim() : '';
+        const valor = valEl ? (moedaParaNumero(valEl.value) || 0) : 0;
+        if (venc && !dataValida(venc)) {
+          alert(`A data de vencimento da parcela ${i + 1} deve estar no formato dd/mm/aaaa.`);
+          return;
+        }
+        if (pag && !dataValida(pag)) {
+          alert(`A data de pagamento da parcela ${i + 1} deve estar no formato dd/mm/aaaa.`);
+          return;
+        }
+        if (pag && valor <= 0) {
+          alert(`A parcela ${i + 1} está marcada como paga (tem data de pagamento), mas está sem valor. Informe o valor pago.`);
+          return;
+        }
+        parcelas.push({ vencimento: venc, pagamento: pag, valor: valor });
+      }
+      // Mantém metadados do modal (se foi usado) apenas para histórico.
+      if (window.parcelamentoFornecedorAtual) {
         parcelamentoMeta = {
           temEntrada: !!window.parcelamentoFornecedorAtual.temEntrada,
           valorEntrada: Number(window.parcelamentoFornecedorAtual.valorEntrada) || 0,
           observacoes: window.parcelamentoFornecedorAtual.observacoes || ''
         };
-      } else {
-        // Caminho antigo: inputs dinâmicos (parcelaVenc0, parcelaPag0...)
-        const qtdPar = Number((document.getElementById('parcelasFornecedor') || {}).value) || 0;
-        for (let i = 0; i < qtdPar; i++) {
-          const venc = document.getElementById(`parcelaVenc${i}`) ? document.getElementById(`parcelaVenc${i}`).value.trim() : '';
-          const pag = document.getElementById(`parcelaPag${i}`) ? document.getElementById(`parcelaPag${i}`).value.trim() : '';
-          if (venc && !dataValida(venc)) {
-            alert(`A data de vencimento da parcela ${i + 1} deve estar no formato dd/mm/aaaa.`);
-            return;
-          }
-          if (pag && !dataValida(pag)) {
-            alert(`A data de pagamento da parcela ${i + 1} deve estar no formato dd/mm/aaaa.`);
-            return;
-          }
-          parcelas.push({ vencimento: venc, pagamento: pag });
-        }
       }
       let registro;
       let valorPorPessoa = null;
@@ -6152,9 +6156,14 @@ function calcularValorPagoPorParcelas(fornecedor) {
     return Number(fornecedor && fornecedor.valorPago) || 0;
   }
   const total = Number(fornecedor.valorContratado) || 0;
-  const pagas = fornecedor.parcelas.filter(p => p.pagamento && dataValida(p.pagamento)).length;
-  if (fornecedor.parcelas.length === 0 || total === 0) return 0;
-  return (pagas / fornecedor.parcelas.length) * total;
+  const pagas = fornecedor.parcelas.filter(p => p.pagamento && dataValida(p.pagamento));
+  // Se as parcelas têm valor manual, soma os valores das pagas.
+  if (fornecedor.parcelas.some(p => Number(p.valor) > 0)) {
+    return pagas.reduce((s, p) => s + (Number(p.valor) || 0), 0);
+  }
+  // Caso contrário (dados antigos sem valor), rateia o total pelas parcelas.
+  if (total === 0) return 0;
+  return (pagas.length / fornecedor.parcelas.length) * total;
 }
 
 // Gera dinamicamente campos de datas de parcelas para o fornecedor Buffet.
@@ -6173,7 +6182,10 @@ function gerarCamposParcelas() {
       const div = document.createElement('div');
       div.style.display = 'flex';
       div.style.gap = '0.5rem';
-      div.style.marginBottom = '0.5rem';
+      div.style.flexWrap = 'wrap';
+      div.style.marginBottom = '0.6rem';
+      div.style.paddingBottom = '0.4rem';
+      div.style.borderBottom = '1px dashed var(--cor-borda-suave)';
       // Campo de vencimento
       const labelV = document.createElement('label');
       labelV.textContent = `Parcela ${i + 1} – Vencimento`;
@@ -6187,7 +6199,7 @@ function gerarCamposParcelas() {
       inputV.style.flex = '1';
       // Campo de pagamento
       const labelP = document.createElement('label');
-      labelP.textContent = `Pagamento`;
+      labelP.textContent = `Pago em`;
       labelP.style.flex = '1';
       const inputP = document.createElement('input');
       inputP.type = 'text';
@@ -6196,26 +6208,53 @@ function gerarCamposParcelas() {
       inputP.setAttribute('inputmode', 'numeric');
       inputP.setAttribute('oninput', 'aplicarMascaraData(this)');
       // Bug-fix: ao terminar de digitar a data de pagamento, recalcula o
-      // valor pago do fornecedor (que é a soma proporcional das parcelas pagas).
+      // valor pago do fornecedor (que é a soma das parcelas pagas).
       inputP.setAttribute('onblur', 'atualizarValoresBuffet()');
       inputP.style.flex = '1';
-      // Agrupa em sub-div para alinhamento das labels
+      // Campo de VALOR da parcela (digitado manualmente)
+      const labelVal = document.createElement('label');
+      labelVal.textContent = `Valor (R$)`;
+      labelVal.style.flex = '1';
+      const inputVal = document.createElement('input');
+      inputVal.type = 'text';
+      inputVal.id = `parcelaValor${i}`;
+      inputVal.placeholder = 'R$ 0,00';
+      inputVal.setAttribute('inputmode', 'numeric');
+      inputVal.setAttribute('oninput', 'aplicarMascaraMoeda(this)');
+      inputVal.setAttribute('onblur', 'finalizarCampoMoeda(this); atualizarValoresBuffet()');
+      inputVal.style.flex = '1';
+      // Agrupa em sub-divs para alinhamento das labels
       const subDivV = document.createElement('div');
       subDivV.style.display = 'flex';
       subDivV.style.flexDirection = 'column';
       subDivV.style.flex = '1';
+      subDivV.style.minWidth = '120px';
       subDivV.appendChild(labelV);
       subDivV.appendChild(inputV);
       const subDivP = document.createElement('div');
       subDivP.style.display = 'flex';
       subDivP.style.flexDirection = 'column';
       subDivP.style.flex = '1';
+      subDivP.style.minWidth = '120px';
       subDivP.appendChild(labelP);
       subDivP.appendChild(inputP);
+      const subDivVal = document.createElement('div');
+      subDivVal.style.display = 'flex';
+      subDivVal.style.flexDirection = 'column';
+      subDivVal.style.flex = '1';
+      subDivVal.style.minWidth = '120px';
+      subDivVal.appendChild(labelVal);
+      subDivVal.appendChild(inputVal);
       div.appendChild(subDivV);
       div.appendChild(subDivP);
+      div.appendChild(subDivVal);
       container.appendChild(div);
     }
+    // Linha de resumo: soma das parcelas x total, e quanto falta.
+    const resumo = document.createElement('div');
+    resumo.id = 'resumoParcelas';
+    resumo.style.cssText = 'margin-top:0.25rem; font-size:0.88rem; color:#6b5a42;';
+    container.appendChild(resumo);
   } else {
     container.style.display = 'none';
   }
@@ -6256,29 +6295,59 @@ function atualizarValoresBuffet() {
   // "Total a pagar" agora é exibido sempre (Linha 1)
   if (totalPagarInput) totalPagarInput.value = formatarMoeda(total);
   // ===== Cálculo de entrada e restante (vale para todos) =====
-  // Bug-fix: agora as parcelas controlam o valor pago. Conta quantas parcelas
-  // têm data de pagamento válida; cada parcela vale (total / qtd de parcelas).
+  // O valor pago é a SOMA dos valores das parcelas que têm data de pagamento.
+  // Se nenhuma parcela tiver valor digitado (dados antigos), faz o rateio
+  // proporcional antigo (total / qtd de parcelas) para não quebrar.
   const parcelasInputEl = document.getElementById('parcelasFornecedor');
   const qtdPar = parcelasInputEl ? (Number(parcelasInputEl.value) || 1) : 1;
   let parcelasPagas = 0;
+  let somaPagas = 0;
+  let somaPlanejada = 0;
+  let temValorManual = false;
   for (let i = 0; i < qtdPar; i++) {
     const pagInput = document.getElementById(`parcelaPag${i}`);
-    if (pagInput && pagInput.value && dataValida(pagInput.value)) {
-      parcelasPagas++;
-    }
+    const valInput = document.getElementById(`parcelaValor${i}`);
+    const val = valInput ? (moedaParaNumero(valInput.value) || 0) : 0;
+    if (val > 0) { temValorManual = true; somaPlanejada += val; }
+    const pago = pagInput && pagInput.value && dataValida(pagInput.value);
+    if (pago) { parcelasPagas++; somaPagas += val; }
   }
-  const valorPago = qtdPar > 0 ? (parcelasPagas / qtdPar) * total : 0;
+  let valorPago;
+  if (temValorManual) {
+    valorPago = somaPagas; // soma dos valores das parcelas efetivamente pagas
+  } else {
+    valorPago = qtdPar > 0 ? (parcelasPagas / qtdPar) * total : 0;
+  }
   if (valorPagoField) valorPagoField.value = total > 0 ? formatarMoeda(valorPago) : '';
   // % entrada (formato com símbolo)
   const percPago = total > 0 ? (valorPago / total) * 100 : 0;
   if (percentualEntradaField) percentualEntradaField.value = percPago.toFixed(2) + ' %';
-  // Total pago — mesma fonte do valor pago (até nova decisão sobre se deve ser editável)
+  // Total pago — mesma fonte do valor pago
   if (totalPagoInput) totalPagoInput.value = total > 0 ? formatarMoeda(valorPago) : '';
   // Restante (nunca negativo)
   const restante = Math.max(0, total - valorPago);
   if (restantePagarInput) restantePagarInput.value = formatarMoeda(restante);
   const percRestante = total > 0 ? Math.max(0, (restante / total) * 100) : 0;
   if (percentualRestanteField) percentualRestanteField.value = percRestante.toFixed(2) + ' %';
+  // Resumo das parcelas: soma planejada x total, e quanto falta lançar.
+  const resumoEl = document.getElementById('resumoParcelas');
+  if (resumoEl) {
+    if (temValorManual && total > 0) {
+      const difTotal = somaPlanejada - total;
+      let aviso = '';
+      if (Math.abs(difTotal) >= 0.01) {
+        aviso = difTotal > 0
+          ? ` ⚠ As parcelas somam ${formatarMoeda(Math.abs(difTotal))} a MAIS que o total.`
+          : ` ⚠ Faltam ${formatarMoeda(Math.abs(difTotal))} em parcelas para fechar o total.`;
+      } else {
+        aviso = ' ✓ As parcelas fecham o total.';
+      }
+      resumoEl.innerHTML = `Lançado em parcelas: <strong>${formatarMoeda(somaPlanejada)}</strong> de ${formatarMoeda(total)}.`
+        + ` Pago: <strong>${formatarMoeda(somaPagas)}</strong>.` + aviso;
+    } else {
+      resumoEl.textContent = '';
+    }
+  }
   const listaParcelas = document.getElementById('listaParcelasFornecedor');
   const parcelasInput = document.getElementById('parcelasFornecedor');
   if (parcelasInput && listaParcelas && listaParcelas.innerHTML.trim() === '') {
@@ -7805,12 +7874,25 @@ blocoRsvp +
           valor: valorNum
         });
       }
-      // Guarda em variável global temporária — o salvarFornecedor vai pegar isso
+      // Guarda metadados (entrada/observações) para histórico
       window.parcelamentoFornecedorAtual = {
         parcelas, temEntrada, valorEntrada, observacoes: obs
       };
+      // Reflete as parcelas na LISTA INLINE, que é a fonte da verdade ao salvar.
+      const qtdEl = document.getElementById('parcelasFornecedor');
+      if (qtdEl) {
+        qtdEl.value = parcelas.length;
+        gerarCamposParcelas();
+        for (let i = 0; i < parcelas.length; i++) {
+          const vEl = document.getElementById(`parcelaVenc${i}`);
+          const valEl = document.getElementById(`parcelaValor${i}`);
+          if (vEl) vEl.value = parcelas[i].vencimento || '';
+          if (valEl) valEl.value = formatarMoeda(Number(parcelas[i].valor) || 0);
+        }
+        if (typeof atualizarValoresBuffet === 'function') atualizarValoresBuffet();
+      }
       fecharModal('modalParcelamentoFornecedor');
-      alert('Parcelamento configurado. Ele será vinculado ao fornecedor ao salvar.');
+      alert('Parcelamento aplicado. Marque a data de pagamento de cada parcela conforme for pagando.');
     }
 
     // ===== Inicialização =====
