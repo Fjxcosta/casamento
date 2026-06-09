@@ -2612,22 +2612,29 @@
 
     // Item 4°: sessão válida por 24h. Grava timestamp no localStorage; ao
     // recarregar, se ainda estiver dentro do prazo, pula a tela de senha.
-    const SESSAO_DURACAO_MS = 24 * 60 * 60 * 1000; // 24h em milissegundos
     const SESSAO_CHAVE = 'gestaoCasamento_sessao';
+    const TOKEN_CHAVE = 'gestaoCasamento_token';
+    // A sessão fica em sessionStorage: ela SOBREVIVE ao recarregar a página
+    // (F5, mesma aba), mas é APAGADA quando a aba/janela é FECHADA.
+    // Resultado: atualizar a página mantém logado; fechar no X desloga.
     function gravarSessaoValida() {
-      try {
-        localStorage.setItem(SESSAO_CHAVE, String(Date.now()));
-      } catch (e) { /* localStorage pode estar bloqueado — segue sem persistir */ }
+      try { sessionStorage.setItem(SESSAO_CHAVE, '1'); } catch (e) { /* segue sem persistir */ }
     }
     function sessaoAindaValida() {
-      try {
-        const ts = Number(localStorage.getItem(SESSAO_CHAVE) || 0);
-        if (!ts) return false;
-        return (Date.now() - ts) < SESSAO_DURACAO_MS;
-      } catch (e) { return false; }
+      try { return sessionStorage.getItem(SESSAO_CHAVE) === '1'; } catch (e) { return false; }
     }
     function limparSessao() {
-      try { localStorage.removeItem(SESSAO_CHAVE); } catch (e) { /* ignora */ }
+      try { sessionStorage.removeItem(SESSAO_CHAVE); } catch (e) { /* ignora */ }
+      try { sessionStorage.removeItem(TOKEN_CHAVE); } catch (e) { /* ignora */ }
+    }
+    // Token do cadeado, persistido na mesma aba. Ao recarregar, o token é o
+    // MESMO, então a página reconhece o cadeado como "seu" e não se bloqueia.
+    function obterTokenPersistente() {
+      try {
+        let t = sessionStorage.getItem(TOKEN_CHAVE);
+        if (!t) { t = gerarToken(); sessionStorage.setItem(TOKEN_CHAVE, t); }
+        return t;
+      } catch (e) { return gerarToken(); }
     }
 
     // ===== Controle de sessão única (1 acesso por vez) =====
@@ -2690,7 +2697,7 @@
     // Retorna: true (consegui) | false (há outro acesso ativo) | 'falhou' (mecanismo indisponível).
     async function adquirirLock() {
       if (!supabaseClient) return 'falhou';
-      meuToken = meuToken || gerarToken();
+      meuToken = meuToken || obterTokenPersistente();
       const atual = await lerLock();
       if (atual === undefined) return 'falhou'; // não consegui verificar -> não trava o casal
       const agora = Date.now();
@@ -7984,7 +7991,8 @@ blocoRsvp +
     // usuário digita a senha correta na telaSenha (ver validarSenhaSistema).
     // Apenas garantimos que o foco vá para o campo de senha ao carregar.
     window.addEventListener('load', () => {
-      // Item 4°: se a sessão ainda está dentro das 24h, pula a tela de senha
+      // Se a sessão da aba está ativa (incluindo após um F5/recarregar), entra
+      // direto, sem pedir senha de novo.
       if (sessaoAindaValida()) {
         entrarNoSistema();
         return;
@@ -7994,11 +8002,12 @@ blocoRsvp +
       if (inp) inp.focus();
     });
 
-    // Item: ao fechar a aba/janela (X), libera o cadeado e encerra a sessão,
-    // para que outro acesso possa entrar imediatamente. O TTL na nuvem é a
-    // rede de segurança caso o navegador feche sem disparar estes eventos.
-    window.addEventListener('pagehide', () => { liberarLockBeacon(); limparSessao(); });
-    window.addEventListener('beforeunload', () => { liberarLockBeacon(); limparSessao(); });
+    // Fechar a aba/janela (X) NÃO precisa de tratamento aqui: o sessionStorage
+    // é apagado automaticamente pelo navegador ao fechar -> ao reabrir, pede
+    // senha (= deslogado). O cadeado de sessão única é liberado para outros
+    // dispositivos pelo tempo de expiração (TTL) na nuvem.
+    // IMPORTANTE: não deslogamos no recarregar (F5) — por isso não usamos mais
+    // beforeunload/pagehide para limpar a sessão (eles disparam também no F5).
 
     // ===== Item 2°: Limpar dados (com senha) =====
     // Apaga TODOS os dados do sistema. Exige senha hardcoded e confirmação dupla.
