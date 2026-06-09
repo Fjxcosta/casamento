@@ -886,10 +886,15 @@
   <!-- Tela de senha (bloqueia o sistema até a senha correta ser digitada) -->
   <div id="telaSenha" style="position:fixed; inset:0; background:var(--cor-off-white); z-index:99998; display:flex; align-items:center; justify-content:center; flex-direction:column; padding:1rem;">
     <div style="background:#fff; border:1px solid var(--cor-borda-suave); border-radius:6px; padding:2rem; max-width:400px; width:100%; box-shadow:0 4px 20px rgba(184,146,91,0.15); text-align:center;">
+      <img id="monogramaLogin" alt="Monograma Paula & Fábio Jr" style="width:130px; height:130px; object-fit:contain; display:block; margin:0 auto 0.75rem; border-radius:6px;">
       <h1 style="font-family:'Allura', cursive; font-size:2.5rem; color:var(--cor-bronze); margin:0 0 0.5rem 0; text-transform:none; letter-spacing:0;">Paula <span style="color:var(--cor-champagne);">&amp;</span> Fábio Jr</h1>
       <div style="font-family:'Cinzel',serif; font-size:0.75rem; color:var(--cor-primaria); letter-spacing:0.15em; margin-bottom:1.5rem;">SISTEMA DE GESTÃO</div>
       <div class="form-group">
-        <label for="inputSenhaSistema" class="obrigatorio" style="text-align:left;">Digite a senha de acesso</label>
+        <label for="inputUsuarioSistema" class="obrigatorio" style="text-align:left;">Usuário</label>
+        <input type="text" id="inputUsuarioSistema" placeholder="Paula ou Fábio" autocomplete="off" autocapitalize="words" onkeydown="if(event.key==='Enter') document.getElementById('inputSenhaSistema').focus()">
+      </div>
+      <div class="form-group">
+        <label for="inputSenhaSistema" class="obrigatorio" style="text-align:left;">Senha de acesso</label>
         <div class="campo-senha">
           <input type="password" id="inputSenhaSistema" placeholder="Senha" autocomplete="off" onkeydown="if(event.key==='Enter') validarSenhaSistema()">
           <button type="button" class="btn-olho-senha" onclick="alternarVisibilidadeSenha('inputSenhaSistema', this)" aria-label="Mostrar/ocultar senha">👁</button>
@@ -2797,10 +2802,26 @@
       setTimeout(() => { _logoutEmAndamento = false; if (inp) inp.focus(); }, 200);
     }
 
+    // Usuários aceitos (a senha é a mesma para todos). Comparação ignora
+    // maiúsculas/minúsculas e acentos, então "Paula", "paula", "Fábio", "fabio" valem.
+    const USUARIOS_VALIDOS = ['paula', 'fabio'];
+    function normalizarUsuario(v) {
+      return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    }
     function validarSenhaSistema() {
+      const inpUser = document.getElementById('inputUsuarioSistema');
       const inp = document.getElementById('inputSenhaSistema');
       const erro = document.getElementById('erroSenhaSistema');
+      const usuario = normalizarUsuario(inpUser && inpUser.value);
       const senha = (inp && inp.value) || '';
+      if (!USUARIOS_VALIDOS.includes(usuario)) {
+        if (erro) {
+          erro.textContent = 'Usuário inválido. Use Paula ou Fábio.';
+          erro.style.display = 'block';
+        }
+        if (inpUser) { inpUser.focus(); }
+        return;
+      }
       if (senha !== SENHA_SISTEMA) {
         if (erro) {
           erro.textContent = 'Senha incorreta. Tente novamente.';
@@ -2809,7 +2830,9 @@
         if (inp) { inp.value = ''; inp.focus(); }
         return;
       }
-      // Senha correta → grava sessão, esconde a tela, carrega dados e inicializa
+      // Usuário e senha corretos → grava sessão, esconde a tela, carrega e inicializa
+      if (erro) erro.style.display = 'none';
+      try { sessionStorage.setItem('gestaoCasamento_usuario', usuario); } catch (e) { /* ok */ }
       gravarSessaoValida();
       entrarNoSistema();
     }
@@ -7994,15 +8017,20 @@ blocoRsvp +
     // usuário digita a senha correta na telaSenha (ver validarSenhaSistema).
     // Apenas garantimos que o foco vá para o campo de senha ao carregar.
     window.addEventListener('load', () => {
+      // Coloca o monograma na tela de login
+      const monoLogin = document.getElementById('monogramaLogin');
+      if (monoLogin && typeof MONOGRAMA_BASE64 !== 'undefined') monoLogin.src = MONOGRAMA_BASE64;
       // Se a sessão da aba está ativa (incluindo após um F5/recarregar), entra
       // direto, sem pedir senha de novo.
       if (sessaoAindaValida()) {
         entrarNoSistema();
         return;
       }
-      // Senão, foca no campo de senha para o usuário digitar
+      // Senão, foca no campo de usuário para o usuário digitar
+      const inpUser = document.getElementById('inputUsuarioSistema');
       const inp = document.getElementById('inputSenhaSistema');
-      if (inp) inp.focus();
+      if (inpUser) inpUser.focus();
+      else if (inp) inp.focus();
     });
 
     // Fechar a aba/janela (X) NÃO precisa de tratamento aqui: o sessionStorage
