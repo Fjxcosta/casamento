@@ -22,10 +22,10 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gestão de Casamento</title>
-  <!-- Fontes da identidade visual: Cinzel (títulos), Allura (script), Inter (corpo) -->
+  <!-- Fontes da identidade visual: Cinzel (títulos), Great Vibes (script do monograma), Inter (corpo) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Allura&family=Cinzel:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Cinzel:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <!-- Paleta de cores e estilo básico -->
   <style>
     :root {
@@ -65,9 +65,9 @@
       background-attachment: fixed;
     }
     /* === Tipografia da identidade === */
-    /* Allura: script caligráfica (substituta de Respecta) — só em destaques românticos */
+    /* Great Vibes: caligrafia copperplate, mesma família visual do monograma */
     .titulo-script {
-      font-family: 'Allura', cursive;
+      font-family: 'Great Vibes', cursive;
       font-weight: 400;
     }
     /* Cinzel: serifa em maiúsculas — títulos e botões principais */
@@ -129,7 +129,7 @@
     }
     header h1 {
       margin: 0;
-      font-family: 'Allura', cursive;
+      font-family: 'Great Vibes', cursive;
       font-size: 2.8rem;
       font-weight: 400;
       color: var(--cor-bronze);
@@ -887,7 +887,7 @@
   <div id="telaSenha" style="position:fixed; inset:0; background:var(--cor-off-white); z-index:99998; display:flex; align-items:center; justify-content:center; flex-direction:column; padding:1rem;">
     <div style="background:#fff; border:1px solid var(--cor-borda-suave); border-radius:6px; padding:2rem; max-width:400px; width:100%; box-shadow:0 4px 20px rgba(184,146,91,0.15); text-align:center;">
       <img id="monogramaLogin" alt="Monograma Paula & Fábio Jr" style="width:130px; height:130px; object-fit:contain; display:block; margin:0 auto 0.75rem; border-radius:6px;">
-      <h1 style="font-family:'Allura', cursive; font-size:2.5rem; color:var(--cor-bronze); margin:0 0 0.5rem 0; text-transform:none; letter-spacing:0;">Paula <span style="color:var(--cor-champagne);">&amp;</span> Fábio Jr</h1>
+      <h1 style="font-family:'Great Vibes', cursive; font-size:2.5rem; color:var(--cor-bronze); margin:0 0 0.5rem 0; text-transform:none; letter-spacing:0;">Paula <span style="color:var(--cor-champagne);">&amp;</span> Fábio Jr</h1>
       <div style="font-family:'Cinzel',serif; font-size:0.75rem; color:var(--cor-primaria); letter-spacing:0.15em; margin-bottom:1.5rem;">SISTEMA DE GESTÃO</div>
       <div class="form-group">
         <label for="inputUsuarioSistema" class="obrigatorio" style="text-align:left;">Usuário</label>
@@ -988,23 +988,27 @@
     <div class="card">
       <h3>Total de convidados</h3>
       <p id="cardTotalConvidados">0</p>
+      <small style="font-weight:normal; color:#777;">inclui os noivos e filhos do casal</small>
     </div>
     <div class="card">
       <h3>Convidados confirmados</h3>
       <p id="cardConvidadosConfirmados">0</p>
+      <small style="font-weight:normal; color:#777;">só convidados (RSVP); não inclui os noivos</small>
     </div>
     <div class="card">
       <h3>Adultos</h3>
       <p id="cardAdultos">0</p>
+      <small style="font-weight:normal; color:#777;">inclui os noivos</small>
     </div>
     <div class="card">
       <h3>Crianças</h3>
       <p id="cardCriancas">0</p>
+      <small style="font-weight:normal; color:#777;">inclui filhos do casal</small>
     </div>
     <div class="card">
       <h3>Pagantes (buffet)</h3>
       <p id="cardPagantesBuffet">0</p>
-      <small style="font-weight:normal; color:#777;">crianças até 7 anos não pagam</small>
+      <small id="textoRegraBuffetCard" style="font-weight:normal; color:#777;">crianças até 7 anos não pagam</small>
     </div>
     <div class="card">
       <h3>Total contratado</h3>
@@ -1346,8 +1350,8 @@
           <span>Filtrar:</span>
           <select id="filtroPagamentoCriancas" onchange="listarCriancas()">
             <option value="">Todas</option>
-            <option value="paga">Só pagantes (8+ anos)</option>
-            <option value="nao-paga">Só não pagantes (até 7 anos)</option>
+            <option value="paga" id="opcaoPagantes">Só pagantes (8+ anos)</option>
+            <option value="nao-paga" id="opcaoNaoPagantes">Só não pagantes (até 7 anos)</option>
             <option value="sem-idade">Sem idade informada</option>
           </select>
         </div>
@@ -2354,7 +2358,7 @@
       if (dias === 0) {
         return { tipo: 'proxima', rotulo: 'Vence hoje', dias };
       }
-      if (dias <= 7) {
+      if (dias <= CONFIG_SISTEMA.dashboard.diasAvisoVencimento) {
         return { tipo: 'proxima', rotulo: `Vence em ${dias} dia(s)`, dias };
       }
       return { tipo: 'em-dia', rotulo: `Vence em ${dias} dia(s)`, dias };
@@ -2405,7 +2409,7 @@
       // Se algum campo mudou desde a abertura, confirma antes de fechar —
       // exceto quando o fechamento é programático após salvar (ignorarAlteracoes).
       if (!ignorarAlteracoes && snapshotModal[id] !== undefined && tirarSnapshot(id) !== snapshotModal[id]) {
-        if (!confirm('Há alterações não salvas neste modal. Se fechar agora, elas serão perdidas. Deseja fechar mesmo assim?')) {
+        if (!confirm(CONFIG_SISTEMA.textos.alteracoesNaoSalvas)) {
           return;
         }
       }
@@ -2486,12 +2490,99 @@
       if (id === 'secaoSite' && typeof carregarCamposSite === 'function') carregarCamposSite();
     }
     // ===== Persistência básica =====
+    // =====================================================================
+    // CONFIG_SISTEMA — parâmetros centrais do sistema. Alterar valores aqui
+    // muda o comportamento sem precisar caçar código espalhado.
+    // Os valores abaixo replicam EXATAMENTE o comportamento atual.
+    // =====================================================================
+    const CONFIG_SISTEMA = {
+      geral: {
+        nomeSistema: 'Gestão de Casamento',
+        versao: '2.0.0',
+        noivos: 'Paula & Fábio Jr',
+        idioma: 'pt-BR',
+        formatoData: 'dd/mm/aaaa',
+        moeda: { codigo: 'BRL', simbolo: 'R$' },
+        timezone: 'America/Cuiaba'
+      },
+      visual: {
+        // Fonte da verdade das cores é o CSS :root; este helper lê de lá
+        // para os usos em JS (gráficos/PDF) nunca divergirem do tema.
+        corVar: (nome) => getComputedStyle(document.documentElement)
+                            .getPropertyValue(nome).trim(),
+        paletaGraficos: ['#b8860b','#6b4f3f','#a0522d','#c19a6b','#8b7355',
+                         '#cd853f','#daa520','#8b4513','#9c7c5b','#5c4033'],
+        coresGraficoDespesas: ['#c19a6b','#b8860b','#6b8e23']
+      },
+      seguranca: {
+        usuariosValidos: ['paula', 'fabio'],   // comparados sem acento/caixa
+        // ATENÇÃO: senha visível no código-fonte. Controle de acesso casual,
+        // não segurança real (segurança real = Supabase Auth, projeto futuro).
+        senha: 'paulafabio2027',
+        sessao: {
+          inatividadeMs: 5 * 60 * 1000,        // logout automático
+          lockTtlMs: 150 * 1000,               // expiração do cadeado p/ outro acesso
+          heartbeatMs: 30 * 1000,
+          chaveSessao: 'gestaoCasamento_sessao',
+          chaveToken: 'gestaoCasamento_token',
+          chaveUsuario: 'gestaoCasamento_usuario'
+        }
+      },
+      armazenamento: {
+        fonte: 'supabase',
+        tabela: 'dados_casamento',
+        lembreteBackupDias: 7,
+        arquivos: {
+          jsonPrefixo: 'gestao-casamento-',
+          csvDespesasPrefixo: 'despesas-casamento-',
+          sitePublico: 'site-casamento.html'
+        }
+      },
+      dashboard: {
+        alertaOrcamentoPercent: 85,
+        diasAvisoVencimento: 7
+      },
+      convidados: {
+        // REGRA CENTRAL DO BUFFET: criança paga a partir desta idade.
+        idadeMinimaPagante: 8,
+        criancaSemIdadePaga: false,
+        familiaNoBuffet: { noivosPadrao: 2, filhosPadrao: 0 },
+        categorias: ['Família','Amigos','Trabalho','Padrinhos','Madrinhas','Crianças','Outros'],
+        statusConfirmacao: ['Aguardando confirmação','Confirmado','Não vai','Talvez','Sem resposta']
+      },
+      fornecedores: {
+        categorias: ['Buffet','Decoração','Fotografia','Filmagem','Música','DJ',
+          'Cerimonialista','Vestido','Traje do noivo','Maquiagem','Cabelo','Convites',
+          'Lembrancinhas','Doces','Bolo','Bebidas','Segurança','Transporte','Espaço','Outros']
+      },
+      financeiro: {
+        categoriasDespesa: ['Espaço','Buffet','Decoração','Fotografia','Filmagem',
+          'Vestido da noiva','Traje do noivo','Cerimonial','Música/DJ','Convites',
+          'Lembrancinhas','Bolo','Doces','Bebidas','Segurança','Transporte','Lua de mel','Outros'],
+        modalidadesPagamento: ['À vista','Pix','Cartão de crédito','Cartão de crédito parcelado','Cartão de débito']
+      },
+      site: {
+        rsvpViaWhatsApp: true,
+        ddiPadrao: '55'
+      },
+      textos: {
+        senhaIncorreta: 'Senha incorreta. Tente novamente.',
+        usuarioInvalido: 'Usuário inválido. Use Paula ou Fábio.',
+        sessaoExpirada: 'Você ficou 5 minutos inativo. Faça login novamente.',
+        acessoBloqueado: 'Já existe um acesso ativo neste sistema. Aguarde alguns minutos (a sessão anterior expira por inatividade) e tente novamente.',
+        alteracoesNaoSalvas: 'Há alterações não salvas neste modal. Se fechar agora, elas serão perdidas. Deseja fechar mesmo assim?'
+      }
+    };
+    // Texto derivado da regra de idade (mantém os avisos sempre coerentes):
+    CONFIG_SISTEMA.convidados.textoNaoPagante =
+      `crianças até ${CONFIG_SISTEMA.convidados.idadeMinimaPagante - 1} anos não pagam`;
+
     // ----- Configuração da nuvem (Supabase) -----
     // Credenciais "públicas" — seguras para ficar no HTML.
-    // A segurança real do sistema é a SENHA_SISTEMA logo abaixo.
+    // A segurança real do sistema é a senha em CONFIG_SISTEMA.seguranca.
     const SUPABASE_URL = 'https://axeknmqfwbiuhcvbdzbq.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_8FHydPz2MLOd8HMgkHri4Q_LzQT4CJg';
-    const SENHA_SISTEMA = 'paulafabio2027';
+    const SENHA_SISTEMA = CONFIG_SISTEMA.seguranca.senha; // alias de compatibilidade
     // Cliente Supabase (criado após o script externo carregar)
     let supabaseClient = null;
     // ID da linha no banco — preenchido na primeira carga (existe apenas 1 linha
@@ -2654,8 +2745,8 @@
 
     // Item 4°: sessão válida por 24h. Grava timestamp no localStorage; ao
     // recarregar, se ainda estiver dentro do prazo, pula a tela de senha.
-    const SESSAO_CHAVE = 'gestaoCasamento_sessao';
-    const TOKEN_CHAVE = 'gestaoCasamento_token';
+    const SESSAO_CHAVE = CONFIG_SISTEMA.seguranca.sessao.chaveSessao;
+    const TOKEN_CHAVE = CONFIG_SISTEMA.seguranca.sessao.chaveToken;
     // A sessão fica em sessionStorage: ela SOBREVIVE ao recarregar a página
     // (F5, mesma aba), mas é APAGADA quando a aba/janela é FECHADA.
     // Resultado: atualizar a página mantém logado; fechar no X desloga.
@@ -2685,9 +2776,9 @@
     // "lock" (cadeado) guardado no Supabase, numa LINHA SEPARADA da tabela —
     // assim a lógica de sessão NUNCA toca nos dados do casamento.
     const LOCK_TIPO = 'session_lock';
-    const INATIVIDADE_MS = 5 * 60 * 1000;   // 5 min sem interação -> logout
-    const LOCK_TTL_MS = 150 * 1000;         // 2,5 min: cobre fechamento "bruto" (queda/crash)
-    const HEARTBEAT_MS = 30 * 1000;         // renova o cadeado a cada 30s
+    const INATIVIDADE_MS = CONFIG_SISTEMA.seguranca.sessao.inatividadeMs; // logout por inatividade
+    const LOCK_TTL_MS = CONFIG_SISTEMA.seguranca.sessao.lockTtlMs;        // expiração do cadeado
+    const HEARTBEAT_MS = CONFIG_SISTEMA.seguranca.sessao.heartbeatMs;     // renovação do cadeado
     let meuToken = null;                    // identifica ESTA aba/dispositivo
     let lockRowId = null;                   // id da linha-cadeado na nuvem
     let _heartbeatTimer = null;
@@ -2809,7 +2900,7 @@
       if (_logoutEmAndamento) return;
       if (_inatividadeTimer) clearTimeout(_inatividadeTimer);
       _inatividadeTimer = setTimeout(() => {
-        forcarLogout('Você ficou 5 minutos inativo. Faça login novamente.');
+        forcarLogout(CONFIG_SISTEMA.textos.sessaoExpirada);
       }, INATIVIDADE_MS);
     }
     function iniciarMonitorInatividade() {
@@ -2840,7 +2931,7 @@
 
     // Usuários aceitos (a senha é a mesma para todos). Comparação ignora
     // maiúsculas/minúsculas e acentos, então "Paula", "paula", "Fábio", "fabio" valem.
-    const USUARIOS_VALIDOS = ['paula', 'fabio'];
+    const USUARIOS_VALIDOS = CONFIG_SISTEMA.seguranca.usuariosValidos;
     function normalizarUsuario(v) {
       return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
     }
@@ -2852,7 +2943,7 @@
       const senha = (inp && inp.value) || '';
       if (!USUARIOS_VALIDOS.includes(usuario)) {
         if (erro) {
-          erro.textContent = 'Usuário inválido. Use Paula ou Fábio.';
+          erro.textContent = CONFIG_SISTEMA.textos.usuarioInvalido;
           erro.style.display = 'block';
         }
         if (inpUser) { inpUser.focus(); }
@@ -2860,7 +2951,7 @@
       }
       if (senha !== SENHA_SISTEMA) {
         if (erro) {
-          erro.textContent = 'Senha incorreta. Tente novamente.';
+          erro.textContent = CONFIG_SISTEMA.textos.senhaIncorreta;
           erro.style.display = 'block';
         }
         if (inp) { inp.value = ''; inp.focus(); }
@@ -2884,7 +2975,7 @@
         // Já existe outro acesso ativo -> bloqueia este.
         if (tela) tela.style.display = 'flex';
         if (erro) {
-          erro.textContent = 'Já existe um acesso ativo neste sistema. Aguarde alguns minutos (a sessão anterior expira por inatividade) e tente novamente.';
+          erro.textContent = CONFIG_SISTEMA.textos.acessoBloqueado;
           erro.style.display = 'block';
         }
         const inp = document.getElementById('inputSenhaSistema');
@@ -2966,7 +3057,7 @@
         texto = 'Você ainda não fez nenhum backup dos seus dados. Recomendamos exportar o arquivo JSON e guardá-lo em local seguro.';
       } else {
         const diasPassados = Math.floor((Date.now() - new Date(ultima).getTime()) / (1000 * 60 * 60 * 24));
-        if (diasPassados >= 7) {
+        if (diasPassados >= CONFIG_SISTEMA.armazenamento.lembreteBackupDias) {
           mostrar = true;
           texto = `Seu último backup foi há ${diasPassados} dias. Recomendamos exportar o JSON novamente para não perder dados.`;
         }
@@ -3038,6 +3129,16 @@
           adultos += c.acompanhantes;  // compat: assume adultos
         }
       });
+      // Inclui a família do casal nos cards do painel (noivos somam em Adultos,
+      // filhos em Crianças). Eles NÃO entram na lista de convidados — vêm dos
+      // campos "Família no buffet" da Agenda, evitando contagem dupla no buffet
+      // e mantendo "Confirmados" como métrica só de convites (RSVP).
+      const familiaPadrao = CONFIG_SISTEMA.convidados.familiaNoBuffet;
+      const noivosFam = (dados.buffetNoivos !== undefined) ? (Number(dados.buffetNoivos) || 0) : familiaPadrao.noivosPadrao;
+      const filhosFam = (dados.buffetFilhos !== undefined) ? (Number(dados.buffetFilhos) || 0) : familiaPadrao.filhosPadrao;
+      totalPessoas += noivosFam + filhosFam;
+      adultos += noivosFam;
+      criancas += filhosFam;
       document.getElementById('cardTotalConvidados').textContent = totalPessoas;
       document.getElementById('cardConvidadosConfirmados').textContent = confirmados;
       const elAd = document.getElementById('cardAdultos');
@@ -3081,7 +3182,7 @@
         if (saldo < 0) {
           elSaldo.style.color = 'var(--cor-erro)';
           elDetalhe.textContent = `Orçamento estourado em ${formatarMoeda(Math.abs(saldo))} (${percentUsado}% usado)`;
-        } else if (percentUsado >= 85) {
+        } else if (percentUsado >= CONFIG_SISTEMA.dashboard.alertaOrcamentoPercent) {
           elSaldo.style.color = 'var(--cor-alerta)';
           elDetalhe.textContent = `Atenção: ${percentUsado}% do orçamento já comprometido`;
         } else {
@@ -3162,7 +3263,7 @@
     let chartFornecedoresInst = null;
     let chartDespesasInst = null;
     // Paleta de cores que harmoniza com o monograma dourado.
-    const PALETA_GRAFICO = ['#b8860b','#6b4f3f','#a0522d','#c19a6b','#8b7355','#cd853f','#daa520','#8b4513','#9c7c5b','#5c4033'];
+    const PALETA_GRAFICO = CONFIG_SISTEMA.visual.paletaGraficos;
     function atualizarGraficosDashboard() {
       // Proteção: se a biblioteca Chart não carregou (CDN bloqueado, offline),
       // mostra mensagem amigável em vez de quebrar o sistema inteiro.
@@ -3267,7 +3368,7 @@
             datasets: [{
               label: 'Total',
               data: [prev, contr, pago],
-              backgroundColor: ['#c19a6b','#b8860b','#6b8e23'],
+              backgroundColor: CONFIG_SISTEMA.visual.coresGraficoDespesas,
               borderWidth: 0
             }]
           },
@@ -3318,8 +3419,8 @@
       // Família no buffet (casal + filhos)
       const bNoivos = document.getElementById('buffetNoivos');
       const bFilhos = document.getElementById('buffetFilhos');
-      dados.buffetNoivos = bNoivos ? Math.max(0, Number(bNoivos.value) || 0) : 2;
-      dados.buffetFilhos = bFilhos ? Math.max(0, Number(bFilhos.value) || 0) : 0;
+      dados.buffetNoivos = bNoivos ? Math.max(0, Number(bNoivos.value) || 0) : CONFIG_SISTEMA.convidados.familiaNoBuffet.noivosPadrao;
+      dados.buffetFilhos = bFilhos ? Math.max(0, Number(bFilhos.value) || 0) : CONFIG_SISTEMA.convidados.familiaNoBuffet.filhosPadrao;
       // Recalcula os buffets salvos, já que o nº de pagantes pode ter mudado
       if (typeof recalcularBuffetsSalvos === 'function') recalcularBuffetsSalvos();
       salvarDados();
@@ -4093,17 +4194,11 @@
         '<input type="text" id="buscaConvidado" placeholder="Buscar por nome..." style="flex:1; min-width:160px;" oninput="aplicarFiltroConvidados()">' +
         '<select id="filtroCategoriaConvidado" onchange="aplicarFiltroConvidados()">' +
           '<option value="">Todas as categorias</option>' +
-          '<option value="Família">Família</option>' +
-          '<option value="Amigos">Amigos</option>' +
-          '<option value="Trabalho">Trabalho</option>' +
-          '<option value="Crianças">Crianças</option>' +
-          '<option value="Outros">Outros</option>' +
+          CONFIG_SISTEMA.convidados.categorias.map(c => `<option value="${c}">${c}</option>`).join('') +
         '</select>' +
         '<select id="filtroStatusConvidado" onchange="aplicarFiltroConvidados()">' +
           '<option value="">Todos os status</option>' +
-          '<option value="Confirmado">Confirmado</option>' +
-          '<option value="Aguardando confirmação">Aguardando confirmação</option>' +
-          '<option value="Recusou">Recusou</option>' +
+          CONFIG_SISTEMA.convidados.statusConfirmacao.map(s => `<option value="${s}">${s}</option>`).join('') +
         '</select>' +
         '<button class="btn-secondary" onclick="limparFiltroConvidados()">Limpar filtro</button>';
       lista.appendChild(barraFiltro);
@@ -4140,7 +4235,7 @@
         // Mostra idade e indicador de pagante para crianças
         let infoCrianca = '';
         if (c.categoria === 'Crianças' && c.idade !== undefined && c.idade !== null) {
-          const paga = Number(c.idade) >= 8;
+          const paga = Number(c.idade) >= CONFIG_SISTEMA.convidados.idadeMinimaPagante;
           infoCrianca = ` — ${c.idade} anos ` +
             (paga ? '<span class="etiqueta-venc proxima">paga buffet</span>'
                   : '<span class="etiqueta-venc pago">não paga buffet</span>');
@@ -4743,7 +4838,7 @@
             vencidas.map(d => d.descricao).join(', ') + '. ';
         }
         if (proximas.length > 0) {
-          txt += `${proximas.length} despesa(s) vencendo em até 7 dias: ` +
+          txt += `${proximas.length} despesa(s) vencendo em até ${CONFIG_SISTEMA.dashboard.diasAvisoVencimento} dias: ` +
             proximas.map(d => d.descricao).join(', ') + '.';
         }
         caixaAlerta.textContent = txt;
@@ -5298,7 +5393,7 @@
       const resumo = document.getElementById('resumoCriancas');
       if (!cont) return;
       const todas = coletarTodasAsCriancas();
-      const pagantes = todas.filter(c => Number(c.idade) >= 8).length;
+      const pagantes = todas.filter(c => Number(c.idade) >= CONFIG_SISTEMA.convidados.idadeMinimaPagante).length;
       const naoPagantes = todas.filter(c => c.idade !== undefined && c.idade !== null && Number(c.idade) < 8).length;
       const semIdade = todas.filter(c => c.idade === undefined || c.idade === null).length;
       if (resumo) {
@@ -5315,7 +5410,7 @@
       // Aplica filtro primeiro
       const filtradas = todas.filter(c => {
         const idade = (c.idade === undefined || c.idade === null) ? null : Number(c.idade);
-        const paga = idade !== null && idade >= 8;
+        const paga = idade !== null && idade >= CONFIG_SISTEMA.convidados.idadeMinimaPagante;
         const semIdadeC = idade === null;
         if (filtro === 'paga' && !paga) return false;
         if (filtro === 'nao-paga' && !(idade !== null && idade < 8)) return false;
@@ -5340,7 +5435,7 @@
       function renderBloco(criancas) {
         criancas.forEach((c, idx) => {
           const idade = (c.idade === undefined || c.idade === null) ? null : Number(c.idade);
-          const paga = idade !== null && idade >= 8;
+          const paga = idade !== null && idade >= CONFIG_SISTEMA.convidados.idadeMinimaPagante;
           const semIdadeC = idade === null;
           const div = document.createElement('div');
           div.className = 'item-lista';
@@ -6231,19 +6326,19 @@
       }
     }
 // Calcula o número de convidados pagantes para o cálculo do Buffet.
-// REGRA: até 7 anos não paga; 8+ paga. Crianças sem idade informada NÃO
+// REGRA: idade mínima pagante vem de CONFIG_SISTEMA.convidados. Sem idade NÃO
 // são contadas (mais seguro errar para menos do que cobrar a mais por engano).
 // Adultos (qualquer categoria diferente de "Crianças") pagam normalmente,
 // somando seus acompanhantes.
 function calcularConvidadosPagantes() {
   let total = 0;
   // Função auxiliar: dado um "ser" (convidado ou acompanhante), retorna se paga buffet.
-  // Regras: criança até 7 anos NÃO paga; criança >= 8 paga; adulto paga.
+  // Regras: criança paga a partir de CONFIG_SISTEMA.convidados.idadeMinimaPagante; adulto paga.
   // Criança sem idade informada NÃO paga (lado seguro — errar para menos).
   function pagaBuffet(tipo, idade) {
     if (tipo === 'Criança') {
       const i = Number(idade);
-      return !isNaN(i) && i >= 8;
+      return !isNaN(i) && i >= CONFIG_SISTEMA.convidados.idadeMinimaPagante;
     }
     return true;
   }
@@ -6266,8 +6361,8 @@ function calcularConvidadosPagantes() {
   }
   // Inclui a família do casal (noivos + filhos), que não está na lista de
   // convidados mas também é servida pelo buffet. Padrão: 2 noivos, 0 filhos.
-  const noivosBuffet = (dados.buffetNoivos !== undefined) ? Number(dados.buffetNoivos) : 2;
-  const filhosBuffet = (dados.buffetFilhos !== undefined) ? Number(dados.buffetFilhos) : 0;
+  const noivosBuffet = (dados.buffetNoivos !== undefined) ? Number(dados.buffetNoivos) : CONFIG_SISTEMA.convidados.familiaNoBuffet.noivosPadrao;
+  const filhosBuffet = (dados.buffetFilhos !== undefined) ? Number(dados.buffetFilhos) : CONFIG_SISTEMA.convidados.familiaNoBuffet.filhosPadrao;
   total += (isNaN(noivosBuffet) ? 0 : noivosBuffet) + (isNaN(filhosBuffet) ? 0 : filhosBuffet);
   return total;
 }
@@ -6565,8 +6660,8 @@ function atualizarValoresBuffet() {
       document.getElementById('enderecoFesta').value = dados.enderecoFesta || '';
       const bNoivos = document.getElementById('buffetNoivos');
       const bFilhos = document.getElementById('buffetFilhos');
-      if (bNoivos) bNoivos.value = (dados.buffetNoivos !== undefined) ? dados.buffetNoivos : 2;
-      if (bFilhos) bFilhos.value = (dados.buffetFilhos !== undefined) ? dados.buffetFilhos : 0;
+      if (bNoivos) bNoivos.value = (dados.buffetNoivos !== undefined) ? dados.buffetNoivos : CONFIG_SISTEMA.convidados.familiaNoBuffet.noivosPadrao;
+      if (bFilhos) bFilhos.value = (dados.buffetFilhos !== undefined) ? dados.buffetFilhos : CONFIG_SISTEMA.convidados.familiaNoBuffet.filhosPadrao;
     }
     // ===== Orçamento total =====
     function salvarOrcamentoTotal() {
@@ -6599,7 +6694,7 @@ function atualizarValoresBuffet() {
         const percentUsado = Math.round((totalContratado / orcamento) * 100);
         let cor;
         if (saldo < 0) cor = 'var(--cor-erro)';
-        else if (percentUsado >= 85) cor = 'var(--cor-alerta)';
+        else if (percentUsado >= CONFIG_SISTEMA.dashboard.alertaOrcamentoPercent) cor = 'var(--cor-alerta)';
         else cor = 'var(--cor-sucesso)';
         linhaSaldo = `<strong>Saldo:</strong> <span style="color:${cor}; font-weight:bold;">${formatarMoeda(saldo)}</span> ` +
           `<span style="color:#777;">(${percentUsado}% do orçamento comprometido)</span>`;
@@ -6651,7 +6746,7 @@ function atualizarValoresBuffet() {
     function normalizarTelefoneWhats(tel) {
       let d = String(tel || '').replace(/\D/g, '');
       if (!d) return '';
-      if (d.length <= 11) d = '55' + d; // adiciona DDI do Brasil se faltar
+      if (d.length <= 11) d = CONFIG_SISTEMA.site.ddiPadrao + d; // adiciona DDI se faltar
       return d;
     }
 
@@ -6742,7 +6837,7 @@ function atualizarValoresBuffet() {
 '<!DOCTYPE html>\n<html lang="pt-BR"><head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
 '<title>' + esc(noivos) + ' — Casamento</title>\n' +
 '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n' +
-'<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">\n' +
+'<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Great+Vibes&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">\n' +
 '<style>\n' +
 ':root{--bronze:#8F7838;--champagne:#D4B261;--offwhite:#FAF7F2;--areia:#E7DAC0;--nude:#EBDBC0;--sage:#7A8E5C;--tinta:#5b4a36;}\n' +
 '*{margin:0;padding:0;box-sizing:border-box;}\n' +
@@ -6751,7 +6846,7 @@ function atualizarValoresBuffet() {
 '.hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2rem;background:radial-gradient(circle at 50% 30%, #fff 0%, var(--offwhite) 45%, var(--areia) 100%);position:relative;}\n' +
 '.hero::after{content:"";position:absolute;inset:1.1rem;border:1px solid var(--champagne);pointer-events:none;}\n' +
 '.hero .selo{font-size:.8rem;letter-spacing:.45em;text-transform:uppercase;color:var(--bronze);margin-bottom:1.5rem;}\n' +
-'.hero h1{font-size:clamp(2.8rem,9vw,5.5rem);color:var(--bronze);line-height:1.05;font-style:italic;}\n' +
+'.hero h1{font-family:"Great Vibes",cursive;font-size:clamp(3rem,10vw,6rem);color:var(--bronze);line-height:1.1;}\n' +
 '.hero .data{margin-top:1.5rem;font-size:1.05rem;letter-spacing:.25em;text-transform:uppercase;color:var(--tinta);}\n' +
 '.hero .mensagem{margin-top:1.2rem;max-width:34rem;font-size:1.05rem;color:#7a6a52;}\n' +
 '.bloco{max-width:46rem;margin:0 auto;padding:4.5rem 1.6rem;text-align:center;}\n' +
@@ -6793,7 +6888,7 @@ blocoRsvp +
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'site-casamento.html';
+      a.download = CONFIG_SISTEMA.armazenamento.arquivos.sitePublico;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -6887,7 +6982,7 @@ blocoRsvp +
         const hoje = new Date();
         const carimbo = `${String(hoje.getDate()).padStart(2,'0')}-${String(hoje.getMonth()+1).padStart(2,'0')}-${hoje.getFullYear()}`;
         a.href = url;
-        a.download = `gestao-casamento-${carimbo}.json`;
+        a.download = `${CONFIG_SISTEMA.armazenamento.arquivos.jsonPrefixo}${carimbo}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -6940,7 +7035,7 @@ blocoRsvp +
         const hoje = new Date();
         const carimbo = `${String(hoje.getDate()).padStart(2,'0')}-${String(hoje.getMonth()+1).padStart(2,'0')}-${hoje.getFullYear()}`;
         a.href = url;
-        a.download = `despesas-casamento-${carimbo}.csv`;
+        a.download = `${CONFIG_SISTEMA.armazenamento.arquivos.csvDespesasPrefixo}${carimbo}.csv`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -7283,7 +7378,7 @@ blocoRsvp +
               detalhes.push(c.parentescoNoivo.grau + ' ' + dq);
             }
             if (c.categoria === 'Crianças' && c.idade !== undefined && c.idade !== null) {
-              detalhes.push(c.idade + ' anos (' + (Number(c.idade) >= 8 ? 'paga buffet' : 'não paga') + ')');
+              detalhes.push(c.idade + ' anos (' + (Number(c.idade) >= CONFIG_SISTEMA.convidados.idadeMinimaPagante ? 'paga buffet' : 'não paga') + ')');
             }
             if (c.observacoes && String(c.observacoes).trim()) detalhes.push('Obs: ' + c.observacoes);
             linhaTabela(
@@ -7551,7 +7646,7 @@ blocoRsvp +
         }
         let infoCrianca = '';
         if (c.categoria === 'Crianças' && c.idade !== undefined && c.idade !== null) {
-          const paga = Number(c.idade) >= 8;
+          const paga = Number(c.idade) >= CONFIG_SISTEMA.convidados.idadeMinimaPagante;
           infoCrianca = ` — ${c.idade} anos ` +
             (paga ? '<span class="etiqueta-venc proxima">paga buffet</span>'
                   : '<span class="etiqueta-venc pago">não paga buffet</span>');
@@ -8084,10 +8179,40 @@ blocoRsvp +
     }
 
     // ===== Inicialização =====
+    // Gera as opções dos selects principais a partir do CONFIG_SISTEMA.
+    // Adicionar/remover uma categoria passa a ser editar UMA lista no CONFIG.
+    function preencherSelectsDoConfig() {
+      const montar = (id, itens, placeholder) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const atual = el.value; // preserva seleção, se houver
+        el.innerHTML = (placeholder ? `<option value="">${placeholder}</option>` : '') +
+          itens.map(i => `<option>${i}</option>`).join('');
+        if (atual) el.value = atual;
+      };
+      montar('categoriaFornecedor', CONFIG_SISTEMA.fornecedores.categorias);
+      montar('categoriaDespesa', CONFIG_SISTEMA.financeiro.categoriasDespesa);
+      montar('categoriaConvidado', CONFIG_SISTEMA.convidados.categorias, 'Selecione...');
+      montar('statusPresencaConvidado', CONFIG_SISTEMA.convidados.statusConfirmacao);
+      montar('modalidadePagamentoFornecedor', CONFIG_SISTEMA.financeiro.modalidadesPagamento, 'Selecione...');
+    }
+
     function inicializar() {
       // Carrega o monograma embutido no cabeçalho
       const imgMonograma = document.getElementById('monogramaHeader');
       if (imgMonograma) imgMonograma.src = MONOGRAMA_BASE64;
+      // Textos derivados da regra de idade do buffet (CONFIG_SISTEMA) — assim,
+      // mudar a idade mínima pagante atualiza todos os avisos automaticamente.
+      const idadeMin = CONFIG_SISTEMA.convidados.idadeMinimaPagante;
+      const elRegraCard = document.getElementById('textoRegraBuffetCard');
+      if (elRegraCard) elRegraCard.textContent =
+        `inclui os noivos e filhos do casal · ${CONFIG_SISTEMA.convidados.textoNaoPagante}`;
+      const elOpNao = document.getElementById('opcaoNaoPagantes');
+      if (elOpNao) elOpNao.textContent = `Só não pagantes (até ${idadeMin - 1} anos)`;
+      const elOpSim = document.getElementById('opcaoPagantes');
+      if (elOpSim) elOpSim.textContent = `Só pagantes (${idadeMin}+ anos)`;
+      // Preenche os selects de categorias/status/modalidades a partir do CONFIG
+      preencherSelectsDoConfig();
       // Bug-fix: migração silenciosa — recalcula buffets salvos em versões
       // antigas que podem ter ficado defasados (convidados adicionados depois
       // do buffet sem o buffet ser atualizado).
@@ -8163,7 +8288,7 @@ blocoRsvp +
     function confirmarLimparDados() {
       const senha = (document.getElementById('senhaLimparDados') || {}).value || '';
       if (senha !== SENHA_LIMPAR_DADOS) {
-        alert('Senha incorreta. Tente novamente.');
+        alert(CONFIG_SISTEMA.textos.senhaIncorreta);
         // Mantém o modal aberto para nova tentativa
         const sn = document.getElementById('senhaLimparDados');
         if (sn) { sn.value = ''; sn.focus(); }
