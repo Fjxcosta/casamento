@@ -1120,6 +1120,21 @@
           <label for="enderecoFesta">Endereço da festa</label>
           <input type="text" id="enderecoFesta" placeholder="Endereço completo da festa">
         </div>
+        <hr>
+        <h4 style="margin-bottom:0.25rem;">Família no buffet</h4>
+        <p style="font-size:0.88rem; color:#777; margin-top:0;">
+          Inclui o casal e os filhos na contagem de pagantes do buffet (eles não estão na lista de convidados).
+        </p>
+        <div class="linha-campo label-acima">
+          <div class="form-group" style="flex:1;">
+            <label for="buffetNoivos">Noivos no buffet</label>
+            <input type="number" id="buffetNoivos" min="0" max="2" value="2">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label for="buffetFilhos">Filhos do casal (pagantes)</label>
+            <input type="number" id="buffetFilhos" min="0" value="0">
+          </div>
+        </div>
         <div class="actions">
           <button class="btn-success" onclick="salvarDadosCasamento()">Salvar</button>
         </div>
@@ -1653,6 +1668,25 @@
           <label for="valorContratadoFornecedor" id="labelValorContratadoFornecedor">Valor total a pagar</label>
           <input type="text" id="valorContratadoFornecedor" placeholder="R$ 0,00" inputmode="numeric" oninput="aplicarMascaraMoeda(this); atualizarValoresBuffet();" onblur="finalizarCampoMoeda(this); atualizarValoresBuffet();">
           <small id="ajudaValorContratado" style="color:#777; display:none;">No Buffet, este é o valor por pessoa. O total será calculado automaticamente.</small>
+        </div>
+        <!-- Modalidade de pagamento -->
+        <div class="linha-campo label-acima">
+          <div class="form-group" style="flex:1;">
+            <label for="modalidadePagamentoFornecedor">Modalidade de pagamento</label>
+            <select id="modalidadePagamentoFornecedor" onchange="toggleParcelasCartao()">
+              <option value="">Selecione...</option>
+              <option value="À vista">À vista</option>
+              <option value="Pix">Pix</option>
+              <option value="Cartão de crédito">Cartão de crédito</option>
+              <option value="Cartão de crédito parcelado">Cartão de crédito parcelado</option>
+              <option value="Cartão de débito">Cartão de débito</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex:1; display:none;" id="grupoParcelasCartao">
+            <label for="qtdParcelasCartao">Qtd. de parcelas do cartão</label>
+            <input type="number" id="qtdParcelasCartao" min="1" value="2" onchange="aplicarParcelasCartao()">
+            <small style="color:#777;">Define a quantidade de parcelas abaixo.</small>
+          </div>
         </div>
         <!-- LINHA 5: Total a pagar | Valor pago / Entrada | % entrada (labels EM CIMA) -->
         <div class="linha-campo label-acima" id="grupoLinhaPagamento1">
@@ -2494,6 +2528,8 @@
       celebrante: '',
       localFesta: '',
       enderecoFesta: '',
+      buffetNoivos: 2,
+      buffetFilhos: 0,
       orcamentoTotal: 0,
       compromissos: [],
       convidados: [],
@@ -3279,7 +3315,15 @@
       dados.celebrante = celebrante;
       dados.localFesta = localFesta;
       dados.enderecoFesta = enderecoFesta;
+      // Família no buffet (casal + filhos)
+      const bNoivos = document.getElementById('buffetNoivos');
+      const bFilhos = document.getElementById('buffetFilhos');
+      dados.buffetNoivos = bNoivos ? Math.max(0, Number(bNoivos.value) || 0) : 2;
+      dados.buffetFilhos = bFilhos ? Math.max(0, Number(bFilhos.value) || 0) : 0;
+      // Recalcula os buffets salvos, já que o nº de pagantes pode ter mudado
+      if (typeof recalcularBuffetsSalvos === 'function') recalcularBuffetsSalvos();
       salvarDados();
+      if (typeof atualizarDashboard === 'function') atualizarDashboard();
       alert('Dados do casamento salvos com sucesso');
     }
     // ===== Compromissos =====
@@ -5717,6 +5761,24 @@
         if (typeof listarFornecedores === 'function') listarFornecedores();
       }
     }
+    // Mostra/oculta a quantidade de parcelas do cartão conforme a modalidade.
+    function toggleParcelasCartao() {
+      const sel = document.getElementById('modalidadePagamentoFornecedor');
+      const grupo = document.getElementById('grupoParcelasCartao');
+      if (!sel || !grupo) return;
+      grupo.style.display = (sel.value === 'Cartão de crédito parcelado') ? '' : 'none';
+    }
+    // Ao informar a qtd de parcelas do cartão, reflete na lista de parcelas.
+    function aplicarParcelasCartao() {
+      const n = Number((document.getElementById('qtdParcelasCartao') || {}).value) || 1;
+      const parcelasInput = document.getElementById('parcelasFornecedor');
+      if (parcelasInput) {
+        parcelasInput.value = Math.max(1, n);
+        if (typeof gerarCamposParcelas === 'function') gerarCamposParcelas();
+        if (typeof atualizarValoresBuffet === 'function') atualizarValoresBuffet();
+      }
+    }
+
     function abrirFormularioFornecedor() {
       // Garante que o formulário abra zerado ao adicionar um novo registro
       limparFormularioFornecedor();
@@ -5728,10 +5790,12 @@
         alternarSubFornec('cadastrar');
       }
       document.getElementById('formFornecedor').style.display = 'block';
+      atualizarSnapshotModal('modalMeuCasamento');
     }
     function cancelarFormularioFornecedor() {
       limparFormularioFornecedor();
       document.getElementById('formFornecedor').style.display = 'none';
+      atualizarSnapshotModal('modalMeuCasamento');
     }
     function limparFormularioFornecedor() {
       fornecedorEmEdicao = null;
@@ -5745,6 +5809,12 @@
       document.getElementById('prioridadeFornecedor').selectedIndex = 0;
       document.getElementById('contratoFornecedor').value = '';
       document.getElementById('observacoesFornecedor').value = '';
+      // Modalidade de pagamento
+      const selMod = document.getElementById('modalidadePagamentoFornecedor');
+      if (selMod) selMod.selectedIndex = 0;
+      const qtdCartao = document.getElementById('qtdParcelasCartao');
+      if (qtdCartao) qtdCartao.value = 2;
+      if (typeof toggleParcelasCartao === 'function') toggleParcelasCartao();
       // Novos campos: WhatsApp, e-mail, link contrato, data assinatura
       const camposNovos = ['whatsappFornecedor','emailFornecedor','linkContratoFornecedor','dataAssinaturaFornecedor'];
       camposNovos.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
@@ -5815,7 +5885,12 @@
       document.getElementById('prioridadeFornecedor').value = f.prioridade || 'Baixa';
       document.getElementById('contratoFornecedor').value = f.contrato || '';
       document.getElementById('observacoesFornecedor').value = f.observacoes || '';
-      // UX: garante que estamos na aba Cadastrar (onde o formulário está visível).
+      // Modalidade de pagamento
+      const selMod = document.getElementById('modalidadePagamentoFornecedor');
+      if (selMod) selMod.value = f.modalidadePagamento || '';
+      const qtdCartaoEl = document.getElementById('qtdParcelasCartao');
+      if (qtdCartaoEl && f.parcelasCartao) qtdCartaoEl.value = f.parcelasCartao;
+      if (typeof toggleParcelasCartao === 'function') toggleParcelasCartao();
       if (typeof alternarSubFornec === 'function' && document.getElementById('subFornecCadastrar')) {
         alternarSubFornec('cadastrar');
       }
@@ -5887,6 +5962,9 @@
         if (elVls) elVls.value = f.parcelas.map(p => formatarMoeda(Number(p.valor) || 0)).join('; ');
         if (elObs && f.parcelamentoMeta) elObs.value = f.parcelamentoMeta.observacoes || '';
       }
+      // Sincroniza o snapshot do modal: abrir um fornecedor para edição preenche
+      // o formulário, e isso não deve ser visto como "alteração não salva".
+      atualizarSnapshotModal('modalMeuCasamento');
     }
     function salvarFornecedor() {
       const nome = document.getElementById('nomeFornecedor').value.trim();
@@ -5898,6 +5976,9 @@
       const email = (document.getElementById('emailFornecedor') || {}).value || '';
       const linkContrato = (document.getElementById('linkContratoFornecedor') || {}).value || '';
       const dataAssinatura = ((document.getElementById('dataAssinaturaFornecedor') || {}).value || '').trim();
+      const modalidadePagamento = (document.getElementById('modalidadePagamentoFornecedor') || {}).value || '';
+      const parcelasCartao = modalidadePagamento === 'Cartão de crédito parcelado'
+        ? (Number((document.getElementById('qtdParcelasCartao') || {}).value) || null) : null;
       // Validação da data de assinatura (vazio é permitido)
       if (dataAssinatura && !dataValida(dataAssinatura)) {
         alert('A data de assinatura deve estar no formato dd/mm/aaaa.');
@@ -5975,9 +6056,9 @@
       // % entrada/pago: deriva de quanto foi pago em relação ao total
       const percentualEntrada = valorContratado > 0 ? (valorPago / valorContratado) * 100 : 0;
       if (categoria === 'Buffet') {
-        registro = { nome, categoria, responsavel, telefone, whatsapp, email, linkContrato, dataAssinatura, valorContratado, valorPago, valorPorPessoa, status, prioridade, percentualEntrada, percentualRestante, parcelas, contrato, observacoes };
+        registro = { nome, categoria, responsavel, telefone, whatsapp, email, linkContrato, dataAssinatura, valorContratado, valorPago, valorPorPessoa, status, prioridade, percentualEntrada, percentualRestante, parcelas, contrato, observacoes, modalidadePagamento, parcelasCartao };
       } else {
-        registro = { nome, categoria, responsavel, telefone, whatsapp, email, linkContrato, dataAssinatura, valorContratado, valorPago, status, prioridade, percentualEntrada, percentualRestante, parcelas, contrato, observacoes };
+        registro = { nome, categoria, responsavel, telefone, whatsapp, email, linkContrato, dataAssinatura, valorContratado, valorPago, status, prioridade, percentualEntrada, percentualRestante, parcelas, contrato, observacoes, modalidadePagamento, parcelasCartao };
       }
       // Se veio do modal de parcelamento, guarda meta-informação para histórico
       if (parcelamentoMeta) {
@@ -6005,6 +6086,7 @@
         alternarSubFornec('listar');
       }
       alert(editandoFornecedor ? 'Fornecedor atualizado com sucesso' : 'Fornecedor adicionado com sucesso');
+      atualizarSnapshotModal('modalMeuCasamento');
     }
     // Filtro ativo da lista de fornecedores
     let filtroFornecedores = { categoria: '', status: '', busca: '' };
@@ -6182,6 +6264,11 @@ function calcularConvidadosPagantes() {
       }
     });
   }
+  // Inclui a família do casal (noivos + filhos), que não está na lista de
+  // convidados mas também é servida pelo buffet. Padrão: 2 noivos, 0 filhos.
+  const noivosBuffet = (dados.buffetNoivos !== undefined) ? Number(dados.buffetNoivos) : 2;
+  const filhosBuffet = (dados.buffetFilhos !== undefined) ? Number(dados.buffetFilhos) : 0;
+  total += (isNaN(noivosBuffet) ? 0 : noivosBuffet) + (isNaN(filhosBuffet) ? 0 : filhosBuffet);
   return total;
 }
 
@@ -6476,6 +6563,10 @@ function atualizarValoresBuffet() {
       document.getElementById('celebrante').value = dados.celebrante || '';
       document.getElementById('localFesta').value = dados.localFesta || '';
       document.getElementById('enderecoFesta').value = dados.enderecoFesta || '';
+      const bNoivos = document.getElementById('buffetNoivos');
+      const bFilhos = document.getElementById('buffetFilhos');
+      if (bNoivos) bNoivos.value = (dados.buffetNoivos !== undefined) ? dados.buffetNoivos : 2;
+      if (bFilhos) bFilhos.value = (dados.buffetFilhos !== undefined) ? dados.buffetFilhos : 0;
     }
     // ===== Orçamento total =====
     function salvarOrcamentoTotal() {
@@ -6890,7 +6981,7 @@ blocoRsvp +
         // chaves ausentes com valores padrão.
         const padrao = {
           dataCasamento: '', horaCasamento: '', localCasamento: '', enderecoCasamento: '', celebrante: '',
-          localFesta: '', enderecoFesta: '', orcamentoTotal: 0,
+          localFesta: '', enderecoFesta: '', buffetNoivos: 2, buffetFilhos: 0, orcamentoTotal: 0,
           compromissos: [], convidados: [], mesas: [], despesas: [], fornecedores: [],
           tarefas: [], listaEspera: [], padrinhos: [], cronograma: [],
           espaco: {}, site: {}, noiva: {}, noivo: {}
