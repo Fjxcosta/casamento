@@ -938,14 +938,30 @@
         <button class="btn-secondary" onclick="exportarJson()">Exportar JSON</button>
         <button class="btn-secondary" onclick="document.getElementById('inputImportarJson').click()">Importar JSON</button>
         <input type="file" id="inputImportarJson" accept="application/json,.json" onchange="importarJson(event)">
-        <button class="btn-secondary" onclick="exportarPdf()">Exportar PDF</button>
+        <button class="btn-secondary" onclick="exportarPdf()">Exportar tudo (PDF)</button>
+        <button class="btn-secondary" onclick="exportarPdfConvidados()">Lista de convidados (PDF)</button>
         <button class="btn-secondary" onclick="exportarCsvDespesas()">Exportar despesas (CSV)</button>
+        <button class="btn-secondary" onclick="abrirModalBackups()">Backups automáticos</button>
         <button class="btn-danger" onclick="abrirModalLimparDados()" style="margin-top:0.5rem;">Limpar dados</button>
       </div>
     </div>
   </div>
 
   <!-- Modal de limpar dados (apaga TUDO — exige senha) -->
+  <!-- Modal: backups automáticos da nuvem -->
+  <div class="modal" id="modalBackupsAuto" aria-hidden="true">
+    <div class="modal-content" style="max-width:560px;">
+      <button class="close-btn" onclick="fecharModal('modalBackupsAuto', true)">&times;</button>
+      <h3>Backups automáticos</h3>
+      <p style="font-size:0.9rem; color:#6b5a42;">
+        Um instantâneo completo é guardado na nuvem no primeiro salvamento de cada dia de uso
+        (os <span id="qtdBackupsInfo">7</span> mais recentes são mantidos). Restaurar substitui os dados atuais —
+        mas o sistema guarda antes um instantâneo "pré-restauração", então dá para voltar atrás.
+      </p>
+      <div id="listaBackupsAuto"></div>
+    </div>
+  </div>
+
   <div class="modal" id="modalLimparDados" aria-hidden="true">
     <div class="modal-content" style="max-width:500px;">
       <button class="close-btn" onclick="fecharModalLimparDados()">&times;</button>
@@ -1011,8 +1027,14 @@
       <small id="textoRegraBuffetCard" style="font-weight:normal; color:#777;">crianças até 7 anos não pagam</small>
     </div>
     <div class="card">
+      <h3>Fornecedores (orçado)</h3>
+      <p id="cardTotalFornecedores">R$ 0,00</p>
+      <small id="cardFornecedoresDetalhe" style="font-weight:normal; color:#777;">soma dos fornecedores cadastrados</small>
+    </div>
+    <div class="card">
       <h3>Total contratado</h3>
       <p id="cardTotalContratado">R$ 0,00</p>
+      <small style="font-weight:normal; color:#777;">despesas do Orçamentador</small>
     </div>
     <div class="card">
       <h3>Total pago</h3>
@@ -1527,6 +1549,26 @@
             <button class="btn-success" onclick="salvarOrcamentoTotal()">Salvar orçamento</button>
           </div>
           <div id="resumoOrcamento" style="font-size:0.95rem; line-height:1.6;"></div>
+        </div>
+        <!-- Metas por categoria: planejado × comprometido -->
+        <div style="background:#fffbf5; border:1px solid var(--cor-borda-suave); padding:1rem; border-radius:6px; margin-bottom:1rem;">
+          <h4 style="margin:0 0 0.25rem;">Metas por categoria</h4>
+          <p style="font-size:0.85rem; color:#777; margin:0 0 0.75rem;">
+            Planejado × comprometido. O comprometido soma <strong>fornecedores + despesas</strong> da categoria —
+            evite cadastrar o mesmo gasto nos dois lugares para não contar em dobro.
+          </p>
+          <div id="listaMetasCategorias"></div>
+          <div class="linha-campo label-acima" style="margin-top:0.75rem; align-items:flex-end;">
+            <div class="form-group" style="flex:2; margin-bottom:0;">
+              <label for="novaMetaCategoria">Categoria</label>
+              <select id="novaMetaCategoria"></select>
+            </div>
+            <div class="form-group" style="flex:2; margin-bottom:0;">
+              <label for="novaMetaValor">Meta (R$)</label>
+              <input type="text" id="novaMetaValor" placeholder="R$ 0,00" inputmode="numeric" oninput="aplicarMascaraMoeda(this)" onblur="finalizarCampoMoeda(this)">
+            </div>
+            <button class="btn-primary" style="flex:1;" onclick="adicionarMetaCategoria()">Definir meta</button>
+          </div>
         </div>
         <button class="btn-primary" onclick="abrirFormularioDespesa()">Adicionar despesa</button>
         <div id="listaDespesas" style="margin-top:1rem;"></div>
@@ -2363,6 +2405,33 @@
       }
       return { tipo: 'em-dia', rotulo: `Vence em ${dias} dia(s)`, dias };
     }
+    // Varre as PARCELAS dos fornecedores (com vencimento e sem pagamento) e
+    // classifica em vencidas / próximas, usando a MESMA janela de dias das
+    // despesas (CONFIG_SISTEMA.dashboard.diasAvisoVencimento).
+    function coletarParcelasFornecedores() {
+      const vencidas = [];
+      const proximas = [];
+      const agora = new Date();
+      const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+      const janela = CONFIG_SISTEMA.dashboard.diasAvisoVencimento;
+      (dados.fornecedores || []).forEach(f => {
+        if (!Array.isArray(f.parcelas)) return;
+        f.parcelas.forEach((p, i) => {
+          if (!p.vencimento || p.pagamento || !dataValida(p.vencimento)) return;
+          const [d, m, a] = p.vencimento.split('/').map(Number);
+          const venc = new Date(a, m - 1, d);
+          const dias = Math.round((venc - hoje) / (1000 * 60 * 60 * 24));
+          const item = {
+            rotulo: `${f.nome || 'Fornecedor'} (parcela ${i + 1}${Number(p.valor) > 0 ? ', ' + formatarMoeda(p.valor) : ''})`,
+            vencimento: p.vencimento,
+            dias
+          };
+          if (dias < 0) vencidas.push(item);
+          else if (dias <= janela) proximas.push(item);
+        });
+      });
+      return { vencidas, proximas };
+    }
     // Preenche um campo de moeda a partir de um número armazenado.
     function preencherCampoMoeda(id, valor) {
       const el = document.getElementById(id);
@@ -2532,9 +2601,12 @@
         fonte: 'supabase',
         tabela: 'dados_casamento',
         lembreteBackupDias: 7,
+        backupsAutomaticos: 7,            // instantâneos diários mantidos na nuvem
         arquivos: {
           jsonPrefixo: 'gestao-casamento-',
           csvDespesasPrefixo: 'despesas-casamento-',
+          pdfPrefixo: 'backup-paula-fabio-',
+          pdfConvidadosPrefixo: 'convidados-paula-fabio-',
           sitePublico: 'site-casamento.html'
         }
       },
@@ -2622,6 +2694,7 @@
       buffetNoivos: 2,
       buffetFilhos: 0,
       orcamentoTotal: 0,
+      metasCategorias: {},
       compromissos: [],
       convidados: [],
       mesas: [],
@@ -2672,16 +2745,19 @@
         const { data, error } = await supabaseClient
           .from('dados_casamento')
           .select('id, "Dados"')
-          .order('id', { ascending: true })
-          .limit(1);
+          .order('id', { ascending: true });
         if (error) throw error;
-        if (!data || data.length === 0) {
+        // A linha PRINCIPAL é a que NÃO tem `_tipo` em Dados. Linhas com
+        // `_tipo` são auxiliares (cadeado de sessão, backups automáticos) e
+        // jamais podem ser carregadas como dados do casamento.
+        const principal = (data || []).find(r => !(r.Dados && r.Dados._tipo));
+        if (!principal) {
           alert('Nenhuma linha encontrada no banco. Verifique se a tabela "dados_casamento" existe e tem uma linha inicial.');
           setIndicadorSync('erro', 'Sem dados');
           return false;
         }
-        nuvemRowId = data[0].id;
-        const dadosNuvem = data[0].Dados || {};
+        nuvemRowId = principal.id;
+        const dadosNuvem = principal.Dados || {};
         // Copia campo por campo para o objeto `dados` em memória (sem trocar
         // a referência — outras partes do código guardam o objeto).
         Object.keys(dados).forEach(k => {
@@ -2694,7 +2770,7 @@
          'tarefas','padrinhos','cronograma','listaEspera'].forEach(k => {
           if (!Array.isArray(dados[k])) dados[k] = [];
         });
-        ['espaco','site','noiva','noivo'].forEach(k => {
+        ['espaco','site','noiva','noivo','metasCategorias'].forEach(k => {
           if (typeof dados[k] !== 'object' || dados[k] === null) dados[k] = {};
         });
         // Migração: "Ambos" foi removido. Converte para 'Noiva' por padrão.
@@ -3035,11 +3111,133 @@
         if (error) throw error;
         ultimaSync = new Date();
         setIndicadorSync('ok', 'Sincronizado');
+        fazerBackupAutomatico(); // fire-and-forget: 1x por dia, nunca bloqueia o save
         return true;
       } catch (e) {
         console.error('Erro ao salvar na nuvem:', e);
         setIndicadorSync('erro', 'Erro ao salvar');
         return false;
+      }
+    }
+
+    // ===== Backups automáticos na nuvem =====
+    // A cada dia de uso, no primeiro salvamento bem-sucedido, guarda um
+    // instantâneo completo de `dados` numa linha separada (_tipo:'auto_backup').
+    // Mantém só os N mais recentes (CONFIG). Nunca toca na linha principal.
+    const BACKUP_TIPO = 'auto_backup';
+    const BACKUP_GUARDA_CHAVE = 'gestaoCasamento_ultimoAutoBackup';
+
+    async function fazerBackupAutomatico(forcar, etiqueta) {
+      try {
+        if (!supabaseClient) return false;
+        const hoje = new Date().toISOString().slice(0, 10);
+        if (!forcar) {
+          let ult = null;
+          try { ult = sessionStorage.getItem(BACKUP_GUARDA_CHAVE); } catch (e) { /* segue */ }
+          if (ult === hoje) return false; // já houve backup hoje nesta aba
+          try { sessionStorage.setItem(BACKUP_GUARDA_CHAVE, hoje); } catch (e) { /* segue */ }
+        }
+        const payload = {
+          _tipo: BACKUP_TIPO,
+          ts: Date.now(),
+          dia: hoje,
+          etiqueta: etiqueta || '',
+          conteudo: JSON.parse(JSON.stringify(dados))
+        };
+        const { error } = await supabaseClient.from('dados_casamento').insert({ "Dados": payload });
+        if (error) throw error;
+        // Rotação: mantém só os N mais recentes
+        const { data } = await supabaseClient.from('dados_casamento').select('id, "Dados"');
+        const backups = (data || [])
+          .filter(r => r.Dados && r.Dados._tipo === BACKUP_TIPO)
+          .sort((a, b) => (b.Dados.ts || 0) - (a.Dados.ts || 0));
+        const limite = CONFIG_SISTEMA.armazenamento.backupsAutomaticos;
+        for (const r of backups.slice(limite)) {
+          await supabaseClient.from('dados_casamento').delete().eq('id', r.id);
+        }
+        return true;
+      } catch (e) {
+        console.warn('Backup automático falhou (o sistema segue normal):', e);
+        try { sessionStorage.removeItem(BACKUP_GUARDA_CHAVE); } catch (_) { /* ok */ }
+        return false;
+      }
+    }
+
+    // Lista os backups existentes na nuvem (mais recente primeiro).
+    async function listarBackupsNuvem() {
+      const { data, error } = await supabaseClient.from('dados_casamento').select('id, "Dados"');
+      if (error) throw error;
+      return (data || [])
+        .filter(r => r.Dados && r.Dados._tipo === BACKUP_TIPO)
+        .sort((a, b) => (b.Dados.ts || 0) - (a.Dados.ts || 0));
+    }
+
+    async function abrirModalBackups() {
+      const cont = document.getElementById('listaBackupsAuto');
+      if (!cont) return;
+      abrirModal('modalBackupsAuto');
+      cont.innerHTML = '<p>Carregando backups...</p>';
+      try {
+        const backups = await listarBackupsNuvem();
+        if (backups.length === 0) {
+          cont.innerHTML = '<p>Nenhum backup automático ainda. O primeiro é criado no primeiro salvamento de cada dia de uso.</p>';
+          return;
+        }
+        cont.innerHTML = '';
+        backups.forEach(r => {
+          const b = r.Dados;
+          const quando = new Date(b.ts || 0);
+          const c = b.conteudo || {};
+          const div = document.createElement('div');
+          div.className = 'item-lista';
+          div.innerHTML = `<strong>${quando.toLocaleDateString(CONFIG_SISTEMA.geral.idioma)} ${quando.toLocaleTimeString(CONFIG_SISTEMA.geral.idioma, {hour:'2-digit',minute:'2-digit'})}</strong>` +
+            (b.etiqueta ? ` <span class="etiqueta-venc proxima">${b.etiqueta}</span>` : '') +
+            `<br>${(c.convidados || []).length} convidado(s) · ${(c.fornecedores || []).length} fornecedor(es) · ${(c.despesas || []).length} despesa(s) · ${(c.tarefas || []).length} tarefa(s)`;
+          const btn = document.createElement('button');
+          btn.textContent = 'Restaurar';
+          btn.className = 'btn-danger btn-pequeno';
+          btn.style.marginLeft = '0.5rem';
+          btn.onclick = () => restaurarBackup(r.id, quando);
+          div.appendChild(btn);
+          cont.appendChild(div);
+        });
+      } catch (e) {
+        cont.innerHTML = '<p>Não foi possível carregar os backups. Verifique a conexão e tente de novo.</p>';
+      }
+    }
+
+    async function restaurarBackup(rowId, quando) {
+      const dataTxt = quando ? quando.toLocaleString(CONFIG_SISTEMA.geral.idioma) : 'selecionado';
+      if (!confirm(`Restaurar o backup de ${dataTxt}?\n\nOs dados ATUAIS serão substituídos pelos do backup. Antes disso, o sistema guardará automaticamente um instantâneo do estado atual (rotulado "pré-restauração"), então é possível voltar atrás.`)) return;
+      setIndicadorSync('salvando', 'Restaurando...');
+      try {
+        // 1. Instantâneo de segurança do estado ATUAL (restauração reversível)
+        await fazerBackupAutomatico(true, 'pré-restauração');
+        // 2. Busca o conteúdo do backup escolhido
+        const { data, error } = await supabaseClient
+          .from('dados_casamento').select('id, "Dados"').eq('id', rowId);
+        if (error) throw error;
+        const cont = data && data[0] && data[0].Dados && data[0].Dados.conteudo;
+        if (!cont) throw new Error('Backup sem conteúdo.');
+        // 3. Aplica campo a campo (sem trocar a referência de `dados`)
+        Object.keys(dados).forEach(k => { if (cont[k] !== undefined) dados[k] = cont[k]; });
+        ['compromissos','convidados','mesas','despesas','fornecedores',
+         'tarefas','padrinhos','cronograma','listaEspera'].forEach(k => {
+          if (!Array.isArray(dados[k])) dados[k] = [];
+        });
+        ['espaco','site','noiva','noivo','metasCategorias'].forEach(k => {
+          if (typeof dados[k] !== 'object' || dados[k] === null) dados[k] = {};
+        });
+        // 4. Grava na linha principal e recarrega a interface
+        const ok = await salvarNaNuvemAgora();
+        if (!ok) throw new Error('Falha ao gravar os dados restaurados.');
+        fecharModal('modalBackupsAuto', true);
+        if (typeof inicializar === 'function') inicializar();
+        alert('Backup restaurado com sucesso.');
+      } catch (e) {
+        console.error('Restauração falhou:', e);
+        setIndicadorSync('erro', 'Falha ao restaurar');
+        alert('Não foi possível restaurar este backup: ' + (e.message || e));
       }
     }
     // Função antiga mantida só para compatibilidade — não faz nada agora
@@ -3149,6 +3347,20 @@
       const pagantes = (typeof calcularConvidadosPagantes === 'function') ? calcularConvidadosPagantes() : 0;
       const elPg = document.getElementById('cardPagantesBuffet');
       if (elPg) elPg.textContent = pagantes;
+      // Fornecedores: total orçado (independe do Orçamentador). O valor pago
+      // vem das parcelas pagas (calcularValorPagoPorParcelas), a mesma fonte
+      // usada no formulário do fornecedor.
+      let fornContratado = 0, fornPago = 0;
+      (dados.fornecedores || []).forEach(f => {
+        fornContratado += Number(f.valorContratado) || 0;
+        fornPago += (typeof calcularValorPagoPorParcelas === 'function')
+          ? calcularValorPagoPorParcelas(f) : (Number(f.valorPago) || 0);
+      });
+      const elTF = document.getElementById('cardTotalFornecedores');
+      const elTFd = document.getElementById('cardFornecedoresDetalhe');
+      if (elTF) elTF.textContent = formatarMoeda(fornContratado);
+      if (elTFd) elTFd.textContent =
+        `pago ${formatarMoeda(fornPago)} · a pagar ${formatarMoeda(Math.max(0, fornContratado - fornPago))}`;
       // Despesas
       let totalContratado = 0;
       let totalPago = 0;
@@ -3215,44 +3427,45 @@
           : `${pendentes} pendente(s)`;
       }
       // ===== Card de alertas consolidados =====
-      // Conta despesas vencidas (não pagas) e parcelas de fornecedor vencidas (sem pagamento).
-      let despesasVencidas = 0, parcelasVencidas = 0;
+      // Vencidas: despesas (não pagas) + parcelas de fornecedor (sem pagamento).
+      // Também mostra o que VAI vencer dentro da janela de aviso, para o
+      // painel avisar ANTES de virar atraso.
+      let despesasVencidas = 0, despesasProximas = 0;
       if (typeof situacaoVencimento === 'function') {
         (dados.despesas || []).forEach(d => {
-          if (situacaoVencimento(d).tipo === 'vencida') despesasVencidas++;
+          const t = situacaoVencimento(d).tipo;
+          if (t === 'vencida') despesasVencidas++;
+          else if (t === 'proxima') despesasProximas++;
         });
       }
-      const agora = new Date();
-      const hoje0 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
-      (dados.fornecedores || []).forEach(f => {
-        if (!Array.isArray(f.parcelas)) return;
-        f.parcelas.forEach(p => {
-          if (!p.vencimento || p.pagamento) return;
-          if (!dataValida(p.vencimento)) return;
-          const [d, m, a] = p.vencimento.split('/').map(Number);
-          if (new Date(a, m - 1, d) < hoje0) parcelasVencidas++;
-        });
-      });
+      const parcelasInfo = (typeof coletarParcelasFornecedores === 'function')
+        ? coletarParcelasFornecedores() : { vencidas: [], proximas: [] };
+      const parcelasVencidas = parcelasInfo.vencidas.length;
       const totalAlertas = despesasVencidas + parcelasVencidas;
+      const totalProximas = despesasProximas + parcelasInfo.proximas.length;
       const cardAlertasEl = document.getElementById('cardAlertas');
       const cardAlertasResumo = document.getElementById('cardAlertasResumo');
       const cardAlertasDetalhe = document.getElementById('cardAlertasDetalhe');
       if (cardAlertasResumo) cardAlertasResumo.textContent = totalAlertas === 0 ? '✓' : String(totalAlertas);
       if (cardAlertasDetalhe) {
         if (totalAlertas === 0) {
-          cardAlertasDetalhe.textContent = 'nada vencido';
+          cardAlertasDetalhe.textContent = totalProximas === 0
+            ? 'nada vencido ou a vencer'
+            : `nada vencido · ${totalProximas} vencendo em ${CONFIG_SISTEMA.dashboard.diasAvisoVencimento} dias`;
         } else {
           const partes = [];
           if (despesasVencidas) partes.push(`${despesasVencidas} despesa(s)`);
           if (parcelasVencidas) partes.push(`${parcelasVencidas} parcela(s)`);
-          cardAlertasDetalhe.textContent = partes.join(' + ') + ' vencidas';
+          let det = partes.join(' + ') + ' vencidas';
+          if (totalProximas > 0) det += ` · ${totalProximas} a vencer`;
+          cardAlertasDetalhe.textContent = det;
         }
       }
-      // Muda a cor do card conforme há ou não alertas (vermelho × verde)
+      // Cor do card: vermelho (vencidas), âmbar (só a vencer), verde (limpo)
       if (cardAlertasEl) {
-        cardAlertasEl.style.borderLeft = totalAlertas === 0
-          ? '5px solid var(--cor-sucesso)'
-          : '5px solid var(--cor-erro)';
+        cardAlertasEl.style.borderLeft = totalAlertas > 0
+          ? '5px solid var(--cor-erro)'
+          : (totalProximas > 0 ? '5px solid var(--cor-alerta)' : '5px solid var(--cor-sucesso)');
       }
       atualizarContadorDias();
       atualizarGraficosDashboard();
@@ -4153,11 +4366,13 @@
     }
     // Filtro ativo da lista de convidados
     // Lado padrão: 'Noiva' (sempre mostra um lado por vez, não há "todos")
-    let filtroConvidados = { lado: 'Noiva', categoria: '', status: '', busca: '' };
+    let filtroConvidados = { lado: 'Noiva', categoria: '', status: '', busca: '', convite: '' };
     function aplicarFiltroConvidados() {
       // 'lado' agora é controlado pelos botões (filtrarLado), não por select.
       filtroConvidados.categoria = document.getElementById('filtroCategoriaConvidado').value;
       filtroConvidados.status = document.getElementById('filtroStatusConvidado').value;
+      const convEl = document.getElementById('filtroConviteConvidado');
+      filtroConvidados.convite = convEl ? convEl.value : '';
       const buscaEl = document.getElementById('buscaConvidado');
       filtroConvidados.busca = buscaEl ? buscaEl.value.trim().toLowerCase() : '';
       listarConvidados();
@@ -4169,8 +4384,13 @@
     }
     function limparFiltroConvidados() {
       // Preserva o lado selecionado (você está olhando uma das duas listas).
-      filtroConvidados = { lado: filtroConvidados.lado || 'Noiva', categoria: '', status: '', busca: '' };
+      filtroConvidados = { lado: filtroConvidados.lado || 'Noiva', categoria: '', status: '', busca: '', convite: '' };
       listarConvidados();
+    }
+    // Situação do convite de um convidado, para filtro e contadores.
+    function situacaoConvite(c) {
+      if (!c.conviteEnviadoEm) return 'nao-enviado';
+      return (c.status === 'Confirmado' || c.status === 'Não vai') ? 'respondido' : 'sem-resposta';
     }
     function listarConvidados() {
       const lista = document.getElementById('listaConvidados');
@@ -4200,12 +4420,28 @@
           '<option value="">Todos os status</option>' +
           CONFIG_SISTEMA.convidados.statusConfirmacao.map(s => `<option value="${s}">${s}</option>`).join('') +
         '</select>' +
+        '<select id="filtroConviteConvidado" onchange="aplicarFiltroConvidados()">' +
+          '<option value="">Convite: todos</option>' +
+          '<option value="nao-enviado">Sem convite</option>' +
+          '<option value="sem-resposta">Enviado, sem resposta</option>' +
+          '<option value="respondido">Respondido</option>' +
+        '</select>' +
         '<button class="btn-secondary" onclick="limparFiltroConvidados()">Limpar filtro</button>';
       lista.appendChild(barraFiltro);
       document.getElementById('filtroCategoriaConvidado').value = filtroConvidados.categoria;
       document.getElementById('filtroStatusConvidado').value = filtroConvidados.status;
+      document.getElementById('filtroConviteConvidado').value = filtroConvidados.convite || '';
       const buscaInputEl = document.getElementById('buscaConvidado');
       if (buscaInputEl) buscaInputEl.value = filtroConvidados.busca || '';
+
+      // Contador de convites do lado atual: quanto falta enviar e cobrar
+      const doLadoAtual = dados.convidados.filter(c => c.lado === ladoAtual);
+      const semConvite = doLadoAtual.filter(c => situacaoConvite(c) === 'nao-enviado').length;
+      const semResposta = doLadoAtual.filter(c => situacaoConvite(c) === 'sem-resposta').length;
+      const resumoConvites = document.createElement('div');
+      resumoConvites.style.cssText = 'font-size:0.85rem; color:#6b5a42; margin:-0.25rem 0 0.6rem;';
+      resumoConvites.textContent = `Convites (lado ${ladoAtual}): ${semConvite} sem convite · ${semResposta} enviado(s) aguardando resposta`;
+      lista.appendChild(resumoConvites);
 
       if (dados.convidados.length === 0) {
         const p = document.createElement('p');
@@ -4219,6 +4455,7 @@
         if (filtroConvidados.lado && c.lado !== filtroConvidados.lado) return;
         if (filtroConvidados.categoria && c.categoria !== filtroConvidados.categoria) return;
         if (filtroConvidados.status && c.status !== filtroConvidados.status) return;
+        if (filtroConvidados.convite && situacaoConvite(c) !== filtroConvidados.convite) return;
         // Busca textual: nome do titular OU nome de qualquer acompanhante
         if (filtroConvidados.busca) {
           const termo = filtroConvidados.busca;
@@ -4257,8 +4494,11 @@
           obsHtml = `<br><span style="background:#fff8e1; padding:0.1rem 0.4rem; border-radius:3px; font-size:0.85rem; color:#7d6608;">⚠ ${c.observacoes}</span>`;
         }
         const acompStr = qtdAcomp > 0 ? `Acompanhantes: ${qtdAcomp} | ` : '';
+        const badgeConvite = c.conviteEnviadoEm
+          ? `<span class="etiqueta-venc pago">✉ enviado em ${c.conviteEnviadoEm}</span>`
+          : `<span class="etiqueta-venc proxima">✉ sem convite</span>`;
         div.innerHTML = `<strong>#${index + 1} — ${c.nome}</strong> - ${c.categoria}${infoCrianca} - Lado: ${c.lado}<br>` +
-          `${acompStr}Status: ${c.status}${detAcomp}${obsHtml}`;
+          `${acompStr}Status: ${c.status} ${badgeConvite}${detAcomp}${obsHtml}`;
         const btnEditar = document.createElement('button');
         btnEditar.textContent = 'Editar';
         btnEditar.className = 'btn-primary btn-pequeno';
@@ -4816,7 +5056,7 @@
       const lista = document.getElementById('listaDespesas');
       lista.innerHTML = '';
 
-      // ----- Caixa de alertas de vencimento (considera TODAS as despesas) -----
+      // ----- Caixa de alertas de vencimento (despesas + parcelas de fornecedores) -----
       const vencidas = [];
       const proximas = [];
       dados.despesas.forEach(d => {
@@ -4824,12 +5064,15 @@
         if (s.tipo === 'vencida') vencidas.push(d);
         else if (s.tipo === 'proxima') proximas.push(d);
       });
+      const parcelasForn = coletarParcelasFornecedores();
       const caixaAlerta = document.createElement('div');
-      if (vencidas.length === 0 && proximas.length === 0) {
+      const nadaVencendo = vencidas.length === 0 && proximas.length === 0
+        && parcelasForn.vencidas.length === 0 && parcelasForn.proximas.length === 0;
+      if (nadaVencendo) {
         caixaAlerta.className = 'alertas-vencimento ok';
-        caixaAlerta.textContent = dados.despesas.length === 0
+        caixaAlerta.textContent = (dados.despesas.length === 0 && (dados.fornecedores || []).length === 0)
           ? 'Nenhuma despesa cadastrada ainda.'
-          : 'Nenhuma despesa vencida ou a vencer nos próximos 7 dias.';
+          : `Nada vencido ou a vencer nos próximos ${CONFIG_SISTEMA.dashboard.diasAvisoVencimento} dias (despesas e parcelas de fornecedores).`;
       } else {
         caixaAlerta.className = 'alertas-vencimento';
         let txt = '';
@@ -4837,9 +5080,17 @@
           txt += `${vencidas.length} despesa(s) VENCIDA(S): ` +
             vencidas.map(d => d.descricao).join(', ') + '. ';
         }
+        if (parcelasForn.vencidas.length > 0) {
+          txt += `${parcelasForn.vencidas.length} parcela(s) de fornecedor VENCIDA(S): ` +
+            parcelasForn.vencidas.map(p => p.rotulo).join(', ') + '. ';
+        }
         if (proximas.length > 0) {
           txt += `${proximas.length} despesa(s) vencendo em até ${CONFIG_SISTEMA.dashboard.diasAvisoVencimento} dias: ` +
-            proximas.map(d => d.descricao).join(', ') + '.';
+            proximas.map(d => d.descricao).join(', ') + '. ';
+        }
+        if (parcelasForn.proximas.length > 0) {
+          txt += `${parcelasForn.proximas.length} parcela(s) de fornecedor vencendo em até ${CONFIG_SISTEMA.dashboard.diasAvisoVencimento} dias: ` +
+            parcelasForn.proximas.map(p => `${p.rotulo} em ${p.vencimento}`).join(', ') + '.';
         }
         caixaAlerta.textContent = txt;
       }
@@ -4861,7 +5112,7 @@
         '<select id="filtroVencimentoDespesa" onchange="aplicarFiltroDespesas()">' +
           '<option value="">Qualquer vencimento</option>' +
           '<option value="vencida">Só vencidas</option>' +
-          '<option value="proxima">Vencendo em 7 dias</option>' +
+          '<option value="proxima">Vencendo em ' + CONFIG_SISTEMA.dashboard.diasAvisoVencimento + ' dias</option>' +
           '<option value="em-dia">Em dia</option>' +
         '</select>' +
         '<button class="btn-secondary" onclick="limparFiltroDespesas()">Limpar filtro</button>';
@@ -6706,6 +6957,122 @@ function atualizarValoresBuffet() {
         `<strong>Total pago:</strong> ${formatarMoeda(totalPago)}<br>` +
         `<strong>Total pendente:</strong> ${formatarMoeda(totalContratado - totalPago)}<br>` +
         linhaSaldo;
+      renderizarMetasCategorias();
+    }
+
+    // ===== Metas por categoria (planejado × comprometido) =====
+    // Comprometido = fornecedores + despesas da categoria (mesma convenção do
+    // resumo do PDF). Metas ficam em dados.metasCategorias = { categoria: valor }.
+    function calcularComprometidoPorCategoria() {
+      const mapa = {};
+      (dados.fornecedores || []).forEach(f => {
+        const c = f.categoria || 'Outros';
+        mapa[c] = (mapa[c] || 0) + (Number(f.valorContratado) || 0);
+      });
+      (dados.despesas || []).forEach(d => {
+        const c = d.categoria || 'Outros';
+        mapa[c] = (mapa[c] || 0) + (Number(d.valorContratado) || 0);
+      });
+      return mapa;
+    }
+    function renderizarMetasCategorias() {
+      const cont = document.getElementById('listaMetasCategorias');
+      const sel = document.getElementById('novaMetaCategoria');
+      if (!cont || !sel) return;
+      if (!dados.metasCategorias || typeof dados.metasCategorias !== 'object') dados.metasCategorias = {};
+      const metas = dados.metasCategorias;
+      const compr = calcularComprometidoPorCategoria();
+      // Linhas: categorias com meta OU com valor comprometido
+      const cats = Array.from(new Set([...Object.keys(metas), ...Object.keys(compr)]))
+        .filter(c => (Number(metas[c]) || 0) > 0 || (Number(compr[c]) || 0) > 0)
+        .sort((a, b) => a.localeCompare(b, CONFIG_SISTEMA.geral.idioma));
+      cont.innerHTML = '';
+      if (cats.length === 0) {
+        cont.innerHTML = '<p style="color:#777; font-size:0.9rem;">Nenhuma meta definida ainda. Escolha uma categoria abaixo e defina o valor planejado.</p>';
+      }
+      let somaMetas = 0;
+      cats.forEach(cat => {
+        const meta = Number(metas[cat]) || 0;
+        const gasto = Number(compr[cat]) || 0;
+        somaMetas += meta;
+        const linha = document.createElement('div');
+        linha.style.cssText = 'display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap; padding:0.45rem 0; border-bottom:1px dashed var(--cor-borda-suave);';
+        const nome = document.createElement('strong');
+        nome.style.cssText = 'flex:1; min-width:120px;';
+        nome.textContent = cat;
+        linha.appendChild(nome);
+        // Meta editável inline
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.value = meta > 0 ? formatarMoeda(meta) : '';
+        inp.placeholder = 'meta R$';
+        inp.setAttribute('inputmode', 'numeric');
+        inp.style.cssText = 'width:120px;';
+        inp.oninput = function () { aplicarMascaraMoeda(this); };
+        inp.onblur = function () {
+          finalizarCampoMoeda(this);
+          const v = moedaParaNumero(this.value) || 0;
+          if (v > 0) metas[cat] = v; else delete metas[cat];
+          salvarDados();
+          renderizarMetasCategorias();
+        };
+        linha.appendChild(inp);
+        // Comprometido + situação
+        const info = document.createElement('span');
+        info.style.cssText = 'flex:2; min-width:180px; font-size:0.9rem;';
+        if (meta > 0) {
+          const pct = Math.round((gasto / meta) * 100);
+          let cor = 'var(--cor-sucesso)';
+          if (pct > 100) cor = 'var(--cor-erro)';
+          else if (pct >= CONFIG_SISTEMA.dashboard.alertaOrcamentoPercent) cor = 'var(--cor-alerta)';
+          info.innerHTML = `comprometido ${formatarMoeda(gasto)} ` +
+            `<span style="color:${cor}; font-weight:bold;">(${pct}% da meta)</span>` +
+            (pct > 100 ? ` <span style="color:var(--cor-erro);">— estouro de ${formatarMoeda(gasto - meta)}</span>` : '');
+        } else {
+          info.innerHTML = `comprometido ${formatarMoeda(gasto)} <span style="color:#999;">(sem meta definida)</span>`;
+        }
+        linha.appendChild(info);
+        cont.appendChild(linha);
+      });
+      // Rodapé: soma das metas × orçamento total
+      const orc = Number(dados.orcamentoTotal) || 0;
+      if (somaMetas > 0) {
+        const rodape = document.createElement('div');
+        rodape.style.cssText = 'margin-top:0.6rem; font-size:0.9rem; color:#6b5a42;';
+        let aviso = '';
+        if (orc > 0 && somaMetas > orc) {
+          aviso = ` <span style="color:var(--cor-erro);">⚠ As metas somam ${formatarMoeda(somaMetas - orc)} a MAIS que o orçamento total.</span>`;
+        } else if (orc > 0) {
+          aviso = ` <span style="color:#999;">(${formatarMoeda(orc - somaMetas)} do orçamento sem meta)</span>`;
+        }
+        rodape.innerHTML = `<strong>Soma das metas:</strong> ${formatarMoeda(somaMetas)}` +
+          (orc > 0 ? ` de ${formatarMoeda(orc)} do orçamento.` : '.') + aviso;
+        cont.appendChild(rodape);
+      }
+      // Select de nova meta: união das categorias (fornecedor + despesa) ainda sem meta
+      const valorAtualSel = sel.value;
+      const uniao = Array.from(new Set([
+        ...CONFIG_SISTEMA.financeiro.categoriasDespesa,
+        ...CONFIG_SISTEMA.fornecedores.categorias,
+        ...Object.keys(compr)
+      ])).filter(c => !(Number(metas[c]) > 0))
+        .sort((a, b) => a.localeCompare(b, CONFIG_SISTEMA.geral.idioma));
+      sel.innerHTML = '<option value="">Selecione...</option>' +
+        uniao.map(c => `<option>${c}</option>`).join('');
+      if (uniao.includes(valorAtualSel)) sel.value = valorAtualSel;
+    }
+    function adicionarMetaCategoria() {
+      const sel = document.getElementById('novaMetaCategoria');
+      const inp = document.getElementById('novaMetaValor');
+      const cat = sel ? sel.value : '';
+      const v = inp ? (moedaParaNumero(inp.value) || 0) : 0;
+      if (!cat) { alert('Escolha a categoria da meta.'); return; }
+      if (v <= 0) { alert('Informe o valor planejado para a categoria.'); return; }
+      if (!dados.metasCategorias || typeof dados.metasCategorias !== 'object') dados.metasCategorias = {};
+      dados.metasCategorias[cat] = v;
+      if (inp) inp.value = '';
+      salvarDados();
+      renderizarMetasCategorias();
     }
     // ===== Site do casamento =====
     function salvarSiteCasamento() {
@@ -6770,6 +7137,17 @@ function atualizarValoresBuffet() {
         linkSite +
         '\n\nContamos com a sua presença! — ' + noivos;
       window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank');
+      // Registra o envio do convite (data de hoje) e atualiza as listas.
+      const hojeC = new Date();
+      c.conviteEnviadoEm = `${String(hojeC.getDate()).padStart(2,'0')}/${String(hojeC.getMonth()+1).padStart(2,'0')}/${hojeC.getFullYear()}`;
+      salvarDados();
+      if (document.getElementById('listaConvidados')) listarConvidados();
+      if (document.getElementById('conteudoListaConvidadosNoiva') && typeof listarConvidadosPorLado === 'function') {
+        listarConvidadosPorLado('Noiva', 'conteudoListaConvidadosNoiva');
+      }
+      if (document.getElementById('conteudoListaConvidadosNoivo') && typeof listarConvidadosPorLado === 'function') {
+        listarConvidadosPorLado('Noivo', 'conteudoListaConvidadosNoivo');
+      }
     }
 
     // ----- Gerador do site público (arquivo HTML para hospedar) -----
@@ -7076,7 +7454,7 @@ blocoRsvp +
         // chaves ausentes com valores padrão.
         const padrao = {
           dataCasamento: '', horaCasamento: '', localCasamento: '', enderecoCasamento: '', celebrante: '',
-          localFesta: '', enderecoFesta: '', buffetNoivos: 2, buffetFilhos: 0, orcamentoTotal: 0,
+          localFesta: '', enderecoFesta: '', buffetNoivos: 2, buffetFilhos: 0, orcamentoTotal: 0, metasCategorias: {},
           compromissos: [], convidados: [], mesas: [], despesas: [], fornecedores: [],
           tarefas: [], listaEspera: [], padrinhos: [], cronograma: [],
           espaco: {}, site: {}, noiva: {}, noivo: {}
@@ -7503,6 +7881,105 @@ blocoRsvp +
         });
       }
 
+      // Helper local: aviso de seção vazia
+      function semRegistros() {
+        garantirEspaco(6);
+        doc.setFont('times', 'italic');
+        doc.setFontSize(9);
+        doc.setTextColor(COR_TEXTO_CLARO[0], COR_TEXTO_CLARO[1], COR_TEXTO_CLARO[2]);
+        doc.text('Nenhum registro.', margem, y);
+        y += 6;
+      }
+
+      // ===== Seção: Agenda do casamento =====
+      novaPagina();
+      tituloSecao('Agenda do casamento');
+      linhaInfo('Data', dados.dataCasamento || '—');
+      linhaInfo('Hora', dados.horaCasamento || '—');
+      linhaInfo('Local da cerimônia', dados.localCasamento || '—');
+      linhaInfo('Endereço da cerimônia', dados.enderecoCasamento || '—');
+      linhaInfo('Celebrante', dados.celebrante || '—');
+      linhaInfo('Local da festa', dados.localFesta || '—');
+      linhaInfo('Endereço da festa', dados.enderecoFesta || '—');
+      if (dados.espaco && (dados.espaco.nome || dados.espaco.endereco)) {
+        espaco(2);
+        subTitulo('Espaço da festa');
+        linhaInfo('Nome', dados.espaco.nome || '—');
+        linhaInfo('Endereço', [dados.espaco.endereco, dados.espaco.cidade, dados.espaco.estado].filter(Boolean).join(', ') || '—');
+        linhaInfo('Responsável', dados.espaco.responsavel || '—');
+        linhaInfo('Telefone', dados.espaco.telefone || '—');
+      }
+
+      // ===== Seção: Padrinhos e madrinhas =====
+      const padArr = dados.padrinhos || [];
+      espaco(4);
+      tituloSecao('Padrinhos e madrinhas (' + padArr.length + ')');
+      if (padArr.length === 0) { semRegistros(); }
+      else {
+        const colsP = ['#', 'Nome', 'Lado', 'Telefone', 'Status'];
+        const largP = [8, 64, 22, 36, 50];
+        cabecalhoTabela(colsP, largP);
+        padArr.forEach((p, idx) => {
+          linhaTabela(
+            [idx + 1, p.nome || '', p.lado || '', p.telefone || '—', p.status || '—'],
+            largP, { fundo: idx % 2 === 0 }
+          );
+        });
+      }
+
+      // ===== Seção: Cronograma do dia =====
+      const cronArr = dados.cronograma || [];
+      espaco(4);
+      tituloSecao('Cronograma do dia (' + cronArr.length + ')');
+      if (cronArr.length === 0) { semRegistros(); }
+      else {
+        const colsC = ['Horário', 'Atividade', 'Responsável', 'Observações'];
+        const largC = [20, 70, 36, 54];
+        cabecalhoTabela(colsC, largC);
+        cronArr.forEach((c, idx) => {
+          linhaTabela(
+            [c.horario || '—', c.atividade || '', c.responsavel || '—', c.observacoes || ''],
+            largC, { fundo: idx % 2 === 0 }
+          );
+        });
+      }
+
+      // ===== Seção: Tarefas (checklist) =====
+      const tarArr = dados.tarefas || [];
+      espaco(4);
+      tituloSecao('Tarefas (' + tarArr.length + ')');
+      if (tarArr.length === 0) { semRegistros(); }
+      else {
+        const colsT = ['#', 'Tarefa', 'Prioridade', 'Limite', 'Situação'];
+        const largT = [8, 84, 26, 28, 34];
+        cabecalhoTabela(colsT, largT);
+        tarArr.forEach((t, idx) => {
+          linhaTabela(
+            [idx + 1, t.texto || '', t.prioridade || '—', t.dataLimite || '—', t.concluida ? 'Concluída' : 'Pendente'],
+            largT, { fundo: idx % 2 === 0 }
+          );
+        });
+      }
+
+      // ===== Seção: Mesas =====
+      const mesArr = dados.mesas || [];
+      espaco(4);
+      tituloSecao('Mesas (' + mesArr.length + ')');
+      if (mesArr.length === 0) { semRegistros(); }
+      else {
+        const colsM = ['#', 'Mesa', 'Lugares', 'Ocupados', 'Convidados'];
+        const largM = [8, 36, 20, 22, 94];
+        cabecalhoTabela(colsM, largM);
+        mesArr.forEach((m, idx) => {
+          const ocupantes = (m.assentos || []).filter(Boolean);
+          linhaTabela(
+            [idx + 1, m.nome || ('Mesa ' + (idx + 1)), m.capacidade || (m.assentos || []).length || '—',
+             ocupantes.length, ocupantes.join(', ') || '—'],
+            largM, { fundo: idx % 2 === 0 }
+          );
+        });
+      }
+
       // ===== Moldura e rodapé numerado em todas as páginas =====
       const totalPaginas = doc.internal.getNumberOfPages();
       // Margem da moldura: um pouco fora da margem de conteúdo, para
@@ -7542,7 +8019,138 @@ blocoRsvp +
 
       const hoje = new Date();
       const carimbo = `${String(hoje.getDate()).padStart(2,'0')}-${String(hoje.getMonth()+1).padStart(2,'0')}-${hoje.getFullYear()}`;
-      doc.save(`backup-paula-fabio-${carimbo}.pdf`);
+      doc.save(`${CONFIG_SISTEMA.armazenamento.arquivos.pdfPrefixo}${carimbo}.pdf`);
+    }
+
+    // PDF focado: lista de convidados com nome, telefone e e-mail, separada
+    // por lado (Noiva/Noivo), para comunicação com os convidados.
+    function exportarPdfConvidados() {
+      if (!window.jspdf || !window.jspdf.jsPDF) {
+        alert('A biblioteca de PDF não foi carregada. Verifique sua conexão com a internet e recarregue a página.');
+        return;
+      }
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+      const W = doc.internal.pageSize.getWidth();
+      const H = doc.internal.pageSize.getHeight();
+      const M = 15;
+      const LU = W - 2 * M;
+      const BRONZE = [143, 120, 56], CHAMP = [212, 178, 97], AREIA = [231, 218, 192];
+      const TEXTO = [60, 46, 31], CLARO = [120, 120, 120];
+      // Colunas: #, Nome, Telefone, E-mail (somam LU = 180mm)
+      const LARG = [8, 70, 38, 64];
+      let y = M;
+
+      function cabecalhoPagina() {
+        doc.setDrawColor(CHAMP[0], CHAMP[1], CHAMP[2]);
+        doc.setLineWidth(0.2);
+        doc.line(M, M + 5, W - M, M + 5);
+        doc.setFont('times', 'italic');
+        doc.setFontSize(8);
+        doc.setTextColor(CLARO[0], CLARO[1], CLARO[2]);
+        doc.text('Paula & Fábio Jr — Lista de convidados', M, M + 3);
+        y = M + 10;
+      }
+      function cabecalhoColunas() {
+        doc.setFillColor(AREIA[0], AREIA[1], AREIA[2]);
+        doc.rect(M, y, LU, 6, 'F');
+        doc.setFont('times', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(BRONZE[0], BRONZE[1], BRONZE[2]);
+        let x = M;
+        ['#', 'Nome', 'Telefone', 'E-mail'].forEach((c, i) => {
+          doc.text(c, x + 1.5, y + 4.2);
+          x += LARG[i];
+        });
+        y += 7;
+      }
+      function quebraSePreciso(altura) {
+        if (y + altura > H - M - 8) {
+          doc.addPage();
+          cabecalhoPagina();
+          cabecalhoColunas();
+        }
+      }
+
+      // Título
+      doc.setFont('times', 'bold');
+      doc.setFontSize(16);
+      doc.setTextColor(BRONZE[0], BRONZE[1], BRONZE[2]);
+      doc.text('Lista de Convidados', M, y + 4);
+      doc.setFont('times', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(CLARO[0], CLARO[1], CLARO[2]);
+      const hojeC = new Date();
+      doc.text('Gerada em ' + hojeC.toLocaleDateString(CONFIG_SISTEMA.geral.idioma), W - M, y + 4, { align: 'right' });
+      y += 10;
+
+      const lista = dados.convidados || [];
+      let totalListados = 0;
+      ['Noiva', 'Noivo'].forEach(lado => {
+        const doLado = lista.filter(c => (c.lado || 'Noiva') === lado);
+        quebraSePreciso(14);
+        // Subtítulo do lado
+        doc.setFont('times', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(BRONZE[0], BRONZE[1], BRONZE[2]);
+        doc.text(`Lado ${lado} (${doLado.length})`, M, y + 4);
+        doc.setDrawColor(CHAMP[0], CHAMP[1], CHAMP[2]);
+        doc.setLineWidth(0.3);
+        doc.line(M, y + 5.5, W - M, y + 5.5);
+        y += 9;
+        if (doLado.length === 0) {
+          doc.setFont('times', 'italic');
+          doc.setFontSize(9);
+          doc.setTextColor(CLARO[0], CLARO[1], CLARO[2]);
+          doc.text('Nenhum convidado.', M, y);
+          y += 7;
+          return;
+        }
+        cabecalhoColunas();
+        doLado.forEach((c, idx) => {
+          // altura da linha conforme o e-mail/nome quebrarem
+          doc.setFont('times', 'normal');
+          doc.setFontSize(9);
+          const nomeL = doc.splitTextToSize(c.nome || '', LARG[1] - 3);
+          const mailL = doc.splitTextToSize(c.email || '—', LARG[3] - 3);
+          const linhas = Math.max(nomeL.length, mailL.length, 1);
+          const alt = linhas * 4 + 2.5;
+          quebraSePreciso(alt);
+          if (idx % 2 === 0) {
+            doc.setFillColor(250, 247, 242);
+            doc.rect(M, y - 1, LU, alt, 'F');
+          }
+          doc.setTextColor(TEXTO[0], TEXTO[1], TEXTO[2]);
+          let x = M;
+          doc.text(String(idx + 1), x + 1.5, y + 3); x += LARG[0];
+          doc.text(nomeL, x + 1.5, y + 3); x += LARG[1];
+          doc.text(c.telefone || '—', x + 1.5, y + 3); x += LARG[2];
+          doc.text(mailL, x + 1.5, y + 3);
+          y += alt;
+          totalListados++;
+        });
+        y += 4;
+      });
+
+      // Resumo final
+      quebraSePreciso(8);
+      doc.setFont('times', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(BRONZE[0], BRONZE[1], BRONZE[2]);
+      doc.text(`Total: ${totalListados} convidado(s) titular(es). Acompanhantes não listados.`, M, y + 3);
+
+      // Rodapé numerado
+      const tot = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= tot; i++) {
+        doc.setPage(i);
+        doc.setFont('times', 'italic');
+        doc.setFontSize(8);
+        doc.setTextColor(CLARO[0], CLARO[1], CLARO[2]);
+        doc.text('Página ' + i + ' de ' + tot, W - M, H - 8, { align: 'right' });
+      }
+
+      const carimboC = `${String(hojeC.getDate()).padStart(2,'0')}-${String(hojeC.getMonth()+1).padStart(2,'0')}-${hojeC.getFullYear()}`;
+      doc.save(`${CONFIG_SISTEMA.armazenamento.arquivos.pdfConvidadosPrefixo}${carimboC}.pdf`);
     }
 
     // ----- Novas funcionalidades para convidados -----
@@ -7661,7 +8269,10 @@ blocoRsvp +
         const infoAcomp = qtdAcomp > 0 ? ` <span style="color:#777; font-size:0.85rem;">— ${qtdAcomp} acompanhante(s)</span>` : '';
         const sum = document.createElement('summary');
         sum.className = 'sumario-convidado';
-        sum.innerHTML = `<strong>#${contadorLado} — ${c.nome}</strong>${infoCrianca}${infoParentTit}${infoAcomp} | Status: ${c.status}${obsHtml}`;
+        const badgeConviteM = c.conviteEnviadoEm
+          ? ` <span class="etiqueta-venc pago">✉ ${c.conviteEnviadoEm}</span>`
+          : ` <span class="etiqueta-venc proxima">✉ sem convite</span>`;
+        sum.innerHTML = `<strong>#${contadorLado} — ${c.nome}</strong>${infoCrianca}${infoParentTit}${infoAcomp} | Status: ${c.status}${badgeConviteM}${obsHtml}`;
         det.appendChild(sum);
         // Bloco com acompanhantes — sempre visível
         if (qtdAcomp > 0) {
