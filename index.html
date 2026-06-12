@@ -1093,6 +1093,15 @@
         Cadastre despesas com valores para visualizar o gráfico.
       </p>
     </div>
+    <div class="grafico-bloco">
+      <h3>Quem já pagou: Noiva × Noivo</h3>
+      <div class="grafico-canvas-wrap">
+        <canvas id="graficoPagadores"></canvas>
+      </div>
+      <p id="graficoPagadoresVazio" class="grafico-vazio" style="display:none;">
+        Informe "Pago por" nas despesas do Orçamentador (com valor pago) para visualizar quanto cada um já pagou.
+      </p>
+    </div>
   </section>
 
   <!-- Modal Meu Casamento -->
@@ -1613,6 +1622,15 @@
           <div class="form-group">
             <label for="valorPagoDespesa">Valor pago</label>
             <input type="text" id="valorPagoDespesa" placeholder="R$ 0,00" inputmode="numeric" oninput="aplicarMascaraMoeda(this)" onblur="finalizarCampoMoeda(this)">
+          </div>
+          <div class="form-group">
+            <label for="pagadorDespesa">Pago por</label>
+            <select id="pagadorDespesa">
+              <option value="">—</option>
+              <option value="Noiva">Noiva</option>
+              <option value="Noivo">Noivo</option>
+              <option value="Noiva/Noivo">Noiva/Noivo (meio a meio)</option>
+            </select>
           </div>
           <div class="form-group">
             <label for="dataVencimentoDespesa">Data de vencimento</label>
@@ -3486,14 +3504,95 @@
         const canvDes = document.getElementById('graficoDespesas');
         const vFor = document.getElementById('graficoFornecedoresVazio');
         const vDes = document.getElementById('graficoDespesasVazio');
+        const canvPag = document.getElementById('graficoPagadores');
+        const vPag = document.getElementById('graficoPagadoresVazio');
         if (canvFor) canvFor.style.display = 'none';
         if (canvDes) canvDes.style.display = 'none';
+        if (canvPag) canvPag.style.display = 'none';
         if (vFor) { vFor.style.display = 'block'; vFor.textContent = 'Biblioteca de gráficos indisponível (verifique sua conexão).'; }
         if (vDes) { vDes.style.display = 'block'; vDes.textContent = 'Biblioteca de gráficos indisponível (verifique sua conexão).'; }
+        if (vPag) { vPag.style.display = 'block'; vPag.textContent = 'Biblioteca de gráficos indisponível (verifique sua conexão).'; }
         return;
       }
       desenharGraficoFornecedores();
       desenharGraficoDespesas();
+      desenharGraficoPagadores();
+    }
+
+    // ===== Gráfico: quanto cada um (Noiva × Noivo) já pagou =====
+    // FONTE ÚNICA: o Orçamentador (despesas, campo "valor pago" + "Pago por").
+    // As parcelas dos fornecedores NÃO entram aqui de propósito: como o casal
+    // lança o pagamento nos dois lugares (parcela do fornecedor E despesa),
+    // somar ambos duplicaria o valor. 'Noiva/Noivo' divide meio a meio.
+    // Pagamentos sem "Pago por" caem em 'Não informado' — de propósito, para
+    // o casal enxergar o que falta atribuir.
+    let chartPagadoresInst = null;
+    function calcularPagamentosPorPagador() {
+      const soma = { 'Noiva': 0, 'Noivo': 0, 'Não informado': 0 };
+      function lancar(pagador, valor) {
+        if (!valor || valor <= 0) return;
+        if (pagador === 'Noiva' || pagador === 'Noivo') soma[pagador] += valor;
+        else if (pagador === 'Noiva/Noivo') { soma['Noiva'] += valor / 2; soma['Noivo'] += valor / 2; }
+        else soma['Não informado'] += valor;
+      }
+      (dados.despesas || []).forEach(d => {
+        lancar(d.pagador || '', Number(d.valorPago) || 0);
+      });
+      return soma;
+    }
+    function desenharGraficoPagadores() {
+      const canvas = document.getElementById('graficoPagadores');
+      const vazio = document.getElementById('graficoPagadoresVazio');
+      if (!canvas) return;
+      try {
+        const soma = calcularPagamentosPorPagador();
+        const temDados = (soma['Noiva'] + soma['Noivo'] + soma['Não informado']) > 0;
+        if (chartPagadoresInst) { chartPagadoresInst.destroy(); chartPagadoresInst = null; }
+        if (!temDados) {
+          canvas.style.display = 'none';
+          if (vazio) vazio.style.display = 'block';
+          return;
+        }
+        canvas.style.display = '';
+        if (vazio) vazio.style.display = 'none';
+        const labels = ['Noiva', 'Noivo'];
+        const valores = [soma['Noiva'], soma['Noivo']];
+        const cores = ['#C99AA5', '#8F7838']; // rosé suave × ouro profundo
+        if (soma['Não informado'] > 0) {
+          labels.push('Não informado');
+          valores.push(soma['Não informado']);
+          cores.push('#BDB4A5');
+        }
+        chartPagadoresInst = new Chart(canvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Total pago',
+              data: valores,
+              backgroundColor: cores,
+              borderWidth: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { label: (ctx) => formatarMoeda(ctx.parsed.y) } }
+            },
+            scales: {
+              x: { ticks: { autoSkip: false } },
+              y: { beginAtZero: true, ticks: { callback: (v) => formatarMoeda(v) } }
+            }
+          }
+        });
+      } catch (e) {
+        console.warn('Gráfico de pagadores falhou:', e);
+        if (chartPagadoresInst) { try { chartPagadoresInst.destroy(); } catch (_) {} chartPagadoresInst = null; }
+        canvas.style.display = 'none';
+        if (vazio) vazio.style.display = 'block';
+      }
     }
     function desenharGraficoFornecedores() {
       const canvas = document.getElementById('graficoFornecedores');
@@ -4979,6 +5078,8 @@
       document.getElementById('valorPrevistoDespesa').value = '';
       document.getElementById('valorContratadoDespesa').value = '';
       document.getElementById('valorPagoDespesa').value = '';
+      const selPagD0 = document.getElementById('pagadorDespesa');
+      if (selPagD0) selPagD0.selectedIndex = 0;
       document.getElementById('dataVencimentoDespesa').value = '';
       document.getElementById('statusDespesa').selectedIndex = 0;
       document.getElementById('prioridadeDespesa').selectedIndex = 0;
@@ -4995,6 +5096,8 @@
       preencherCampoMoeda('valorPrevistoDespesa', d.valorPrevisto);
       preencherCampoMoeda('valorContratadoDespesa', d.valorContratado);
       preencherCampoMoeda('valorPagoDespesa', d.valorPago);
+      const selPagD = document.getElementById('pagadorDespesa');
+      if (selPagD) selPagD.value = d.pagador || '';
       document.getElementById('dataVencimentoDespesa').value = d.dataVencimento || '';
       document.getElementById('statusDespesa').value = d.status || 'Previsto';
       document.getElementById('prioridadeDespesa').value = d.prioridade || 'Baixa';
@@ -5006,6 +5109,7 @@
       const valorPrevisto = moedaParaNumero(document.getElementById('valorPrevistoDespesa').value);
       const valorContratado = moedaParaNumero(document.getElementById('valorContratadoDespesa').value);
       const valorPago = moedaParaNumero(document.getElementById('valorPagoDespesa').value);
+      const pagador = (document.getElementById('pagadorDespesa') || {}).value || '';
       const dataVencimento = document.getElementById('dataVencimentoDespesa').value;
       const status = document.getElementById('statusDespesa').value;
       const prioridade = document.getElementById('prioridadeDespesa').value;
@@ -5022,7 +5126,7 @@
           return;
         }
       }
-      const registro = { categoria, descricao, valorPrevisto, valorContratado, valorPago, dataVencimento, status, prioridade };
+      const registro = { categoria, descricao, valorPrevisto, valorContratado, valorPago, pagador, dataVencimento, status, prioridade };
       if (despesaEmEdicao !== null) {
         dados.despesas[despesaEmEdicao] = registro;
       } else {
@@ -6270,6 +6374,8 @@
             if (vencInput && f.parcelas[i] && f.parcelas[i].vencimento) vencInput.value = normalizarData(f.parcelas[i].vencimento);
             if (pagInput && f.parcelas[i] && f.parcelas[i].pagamento) pagInput.value = normalizarData(f.parcelas[i].pagamento);
             if (valInput && f.parcelas[i] && Number(f.parcelas[i].valor) > 0) valInput.value = formatarMoeda(Number(f.parcelas[i].valor));
+            const quemInput = document.getElementById(`parcelaPagador${i}`);
+            if (quemInput && f.parcelas[i] && f.parcelas[i].pagador) quemInput.value = f.parcelas[i].pagador;
           }
         }
       }
@@ -6354,9 +6460,11 @@
         const vEl = document.getElementById(`parcelaVenc${i}`);
         const pEl = document.getElementById(`parcelaPag${i}`);
         const valEl = document.getElementById(`parcelaValor${i}`);
+        const quemEl = document.getElementById(`parcelaPagador${i}`);
         const venc = vEl ? vEl.value.trim() : '';
         const pag = pEl ? pEl.value.trim() : '';
         const valor = valEl ? (moedaParaNumero(valEl.value) || 0) : 0;
+        const pagador = quemEl ? quemEl.value : '';
         if (venc && !dataValida(venc)) {
           alert(`A data de vencimento da parcela ${i + 1} deve estar no formato dd/mm/aaaa.`);
           return;
@@ -6369,7 +6477,7 @@
           alert(`A parcela ${i + 1} está marcada como paga (tem data de pagamento), mas está sem valor. Informe o valor pago.`);
           return;
         }
-        parcelas.push({ vencimento: venc, pagamento: pag, valor: valor });
+        parcelas.push({ vencimento: venc, pagamento: pag, valor: valor, pagador: pagador });
       }
       // Mantém metadados do modal (se foi usado) apenas para histórico.
       if (window.parcelamentoFornecedorAtual) {
@@ -6719,7 +6827,7 @@ function gerarCamposParcelas() {
       inputVal.placeholder = 'R$ 0,00';
       inputVal.setAttribute('inputmode', 'numeric');
       inputVal.setAttribute('oninput', 'aplicarMascaraMoeda(this)');
-      inputVal.setAttribute('onblur', 'finalizarCampoMoeda(this); atualizarValoresBuffet()');
+      inputVal.setAttribute('onblur', 'finalizarCampoMoeda(this); rebalancearParcelasApos(' + i + '); atualizarValoresBuffet()');
       inputVal.style.flex = '1';
       // Agrupa em sub-divs para alinhamento das labels
       const subDivV = document.createElement('div');
@@ -6743,9 +6851,27 @@ function gerarCamposParcelas() {
       subDivVal.style.minWidth = '120px';
       subDivVal.appendChild(labelVal);
       subDivVal.appendChild(inputVal);
+      // Quem pagou esta parcela (caixas separados: Noiva, Noivo ou meio a meio)
+      const labelQuem = document.createElement('label');
+      labelQuem.textContent = 'Pago por';
+      const selQuem = document.createElement('select');
+      selQuem.id = `parcelaPagador${i}`;
+      selQuem.innerHTML = '<option value="">—</option>' +
+        '<option value="Noiva">Noiva</option>' +
+        '<option value="Noivo">Noivo</option>' +
+        '<option value="Noiva/Noivo">Noiva/Noivo (meio a meio)</option>';
+      selQuem.setAttribute('onchange', 'atualizarValoresBuffet()');
+      const subDivQuem = document.createElement('div');
+      subDivQuem.style.display = 'flex';
+      subDivQuem.style.flexDirection = 'column';
+      subDivQuem.style.flex = '1';
+      subDivQuem.style.minWidth = '130px';
+      subDivQuem.appendChild(labelQuem);
+      subDivQuem.appendChild(selQuem);
       div.appendChild(subDivV);
       div.appendChild(subDivP);
       div.appendChild(subDivVal);
+      div.appendChild(subDivQuem);
       container.appendChild(div);
     }
     // Linha de resumo: soma das parcelas x total, e quanto falta.
@@ -8086,14 +8212,20 @@ blocoRsvp +
 
       const lista = dados.convidados || [];
       let totalListados = 0;
+      let totalAcomp = 0;
+      let totalCriancasAcomp = 0;
       ['Noiva', 'Noivo'].forEach(lado => {
         const doLado = lista.filter(c => (c.lado || 'Noiva') === lado);
         quebraSePreciso(14);
         // Subtítulo do lado
         doc.setFont('times', 'bold');
         doc.setFontSize(11);
+        // Conta acompanhantes do lado (estrutura nova: array; antiga: número)
+        const acompDoLado = doLado.reduce((s, c) =>
+          s + (Array.isArray(c.acompanhantes) ? c.acompanhantes.length : (Number(c.acompanhantes) || 0)), 0);
         doc.setTextColor(BRONZE[0], BRONZE[1], BRONZE[2]);
-        doc.text(`Lado ${lado} (${doLado.length})`, M, y + 4);
+        doc.text(`Lado ${lado} (${doLado.length} convidado(s)` +
+          (acompDoLado > 0 ? `, ${acompDoLado} acompanhante(s)` : '') + ')', M, y + 4);
         doc.setDrawColor(CHAMP[0], CHAMP[1], CHAMP[2]);
         doc.setLineWidth(0.3);
         doc.line(M, y + 5.5, W - M, y + 5.5);
@@ -8108,13 +8240,30 @@ blocoRsvp +
         }
         cabecalhoColunas();
         doLado.forEach((c, idx) => {
-          // altura da linha conforme o e-mail/nome quebrarem
+          // ----- Linha do titular -----
           doc.setFont('times', 'normal');
           doc.setFontSize(9);
           const nomeL = doc.splitTextToSize(c.nome || '', LARG[1] - 3);
           const mailL = doc.splitTextToSize(c.email || '—', LARG[3] - 3);
           const linhas = Math.max(nomeL.length, mailL.length, 1);
-          const alt = linhas * 4 + 2.5;
+          const altTitular = linhas * 4 + 2.5;
+          // ----- Sub-linha dos acompanhantes (com marcação de criança/idade) -----
+          let acompTxt = '';
+          if (Array.isArray(c.acompanhantes) && c.acompanhantes.length > 0) {
+            acompTxt = '\u00bb Acompanhantes: ' + c.acompanhantes.map(a => {
+              const partes = [];
+              if (a.tipo === 'Criança') partes.push('criança' + (a.idade !== undefined && a.idade !== null && a.idade !== '' ? ` ${a.idade} ano(s)` : ''));
+              if (a.parentesco) partes.push(a.parentesco);
+              return (a.nome || 'Acompanhante') + (partes.length ? ` (${partes.join(', ')})` : '');
+            }).join('; ');
+          } else if (typeof c.acompanhantes === 'number' && c.acompanhantes > 0) {
+            acompTxt = `\u00bb ${c.acompanhantes} acompanhante(s) (sem nomes cadastrados)`;
+          }
+          doc.setFontSize(8);
+          const acompL = acompTxt ? doc.splitTextToSize(acompTxt, LU - LARG[0] - 5) : [];
+          doc.setFontSize(9);
+          const altAcomp = acompL.length > 0 ? acompL.length * 3.6 + 1.2 : 0;
+          const alt = altTitular + altAcomp;
           quebraSePreciso(alt);
           if (idx % 2 === 0) {
             doc.setFillColor(250, 247, 242);
@@ -8126,8 +8275,22 @@ blocoRsvp +
           doc.text(nomeL, x + 1.5, y + 3); x += LARG[1];
           doc.text(c.telefone || '—', x + 1.5, y + 3); x += LARG[2];
           doc.text(mailL, x + 1.5, y + 3);
+          if (acompL.length > 0) {
+            doc.setFont('times', 'italic');
+            doc.setFontSize(8);
+            doc.setTextColor(CLARO[0], CLARO[1], CLARO[2]);
+            doc.text(acompL, M + LARG[0] + 1.5, y + altTitular + 1.8);
+            doc.setFont('times', 'normal');
+            doc.setFontSize(9);
+          }
           y += alt;
           totalListados++;
+          if (Array.isArray(c.acompanhantes)) {
+            totalAcomp += c.acompanhantes.length;
+            totalCriancasAcomp += c.acompanhantes.filter(a => a.tipo === 'Criança').length;
+          } else {
+            totalAcomp += Number(c.acompanhantes) || 0;
+          }
         });
         y += 4;
       });
@@ -8137,7 +8300,9 @@ blocoRsvp +
       doc.setFont('times', 'bold');
       doc.setFontSize(9);
       doc.setTextColor(BRONZE[0], BRONZE[1], BRONZE[2]);
-      doc.text(`Total: ${totalListados} convidado(s) titular(es). Acompanhantes não listados.`, M, y + 3);
+      doc.text(`Total: ${totalListados} convidado(s) titular(es) + ${totalAcomp} acompanhante(s)` +
+        (totalCriancasAcomp > 0 ? ` (sendo ${totalCriancasAcomp} criança(s))` : '') +
+        ` = ${totalListados + totalAcomp} pessoa(s).`, M, y + 3);
 
       // Rodapé numerado
       const tot = doc.internal.getNumberOfPages();
@@ -8695,6 +8860,38 @@ blocoRsvp +
         return base * calcularConvidadosPagantes();
       }
       return base;
+    }
+
+    // Ao editar o valor de uma parcela, redistribui automaticamente o que
+    // falta do total entre as parcelas SEGUINTES ainda não pagas, para a soma
+    // sempre fechar. Parcelas anteriores e parcelas pagas nunca são alteradas.
+    function rebalancearParcelasApos(idx) {
+      const qtd = Number((document.getElementById('parcelasFornecedor') || {}).value) || 0;
+      const total = obterTotalFornecedorAtual();
+      if (total <= 0 || qtd <= 1) return;
+      let fixo = 0;
+      const ajustaveis = [];
+      for (let i = 0; i < qtd; i++) {
+        const valEl = document.getElementById(`parcelaValor${i}`);
+        const pagEl = document.getElementById(`parcelaPag${i}`);
+        const val = valEl ? (moedaParaNumero(valEl.value) || 0) : 0;
+        const paga = pagEl && pagEl.value.trim() !== '';
+        if (i <= idx || paga) fixo += val;     // editada/anteriores/pagas: intocáveis
+        else ajustaveis.push(i);               // seguintes em aberto: redistribuir
+      }
+      if (ajustaveis.length === 0) return;     // editou a última: o resumo avisa se não fechar
+      const restante = Math.max(0, total - fixo);
+      const base = Math.floor((restante / ajustaveis.length) * 100) / 100;
+      let acumulado = 0;
+      ajustaveis.forEach((i, k) => {
+        const valEl = document.getElementById(`parcelaValor${i}`);
+        if (!valEl) return;
+        const v = (k === ajustaveis.length - 1)
+          ? Math.round((restante - acumulado) * 100) / 100
+          : base;
+        acumulado += base;
+        valEl.value = v > 0 ? formatarMoeda(v) : '';
+      });
     }
 
     // Mostra quanto a entrada representa em % do total, em tempo real.
