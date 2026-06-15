@@ -517,6 +517,21 @@
     .etiqueta-venc.proxima { background: var(--cor-alerta); color: #5d4515; }
     .etiqueta-venc.em-dia { background: var(--cor-sucesso); }
     .etiqueta-venc.pago { background: var(--cor-bronze); }
+    .etiqueta-venc.fechado-orcamento { background: #4f7a4a; }
+    .item-lista.fornecedor-fechado { background: #eaf4e6; border-color: #bcd9b3; }
+    .campo-selecao-categoria {
+      flex: 1; display: flex; align-items: center; justify-content: space-between;
+      gap: 0.5rem; padding: 0.55rem 0.7rem; cursor: pointer; text-align: left;
+      background: var(--cor-marfim, #fff); color: inherit; font: inherit;
+      border: 1px solid var(--cor-borda, #cdbfa6); border-radius: 6px;
+    }
+    .campo-selecao-categoria:hover { border-color: var(--cor-champagne, #d4b261); }
+    .cat-selecao-item {
+      display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.6rem;
+      border-bottom: 1px solid var(--cor-borda-suave, #eee); cursor: pointer; border-radius: 4px;
+    }
+    .cat-selecao-item:hover { background: #faf3e6; }
+    .cat-selecao-item.ativa { background: #f3e9d6; font-weight: 600; }
     .etiqueta-venc.sem-data { background: var(--cor-areia); color: var(--texto-escuro); }
     /* Caixa de alertas de vencimento no topo do orçamentador */
     .alertas-vencimento {
@@ -948,6 +963,42 @@
   </div>
 
   <!-- Modal de limpar dados (apaga TUDO — exige senha) -->
+  <!-- Modal: seleção de categoria de fornecedor (com busca) -->
+  <div class="modal" id="modalSelecaoCategoria" aria-hidden="true">
+    <div class="modal-content" style="max-width:480px;">
+      <button class="close-btn" onclick="fecharModal('modalSelecaoCategoria', true)">&times;</button>
+      <h3>Categoria do fornecedor</h3>
+      <input type="text" id="buscaSelecaoCategoria" placeholder="Buscar ou digitar nova categoria…"
+             oninput="renderizarSelecaoCategorias(this.value)"
+             onkeydown="if(event.key==='Enter'){event.preventDefault(); adicionarCategoriaPelaBusca();}"
+             style="width:100%; margin-bottom:0.6rem;">
+      <div id="listaSelecaoCategorias" style="max-height:320px; overflow-y:auto;"></div>
+      <div style="margin-top:0.75rem; text-align:right;">
+        <button class="btn-secondary btn-pequeno" onclick="abrirModalCategoriasFornecedor()" title="Renomear ou remover categorias">⚙ Gerenciar categorias</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: gerenciar categorias de fornecedor -->
+  <div class="modal" id="modalCategoriasFornecedor" aria-hidden="true">
+    <div class="modal-content" style="max-width:520px;">
+      <button class="close-btn" onclick="fecharModal('modalCategoriasFornecedor', true)">&times;</button>
+      <h3>Categorias de fornecedor</h3>
+      <p style="font-size:0.88rem; color:#6b5a42;">
+        Adicione, renomeie ou remova categorias. Ao renomear, os fornecedores que usam a
+        categoria são atualizados juntos. Uma categoria em uso não pode ser removida.
+      </p>
+      <div class="linha-campo label-acima" style="align-items:flex-end; margin-bottom:0.75rem;">
+        <div class="form-group" style="flex:2; margin-bottom:0;">
+          <label for="novaCategoriaFornecedor">Nova categoria</label>
+          <input type="text" id="novaCategoriaFornecedor" placeholder="Ex.: Lua de mel" onkeydown="if(event.key==='Enter') adicionarCategoriaFornecedor()">
+        </div>
+        <button class="btn-primary" style="flex:1;" onclick="adicionarCategoriaFornecedor()">Adicionar</button>
+      </div>
+      <div id="listaCategoriasFornecedor"></div>
+    </div>
+  </div>
+
   <!-- Modal: backups automáticos da nuvem -->
   <div class="modal" id="modalBackupsAuto" aria-hidden="true">
     <div class="modal-content" style="max-width:560px;">
@@ -1410,7 +1461,7 @@
           <div class="linha-campo">
             <div class="form-group" style="flex:1;">
               <label for="papelPadrinho">Papel</label>
-              <select id="papelPadrinho">
+              <select id="papelPadrinho" onchange="if(typeof popularSelectEntraCom==='function') popularSelectEntraCom()">
                 <option value="Padrinho">Padrinho</option>
                 <option value="Madrinha">Madrinha</option>
               </select>
@@ -1435,7 +1486,10 @@
             <label for="ordemEntradaPadrinho">Ordem de entrada na cerimônia</label>
             <input type="number" id="ordemEntradaPadrinho" min="1" placeholder="1, 2, 3...">
           </div>
-          <!-- Campo de par removido -->
+          <div class="form-group">
+            <label for="entraComPadrinho">Entra com (par na cerimônia)</label>
+            <select id="entraComPadrinho"></select>
+          </div>
           <div class="form-group">
             <label for="statusPadrinho">Status de confirmação</label>
             <select id="statusPadrinho">
@@ -1563,8 +1617,8 @@
         <div style="background:#fffbf5; border:1px solid var(--cor-borda-suave); padding:1rem; border-radius:6px; margin-bottom:1rem;">
           <h4 style="margin:0 0 0.25rem;">Metas por categoria</h4>
           <p style="font-size:0.85rem; color:#777; margin:0 0 0.75rem;">
-            Planejado × comprometido. O comprometido soma <strong>fornecedores + despesas</strong> da categoria —
-            evite cadastrar o mesmo gasto nos dois lugares para não contar em dobro.
+            Planejado × comprometido. O comprometido vem das <strong>despesas do Orçamentador</strong>
+            da categoria (fonte financeira única — fornecedores não são somados aqui, para não duplicar).
           </p>
           <div id="listaMetasCategorias"></div>
           <div class="linha-campo label-acima" style="margin-top:0.75rem; align-items:flex-end;">
@@ -1682,29 +1736,15 @@
         <!-- LINHA 2: Categoria + Responsável -->
         <div class="linha-campo label-acima">
           <div class="form-group" style="flex:1;">
-            <label for="categoriaFornecedor">Categoria</label>
-            <select id="categoriaFornecedor" onchange="atualizarValoresBuffet()">
-              <option>Buffet</option>
-              <option>Decoração</option>
-              <option>Fotografia</option>
-              <option>Filmagem</option>
-              <option>Música</option>
-              <option>DJ</option>
-              <option>Cerimonialista</option>
-              <option>Vestido</option>
-              <option>Traje do noivo</option>
-              <option>Maquiagem</option>
-              <option>Cabelo</option>
-              <option>Convites</option>
-              <option>Lembrancinhas</option>
-              <option>Doces</option>
-              <option>Bolo</option>
-              <option>Bebidas</option>
-              <option>Segurança</option>
-              <option>Transporte</option>
-              <option>Espaço</option>
-              <option>Outros</option>
-            </select>
+            <label for="categoriaFornecedorDisplay">Categoria</label>
+            <div style="display:flex; gap:0.4rem; align-items:center;">
+              <button type="button" id="categoriaFornecedorDisplay" class="campo-selecao-categoria" onclick="abrirModalSelecaoCategoria()" title="Clique para selecionar, buscar ou cadastrar categoria">
+                <span id="categoriaFornecedorTexto">Selecionar categoria…</span>
+                <span style="opacity:.55;">▾</span>
+              </button>
+            </div>
+            <!-- Guarda o valor real da categoria; lido por todo o código existente. -->
+            <select id="categoriaFornecedor" onchange="atualizarValoresBuffet()" style="display:none;"></select>
           </div>
           <div class="form-group" style="flex:1;">
             <label for="responsavelFornecedor">Responsável</label>
@@ -2286,17 +2326,6 @@
 
   <script>
     // Utilitários para formatação de data e moeda
-    function formatarDataParaBR(dataISO) {
-      if (!dataISO) return '';
-      const [ano, mes, dia] = dataISO.split('-');
-      return `${dia}/${mes}/${ano}`;
-    }
-    function formatarDataParaISO(dataBR) {
-      const partes = dataBR.split('/');
-      if (partes.length !== 3) return '';
-      const [dia, mes, ano] = partes;
-      return `${ano.padStart(4, '0')}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
-    }
     function formatarMoeda(valor) {
       const numero = Number(valor) || 0;
       return numero.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -2713,6 +2742,7 @@
       buffetFilhos: 0,
       orcamentoTotal: 0,
       metasCategorias: {},
+      categoriasFornecedor: [],
       compromissos: [],
       convidados: [],
       mesas: [],
@@ -2785,7 +2815,7 @@
         });
         // Garante arrays/objetos onde precisa
         ['compromissos','convidados','mesas','despesas','fornecedores',
-         'tarefas','padrinhos','cronograma','listaEspera'].forEach(k => {
+         'tarefas','padrinhos','cronograma','listaEspera','categoriasFornecedor'].forEach(k => {
           if (!Array.isArray(dados[k])) dados[k] = [];
         });
         ['espaco','site','noiva','noivo','metasCategorias'].forEach(k => {
@@ -3240,7 +3270,7 @@
         // 3. Aplica campo a campo (sem trocar a referência de `dados`)
         Object.keys(dados).forEach(k => { if (cont[k] !== undefined) dados[k] = cont[k]; });
         ['compromissos','convidados','mesas','despesas','fornecedores',
-         'tarefas','padrinhos','cronograma','listaEspera'].forEach(k => {
+         'tarefas','padrinhos','cronograma','listaEspera','categoriasFornecedor'].forEach(k => {
           if (!Array.isArray(dados[k])) dados[k] = [];
         });
         ['espaco','site','noiva','noivo','metasCategorias'].forEach(k => {
@@ -3259,7 +3289,6 @@
       }
     }
     // Função antiga mantida só para compatibilidade — não faz nada agora
-    function _salvarDadosLocalLegado() { /* removido — agora vai pra nuvem */ }
     // Verifica há quanto tempo foi a última exportação de JSON e, se
     // passou de 7 dias (ou nunca houve), exibe um aviso discreto.
     function verificarAvisoExportacao() {
@@ -3557,7 +3586,7 @@
         if (vazio) vazio.style.display = 'none';
         const labels = ['Noiva', 'Noivo'];
         const valores = [soma['Noiva'], soma['Noivo']];
-        const cores = ['#C99AA5', '#8F7838']; // rosé suave × ouro profundo
+        const cores = ['#C99AA5', '#4A78B5']; // rosé (Noiva) × azul (Noivo)
         if (soma['Não informado'] > 0) {
           labels.push('Não informado');
           valores.push(soma['Não informado']);
@@ -3874,7 +3903,7 @@
         linha.style.cssText = 'display:flex; align-items:center; gap:0.5rem; padding:0.25rem 0; border-bottom:1px solid #eee;';
         const idadeTxt = a.tipo === 'Criança' && a.idade !== undefined && a.idade !== null
           ? ` (${a.idade} anos)` : '';
-        const corPagamento = (a.tipo === 'Criança' && (Number(a.idade) || 0) < 8) ? '#888' : '#222';
+        const corPagamento = (a.tipo === 'Criança' && (Number(a.idade) || 0) < CONFIG_SISTEMA.convidados.idadeMinimaPagante) ? '#888' : '#222';
         linha.innerHTML = `<div style="flex:1; color:${corPagamento};">
             <strong>${a.nome}</strong> — ${a.parentesco || 'sem parentesco'} | ${a.tipo}${idadeTxt}
           </div>`;
@@ -5497,15 +5526,6 @@
       if (h3) h3.textContent = 'Editar Lista de Espera';
       abrirModal('modalFormConvidado');
     }
-    function excluirListaEspera(index) {
-      if (!dados.listaEspera[index]) return;
-      if (confirm('Remover esta pessoa da lista de espera?')) {
-        dados.listaEspera.splice(index, 1);
-        salvarDados();
-        listarListaEsperaResumo();
-        atualizarListagensModaisListaEspera();
-      }
-    }
     function promoverListaEspera(index) {
       const item = dados.listaEspera[index];
       if (!item) return;
@@ -5749,7 +5769,7 @@
       if (!cont) return;
       const todas = coletarTodasAsCriancas();
       const pagantes = todas.filter(c => Number(c.idade) >= CONFIG_SISTEMA.convidados.idadeMinimaPagante).length;
-      const naoPagantes = todas.filter(c => c.idade !== undefined && c.idade !== null && Number(c.idade) < 8).length;
+      const naoPagantes = todas.filter(c => c.idade !== undefined && c.idade !== null && Number(c.idade) < CONFIG_SISTEMA.convidados.idadeMinimaPagante).length;
       const semIdade = todas.filter(c => c.idade === undefined || c.idade === null).length;
       if (resumo) {
         if (todas.length === 0) {
@@ -5768,7 +5788,7 @@
         const paga = idade !== null && idade >= CONFIG_SISTEMA.convidados.idadeMinimaPagante;
         const semIdadeC = idade === null;
         if (filtro === 'paga' && !paga) return false;
-        if (filtro === 'nao-paga' && !(idade !== null && idade < 8)) return false;
+        if (filtro === 'nao-paga' && !(idade !== null && idade < CONFIG_SISTEMA.convidados.idadeMinimaPagante)) return false;
         if (filtro === 'sem-idade' && !semIdadeC) return false;
         return true;
       });
@@ -5837,6 +5857,7 @@
     function abrirFormularioPadrinho() {
       limparFormularioPadrinho();
       document.getElementById('formPadrinho').style.display = 'block';
+      if (typeof popularSelectEntraCom === 'function') popularSelectEntraCom();
     }
     function cancelarFormularioPadrinho() {
       limparFormularioPadrinho();
@@ -5899,7 +5920,10 @@
       document.getElementById('observacoesPadrinho').value = p.observacoes || '';
       // Quando edita, desmarca o checkbox por padrão (não vai duplicar)
       document.getElementById('tambemConvidadoPadrinho').checked = false;
-      // Campo "entra com" removido: não é necessário popular nem restaurar
+      // Popula o "Entra com" e restaura o par salvo
+      if (typeof popularSelectEntraCom === 'function') popularSelectEntraCom();
+      const selEC = document.getElementById('entraComPadrinho');
+      if (selEC) selEC.value = p.entraCom || '';
       document.getElementById('formPadrinho').style.display = 'block';
     }
     function salvarPadrinho() {
@@ -5919,8 +5943,8 @@
       const statusPresente = document.getElementById('statusPresentePadrinho').value;
       const observacoes = document.getElementById('observacoesPadrinho').value.trim();
       const tambemConvidado = document.getElementById('tambemConvidadoPadrinho').checked;
-      // Campo "Entra na igreja com" foi removido; inicia sem par
-      const entraCom = '';
+      // Par de entrada na cerimônia (campo "Entra com")
+      const entraCom = (document.getElementById('entraComPadrinho') || {}).value || '';
       const registro = { nome, papel, lado, telefone, corTraje, ordemEntrada, status, presente, statusPresente, observacoes, entraCom };
       // Identifica o índice deste registro (para sincronização) ANTES de gravar.
       // Em edição, sabemos o índice; em criação, será o último após o push.
@@ -6251,6 +6275,7 @@
       fornecedorEmEdicao = null;
       document.getElementById('nomeFornecedor').value = '';
       document.getElementById('categoriaFornecedor').selectedIndex = 0;
+      if (typeof sincronizarDisplayCategoria === 'function') sincronizarDisplayCategoria();
       document.getElementById('responsavelFornecedor').value = '';
       document.getElementById('telefoneFornecedor').value = '';
       document.getElementById('valorContratadoFornecedor').value = '';
@@ -6292,8 +6317,6 @@
       const camposModalParc = [
         ['parcelasPagamento', '1'],
         ['valorEntradaParcelamento', ''],
-        ['datasParcelamento', ''],
-        ['valoresParcelamento', ''],
         ['obsParcelamento', '']
       ];
       camposModalParc.forEach(([id, val]) => {
@@ -6309,7 +6332,15 @@
       const f = dados.fornecedores[index];
       fornecedorEmEdicao = index;
       document.getElementById('nomeFornecedor').value = f.nome || '';
+      const selCatForn = document.getElementById('categoriaFornecedor');
+      if (selCatForn && f.categoria && !Array.from(selCatForn.options).some(o => o.value === f.categoria)) {
+        // Categoria antiga não está na lista atual: adiciona como opção para não perder o valor.
+        const opt = document.createElement('option');
+        opt.textContent = f.categoria;
+        selCatForn.appendChild(opt);
+      }
       document.getElementById('categoriaFornecedor').value = f.categoria || 'Buffet';
+      if (typeof sincronizarDisplayCategoria === 'function') sincronizarDisplayCategoria();
       document.getElementById('responsavelFornecedor').value = f.responsavel || '';
       document.getElementById('telefoneFornecedor').value = f.telefone || '';
       // Novos campos
@@ -6396,8 +6427,6 @@
         const elQtd = document.getElementById('parcelasPagamento');
         const elTemE = document.getElementById('temEntradaParcelamento');
         const elValE = document.getElementById('valorEntradaParcelamento');
-        const elDts = document.getElementById('datasParcelamento');
-        const elVls = document.getElementById('valoresParcelamento');
         const elObs = document.getElementById('obsParcelamento');
         if (elQtd) {
           // Se tem entrada, a primeira parcela é a entrada → qtd "real" = total - 1
@@ -6410,8 +6439,6 @@
         if (elValE && f.parcelamentoMeta) {
           elValE.value = f.parcelamentoMeta.valorEntrada ? formatarMoeda(f.parcelamentoMeta.valorEntrada) : '';
         }
-        if (elDts) elDts.value = f.parcelas.map(p => p.vencimento || '').join('; ');
-        if (elVls) elVls.value = f.parcelas.map(p => formatarMoeda(Number(p.valor) || 0)).join('; ');
         if (elObs && f.parcelamentoMeta) elObs.value = f.parcelamentoMeta.observacoes || '';
       }
       // Sincroniza o snapshot do modal: abrir um fornecedor para edição preenche
@@ -6555,6 +6582,27 @@
       filtroFornecedores = { categoria: '', status: '', busca: '' };
       listarFornecedores();
     }
+    // Verdadeiro quando há despesa(s) no Orçamentador, da MESMA categoria do
+    // fornecedor, totalmente quitada(s) (valorPago >= valorContratado), cujo
+    // total pago cobre o valor contratado do fornecedor. Mantém a fonte única:
+    // o "fechamento" é decidido pelo Orçamentador, não pelas parcelas.
+    function fornecedorFechadoNoOrcamento(f) {
+      if (!f || !(Number(f.valorContratado) > 0)) return false;
+      const cat = f.categoria;
+      let pagoNaCategoria = 0;
+      let temDespesaQuitada = false;
+      (dados.despesas || []).forEach(d => {
+        if (d.categoria !== cat) return;
+        const contr = Number(d.valorContratado) || 0;
+        const pago = Number(d.valorPago) || 0;
+        if (contr > 0 && pago >= contr) {        // despesa totalmente quitada
+          temDespesaQuitada = true;
+          pagoNaCategoria += pago;
+        }
+      });
+      return temDespesaQuitada && pagoNaCategoria >= (Number(f.valorContratado) || 0);
+    }
+
     function listarFornecedores() {
       const lista = document.getElementById('listaFornecedores');
       lista.innerHTML = '';
@@ -6616,6 +6664,15 @@
         // Linha principal com numeração automática do lançamento
         let html = `<strong>#${index + 1} — ${f.nome}</strong> - ${f.categoria} | Status: ${f.status}`;
         if (quitado) html += ' <span class="etiqueta-venc pago">Quitado</span>';
+        // Tarja verde de FECHAMENTO NO ORÇAMENTADOR: existe despesa(s) da mesma
+        // categoria totalmente quitada(s) (valorPago >= valorContratado) cobrindo
+        // o valor deste fornecedor. É a confirmação de que o gasto entrou e foi
+        // pago na fonte financeira da verdade (Orçamentador).
+        if (fornecedorFechadoNoOrcamento(f)) {
+          html += ' <span class="etiqueta-venc fechado-orcamento" title="Há despesa(s) quitada(s) no Orçamentador cobrindo este fornecedor">✓ Fechado no orçamento</span>';
+          // Fundo verde claro no card inteiro, reforçando o "fechado no orçamento".
+          div.classList.add('fornecedor-fechado');
+        }
         // Para Buffet, mostra também o valor por pessoa (que foi o que o usuário
         // digitou). O valorContratado salvo é o TOTAL (valor por pessoa × pagantes).
         // Esse total é o que aparece no gráfico — alinhamento visual entre lista
@@ -7090,11 +7147,10 @@ function atualizarValoresBuffet() {
     // Comprometido = fornecedores + despesas da categoria (mesma convenção do
     // resumo do PDF). Metas ficam em dados.metasCategorias = { categoria: valor }.
     function calcularComprometidoPorCategoria() {
+      // FONTE ÚNICA: Orçamentador (despesas). Os fornecedores NÃO somam aqui —
+      // como o casal lança o mesmo gasto nos dois módulos, somar ambos dobraria
+      // o comprometido. Mesma regra do gráfico "Quem já pagou".
       const mapa = {};
-      (dados.fornecedores || []).forEach(f => {
-        const c = f.categoria || 'Outros';
-        mapa[c] = (mapa[c] || 0) + (Number(f.valorContratado) || 0);
-      });
       (dados.despesas || []).forEach(d => {
         const c = d.categoria || 'Outros';
         mapa[c] = (mapa[c] || 0) + (Number(d.valorContratado) || 0);
@@ -7580,7 +7636,7 @@ blocoRsvp +
         // chaves ausentes com valores padrão.
         const padrao = {
           dataCasamento: '', horaCasamento: '', localCasamento: '', enderecoCasamento: '', celebrante: '',
-          localFesta: '', enderecoFesta: '', buffetNoivos: 2, buffetFilhos: 0, orcamentoTotal: 0, metasCategorias: {},
+          localFesta: '', enderecoFesta: '', buffetNoivos: 2, buffetFilhos: 0, orcamentoTotal: 0, metasCategorias: {}, categoriasFornecedor: [],
           compromissos: [], convidados: [], mesas: [], despesas: [], fornecedores: [],
           tarefas: [], listaEspera: [], padrinhos: [], cronograma: [],
           espaco: {}, site: {}, noiva: {}, noivo: {}
@@ -7804,27 +7860,28 @@ blocoRsvp +
         s + (Array.isArray(c.acompanhantes) ? c.acompanhantes.length : 0), 0);
       const totalPessoas = totalConvidados + totalAcompanhantes;
       const totalFornecedores = (dados.fornecedores || []).length;
-      let _totContratado = 0, _totPago = 0;
-      (dados.fornecedores || []).forEach(f => {
-        _totContratado += Number(f.valorContratado) || 0;
-        _totPago += Number(f.valorPago) || 0;
-      });
+      // Totais financeiros: FONTE ÚNICA = Orçamentador (despesas). Fornecedores
+      // entram apenas como visão operacional separada, sem somar (evita dobra).
+      let _totContratado = 0, _totPago = 0, _fornOrcado = 0;
       (dados.despesas || []).forEach(d => {
         _totContratado += Number(d.valorContratado) || 0;
         _totPago += Number(d.valorPago) || 0;
       });
+      (dados.fornecedores || []).forEach(f => { _fornOrcado += Number(f.valorContratado) || 0; });
       subTitulo('Convidados');
       linhaInfo('Titulares cadastrados', totalConvidados);
       linhaInfo('Acompanhantes', totalAcompanhantes);
       linhaInfo('Total de pessoas', totalPessoas);
       linhaInfo('Presença confirmada (titulares)', confirmadosCount);
       espaco(4);
-      subTitulo('Financeiro');
+      subTitulo('Financeiro (Orçamentador)');
       linhaInfo('Orçamento total', (Number(dados.orcamentoTotal) || 0) > 0 ? formatarMoeda(dados.orcamentoTotal) : 'não definido');
-      linhaInfo('Total contratado (fornecedores + despesas)', formatarMoeda(_totContratado));
+      linhaInfo('Total contratado', formatarMoeda(_totContratado));
       linhaInfo('Total pago', formatarMoeda(_totPago));
       linhaInfo('Total restante a pagar', formatarMoeda(_totContratado - _totPago));
+      espaco(2);
       linhaInfo('Fornecedores cadastrados', totalFornecedores);
+      linhaInfo('Fornecedores (orçado — visão operacional)', formatarMoeda(_fornOrcado));
 
       // ===== Seção: Convidados =====
       novaPagina();
@@ -8989,6 +9046,189 @@ blocoRsvp +
     // ===== Inicialização =====
     // Gera as opções dos selects principais a partir do CONFIG_SISTEMA.
     // Adicionar/remover uma categoria passa a ser editar UMA lista no CONFIG.
+    // Categorias de fornecedor gerenciáveis pelo usuário. Ficam em
+    // dados.categoriasFornecedor (persistido na nuvem). Na falta (versão antiga),
+    // cai para a lista padrão do CONFIG.
+    function obterCategoriasFornecedor() {
+      if (Array.isArray(dados.categoriasFornecedor) && dados.categoriasFornecedor.length > 0) {
+        return dados.categoriasFornecedor;
+      }
+      return CONFIG_SISTEMA.fornecedores.categorias;
+    }
+    // Garante que a lista exista em dados (primeira vez = cópia do CONFIG).
+    function garantirCategoriasFornecedor() {
+      if (!Array.isArray(dados.categoriasFornecedor) || dados.categoriasFornecedor.length === 0) {
+        dados.categoriasFornecedor = [...CONFIG_SISTEMA.fornecedores.categorias];
+      }
+      return dados.categoriasFornecedor;
+    }
+    // ===== Seleção de categoria com busca (acoplada ao campo) =====
+    // Atualiza o texto visível do campo a partir do <select> oculto.
+    function sincronizarDisplayCategoria() {
+      const sel = document.getElementById('categoriaFornecedor');
+      const txt = document.getElementById('categoriaFornecedorTexto');
+      if (!sel || !txt) return;
+      txt.textContent = sel.value ? sel.value : 'Selecionar categoria…';
+      txt.style.opacity = sel.value ? '1' : '0.6';
+    }
+    function abrirModalSelecaoCategoria() {
+      garantirCategoriasFornecedor();
+      abrirModal('modalSelecaoCategoria');
+      const busca = document.getElementById('buscaSelecaoCategoria');
+      if (busca) busca.value = '';
+      renderizarSelecaoCategorias('');
+      if (busca) setTimeout(() => busca.focus(), 50);
+    }
+    function renderizarSelecaoCategorias(filtro) {
+      const cont = document.getElementById('listaSelecaoCategorias');
+      if (!cont) return;
+      const termo = (filtro || '').trim().toLowerCase();
+      const atual = (document.getElementById('categoriaFornecedor') || {}).value || '';
+      const cats = obterCategoriasFornecedor()
+        .filter(c => c.toLowerCase().includes(termo))
+        .sort((a, b) => a.localeCompare(b, CONFIG_SISTEMA.geral.idioma));
+      cont.innerHTML = '';
+      cats.forEach(cat => {
+        const item = document.createElement('div');
+        item.className = 'cat-selecao-item' + (cat === atual ? ' ativa' : '');
+        item.textContent = cat;
+        if (cat === atual) {
+          const check = document.createElement('span');
+          check.textContent = '✓';
+          check.style.marginLeft = 'auto';
+          item.appendChild(check);
+        }
+        item.onclick = () => selecionarCategoriaFornecedor(cat);
+        cont.appendChild(item);
+      });
+      // Se o que foi digitado não existe, oferece criar
+      const existe = obterCategoriasFornecedor().some(c => c.toLowerCase() === termo);
+      if (termo && !existe) {
+        const criar = document.createElement('div');
+        criar.className = 'cat-selecao-item';
+        criar.style.color = 'var(--cor-bronze, #8f7838)';
+        criar.innerHTML = `<strong>+ Criar "${filtro.trim()}"</strong>`;
+        criar.onclick = () => adicionarCategoriaPelaBusca();
+        cont.appendChild(criar);
+      }
+      if (cats.length === 0 && !termo) {
+        cont.innerHTML = '<p style="color:#777; font-size:0.9rem;">Nenhuma categoria. Digite acima para criar a primeira.</p>';
+      }
+    }
+    // Seleciona a categoria, reflete no <select> oculto e fecha o modal.
+    function selecionarCategoriaFornecedor(cat) {
+      const sel = document.getElementById('categoriaFornecedor');
+      if (sel) {
+        if (!Array.from(sel.options).some(o => o.value === cat)) {
+          const opt = document.createElement('option');
+          opt.textContent = cat;
+          sel.appendChild(opt);
+        }
+        sel.value = cat;
+        if (typeof atualizarValoresBuffet === 'function') atualizarValoresBuffet();
+      }
+      sincronizarDisplayCategoria();
+      fecharModal('modalSelecaoCategoria', true);
+    }
+    // Cria a categoria digitada na busca e já a seleciona.
+    function adicionarCategoriaPelaBusca() {
+      const busca = document.getElementById('buscaSelecaoCategoria');
+      const nome = (busca ? busca.value : '').trim();
+      if (!nome) return;
+      const cats = garantirCategoriasFornecedor();
+      const existente = cats.find(c => c.toLowerCase() === nome.toLowerCase());
+      if (existente) { selecionarCategoriaFornecedor(existente); return; }
+      cats.push(nome);
+      salvarDados();
+      preencherSelectsDoConfig();
+      selecionarCategoriaFornecedor(nome);
+    }
+
+    function abrirModalCategoriasFornecedor() {
+      garantirCategoriasFornecedor();
+      abrirModal('modalCategoriasFornecedor');
+      renderizarCategoriasFornecedor();
+    }
+    function renderizarCategoriasFornecedor() {
+      const cont = document.getElementById('listaCategoriasFornecedor');
+      if (!cont) return;
+      const cats = garantirCategoriasFornecedor();
+      const uso = {};
+      (dados.fornecedores || []).forEach(f => { uso[f.categoria] = (uso[f.categoria] || 0) + 1; });
+      cont.innerHTML = '';
+      cats.forEach((cat, i) => {
+        const n = uso[cat] || 0;
+        const linha = document.createElement('div');
+        linha.style.cssText = 'display:flex; align-items:center; gap:0.5rem; padding:0.4rem 0; border-bottom:1px dashed var(--cor-borda-suave);';
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.value = cat;
+        inp.style.cssText = 'flex:1;';
+        inp.onblur = function () { renomearCategoriaFornecedor(i, this.value); };
+        inp.onkeydown = function (e) { if (e.key === 'Enter') this.blur(); };
+        const info = document.createElement('span');
+        info.style.cssText = 'font-size:0.8rem; color:#999; min-width:96px; text-align:right;';
+        info.textContent = n > 0 ? `${n} fornecedor(es)` : 'sem uso';
+        const btn = document.createElement('button');
+        btn.textContent = 'Remover';
+        btn.className = 'btn-danger btn-pequeno';
+        btn.disabled = n > 0;
+        if (n > 0) { btn.style.opacity = '0.5'; btn.title = 'Em uso — não pode remover'; }
+        btn.onclick = () => removerCategoriaFornecedor(i);
+        linha.appendChild(inp);
+        linha.appendChild(info);
+        linha.appendChild(btn);
+        cont.appendChild(linha);
+      });
+    }
+    function adicionarCategoriaFornecedor() {
+      const inp = document.getElementById('novaCategoriaFornecedor');
+      const nome = (inp ? inp.value : '').trim();
+      if (!nome) { alert('Digite o nome da categoria.'); return; }
+      const cats = garantirCategoriasFornecedor();
+      if (cats.some(c => c.toLowerCase() === nome.toLowerCase())) {
+        alert('Já existe uma categoria com esse nome.'); return;
+      }
+      cats.push(nome);
+      if (inp) inp.value = '';
+      salvarDados();
+      preencherSelectsDoConfig();
+      renderizarCategoriasFornecedor();
+    }
+    function renomearCategoriaFornecedor(i, novoNomeBruto) {
+      const cats = garantirCategoriasFornecedor();
+      const antigo = cats[i];
+      const novo = (novoNomeBruto || '').trim();
+      if (novo === '' || novo === antigo) { renderizarCategoriasFornecedor(); return; }
+      if (cats.some((c, k) => k !== i && c.toLowerCase() === novo.toLowerCase())) {
+        alert('Já existe uma categoria com esse nome.');
+        renderizarCategoriasFornecedor();
+        return;
+      }
+      cats[i] = novo;
+      let afetados = 0;
+      (dados.fornecedores || []).forEach(f => { if (f.categoria === antigo) { f.categoria = novo; afetados++; } });
+      salvarDados();
+      preencherSelectsDoConfig();
+      renderizarCategoriasFornecedor();
+      if (typeof sincronizarDisplayCategoria === 'function') sincronizarDisplayCategoria();
+      if (typeof listarFornecedores === 'function') listarFornecedores();
+      if (typeof atualizarDashboard === 'function') atualizarDashboard();
+      if (afetados > 0) alert(`Categoria renomeada. ${afetados} fornecedor(es) atualizado(s).`);
+    }
+    function removerCategoriaFornecedor(i) {
+      const cats = garantirCategoriasFornecedor();
+      const cat = cats[i];
+      const emUso = (dados.fornecedores || []).some(f => f.categoria === cat);
+      if (emUso) { alert(`"${cat}" está em uso por um ou mais fornecedores e não pode ser removida.`); return; }
+      if (cats.length <= 1) { alert('É preciso manter ao menos uma categoria.'); return; }
+      if (!confirm(`Remover a categoria "${cat}"?`)) return;
+      cats.splice(i, 1);
+      salvarDados();
+      preencherSelectsDoConfig();
+      renderizarCategoriasFornecedor();
+    }
+
     function preencherSelectsDoConfig() {
       const montar = (id, itens, placeholder) => {
         const el = document.getElementById(id);
@@ -8998,7 +9238,7 @@ blocoRsvp +
           itens.map(i => `<option>${i}</option>`).join('');
         if (atual) el.value = atual;
       };
-      montar('categoriaFornecedor', CONFIG_SISTEMA.fornecedores.categorias);
+      montar('categoriaFornecedor', obterCategoriasFornecedor());
       montar('categoriaDespesa', CONFIG_SISTEMA.financeiro.categoriasDespesa);
       montar('categoriaConvidado', CONFIG_SISTEMA.convidados.categorias, 'Selecione...');
       montar('statusPresencaConvidado', CONFIG_SISTEMA.convidados.statusConfirmacao);
