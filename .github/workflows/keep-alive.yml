@@ -1,31 +1,36 @@
 name: Manter Supabase ativo (keep-alive)
 
-# Mantém o projeto Supabase do plano gratuito acordado.
-# O Supabase pausa projetos após 7 dias SEM atividade no banco.
-# Este fluxo faz uma consulta real à tabela 2x por semana (terça e sexta),
-# zerando o contador de inatividade. Roda nos servidores do GitHub, de graça,
-# independente de alguém abrir o sistema.
+# DUAS funções, para evitar o paradoxo dos workflows agendados:
+# 1) Faz uma consulta real ao banco -> zera o timer de 7 dias do Supabase.
+# 2) Grava um arquivo de log e faz commit -> gera "atividade" no repositório,
+#    zerando o contador de 60 dias que desativaria este próprio workflow.
+# Resultado: a automação se mantém viva sozinha, sem você precisar commitar nada.
 
 on:
   schedule:
-    # Minuto Hora Dia Mês DiaDaSemana  — horário em UTC
-    # 2 = terça, 5 = sexta. 12:00 UTC ~ 09:00 no horário de Brasília.
+    # 2 = terça, 5 = sexta. 12:00 UTC ~ 09:00 de Brasília.
     - cron: '0 12 * * 2,5'
-  workflow_dispatch:   # permite rodar manualmente pelo botão "Run workflow"
+  workflow_dispatch:   # botão "Run workflow" para rodar manualmente
+
+# Permite que o workflow escreva no repositório (necessário para o commit).
+permissions:
+  contents: write
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Consultar o banco (mantém ativo)
+      - name: Baixar o repositório
+        uses: actions/checkout@v4
+
+      - name: Consultar o banco (mantém Supabase ativo)
         run: |
-          echo "Fazendo ping no Supabase em $(date -u)"
+          echo "Ping no Supabase em $(date -u)"
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
             "${SUPABASE_URL}/rest/v1/dados_casamento?select=id&limit=1" \
             -H "apikey: ${SUPABASE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_KEY}")
           echo "Resposta HTTP: ${HTTP_CODE}"
-          # 200 = banco respondeu (ativo). Qualquer 2xx serve como atividade.
           if [ "${HTTP_CODE}" -ge 200 ] && [ "${HTTP_CODE}" -lt 300 ]; then
             echo "OK — banco ativo, timer de inatividade zerado."
           else
@@ -35,3 +40,19 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+
+      - name: Registrar atividade no repositório (mantém o workflow vivo)
+        run: |
+          mkdir -p .keep-alive
+          echo "Último ping: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" > .keep-alive/ultimo-ping.txt
+          git config user.name  "keep-alive-bot"
+          git config user.email "keep-alive-bot@users.noreply.github.com"
+          git add .keep-alive/ultimo-ping.txt
+          # Só faz commit se algo mudou (evita erro quando o conteúdo é idêntico)
+          if git diff --staged --quiet; then
+            echo "Nada mudou; sem commit desta vez."
+          else
+            git commit -m "keep-alive: registrar atividade [skip ci]"
+            git push
+            echo "Commit de atividade enviado — contador de 60 dias zerado."
+          fi
