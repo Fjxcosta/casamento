@@ -1,0 +1,37 @@
+name: Manter Supabase ativo (keep-alive)
+
+# Mantém o projeto Supabase do plano gratuito acordado.
+# O Supabase pausa projetos após 7 dias SEM atividade no banco.
+# Este fluxo faz uma consulta real à tabela 2x por semana (terça e sexta),
+# zerando o contador de inatividade. Roda nos servidores do GitHub, de graça,
+# independente de alguém abrir o sistema.
+
+on:
+  schedule:
+    # Minuto Hora Dia Mês DiaDaSemana  — horário em UTC
+    # 2 = terça, 5 = sexta. 12:00 UTC ~ 09:00 no horário de Brasília.
+    - cron: '0 12 * * 2,5'
+  workflow_dispatch:   # permite rodar manualmente pelo botão "Run workflow"
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Consultar o banco (mantém ativo)
+        run: |
+          echo "Fazendo ping no Supabase em $(date -u)"
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${SUPABASE_URL}/rest/v1/dados_casamento?select=id&limit=1" \
+            -H "apikey: ${SUPABASE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_KEY}")
+          echo "Resposta HTTP: ${HTTP_CODE}"
+          # 200 = banco respondeu (ativo). Qualquer 2xx serve como atividade.
+          if [ "${HTTP_CODE}" -ge 200 ] && [ "${HTTP_CODE}" -lt 300 ]; then
+            echo "OK — banco ativo, timer de inatividade zerado."
+          else
+            echo "ATENÇÃO — resposta inesperada (${HTTP_CODE}). Verifique URL/chave/RLS."
+            exit 1
+          fi
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
