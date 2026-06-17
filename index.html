@@ -519,6 +519,9 @@
     .etiqueta-venc.pago { background: var(--cor-bronze); }
     .etiqueta-venc.fechado-orcamento { background: #4f7a4a; }
     .item-lista.fornecedor-fechado { background: #eaf4e6; border-color: #bcd9b3; }
+    .item-lista.pagamento-quitado { background: #eaf4e6; border-color: #bcd9b3; }
+    .item-lista.pagamento-parcial { background: #e6eff7; border-color: #b3cce8; }
+    .etiqueta-venc.parcial-azul { background: #4A78B5; }
     .campo-selecao-categoria {
       flex: 1; display: flex; align-items: center; justify-content: space-between;
       gap: 0.5rem; padding: 0.55rem 0.7rem; cursor: pointer; text-align: left;
@@ -1662,6 +1665,13 @@
           <!-- Aviso de fornecedor cadastrado para a mesma categoria -->
           <div id="avisoFornecedorDespesa" style="display:none; background:#fff8e1; border:1px solid #f0c674; border-radius:6px; padding:0.6rem 0.9rem; margin-bottom:0.75rem; font-size:0.88rem;"></div>
           <div class="form-group">
+            <label for="fornecedorDaDespesa">Fornecedor vinculado (opcional)</label>
+            <select id="fornecedorDaDespesa">
+              <option value="">— Nenhum —</option>
+            </select>
+            <small style="color:#777;">Vincular conecta esta despesa ao fornecedor, para refletir o pagamento certinho no cadastro dele.</small>
+          </div>
+          <div class="form-group">
             <label for="descricaoDespesa">Descrição</label>
             <input type="text" id="descricaoDespesa">
           </div>
@@ -1676,6 +1686,7 @@
           <div class="form-group">
             <label for="valorPagoDespesa">Valor pago</label>
             <input type="text" id="valorPagoDespesa" placeholder="R$ 0,00" inputmode="numeric" oninput="aplicarMascaraMoeda(this)" onblur="finalizarCampoMoeda(this)">
+            <small id="ajudaValorPagoDespesa" style="color:#777; display:none;">Com parcelas, o valor pago é a soma das parcelas com data de pagamento.</small>
           </div>
           <div class="form-group">
             <label for="pagadorDespesa">Pago por</label>
@@ -1689,6 +1700,17 @@
           <div class="form-group">
             <label for="dataVencimentoDespesa">Data de vencimento</label>
             <input type="text" id="dataVencimentoDespesa" placeholder="dd/mm/aaaa" inputmode="numeric" oninput="aplicarMascaraData(this)">
+          </div>
+          <!-- Pagamento parcelado da despesa (Orçamentador) -->
+          <div class="form-group">
+            <label for="modalidadePagamentoDespesa">Modalidade de pagamento</label>
+            <select id="modalidadePagamentoDespesa" onchange="aoMudarModalidadeDespesa()"></select>
+          </div>
+          <div class="form-group" id="grupoParcelasDespesa" style="display:none;">
+            <label for="parcelasDespesa">Quantidade de parcelas</label>
+            <input type="number" id="parcelasDespesa" min="1" max="60" value="1" onchange="gerarCamposParcelasDespesa()" oninput="gerarCamposParcelasDespesa()">
+            <small style="color:#777;">Use 1 para pagamento à vista. Informe o valor de cada parcela manualmente.</small>
+            <div id="listaParcelasDespesa" style="margin-top:0.75rem; display:none;"></div>
           </div>
           <div class="form-group">
             <label for="statusDespesa">Status</label>
@@ -1773,6 +1795,9 @@
           <input type="text" id="valorContratadoFornecedor" placeholder="R$ 0,00" inputmode="numeric" oninput="aplicarMascaraMoeda(this); atualizarValoresBuffet();" onblur="finalizarCampoMoeda(this); atualizarValoresBuffet();">
           <small id="ajudaValorContratado" style="color:#777; display:none;">No Buffet, este é o valor por pessoa. O total será calculado automaticamente.</small>
         </div>
+        <!-- Onda 2b: pagamento (modalidade/parcelas) migrou para o Orçamentador.
+             Mantido oculto para preservar dados antigos sem exibir/editar aqui. -->
+        <div id="secaoPagamentoFornecedor" style="display:none;">
         <!-- Modalidade de pagamento -->
         <div class="linha-campo label-acima">
           <div class="form-group" style="flex:1;">
@@ -1834,6 +1859,11 @@
         <div id="listaParcelasFornecedor" style="margin-top:0.5rem; display:none;"></div>
         <!-- Botão para adicionar parcelamento -->
         <button type="button" class="btn-primary" onclick="abrirModal('modalParcelamentoFornecedor'); atualizarHintEntrada();" style="margin-top:0.5rem;">Gerar parcelamento (entrada + parcelas)</button>
+        </div><!-- /secaoPagamentoFornecedor -->
+        <!-- Aviso de que o pagamento agora é no Orçamentador -->
+        <div style="background:#e6eff7; border:1px solid #b3cce8; border-radius:6px; padding:0.6rem 0.9rem; margin-top:0.75rem; font-size:0.88rem; color:#34506b;">
+          💳 O controle de pagamento (modalidade, parcelas, valores pagos) agora é feito no <strong>Orçamentador</strong>, vinculando a despesa a este fornecedor.
+        </div>
         <!-- LINHA 8: Status do contrato + Prioridade -->
         <div class="linha-campo label-acima" style="margin-top:1rem;">
           <div class="form-group" style="flex:1;">
@@ -1845,8 +1875,6 @@
               <option>Em negociação</option>
               <option>Contratado</option>
               <option>Reprovado</option>
-              <option>Pago parcial</option>
-              <option>Pago</option>
               <option>Cancelado</option>
             </select>
           </div>
@@ -5092,6 +5120,12 @@
     function abrirFormularioDespesa() {
       // Garante que o formulário abra zerado ao adicionar um novo registro
       limparFormularioDespesa();
+      // Garante que o select de modalidade esteja populado (independe da ordem de init)
+      const selModAbrir = document.getElementById('modalidadePagamentoDespesa');
+      if (selModAbrir && selModAbrir.options.length <= 1) {
+        selModAbrir.innerHTML = '<option value="">Selecione...</option>' +
+          CONFIG_SISTEMA.financeiro.modalidadesPagamento.map(m => `<option>${m}</option>`).join('');
+      }
       document.getElementById('formDespesa').style.display = 'block';
       // Verifica imediatamente se a categoria default já tem fornecedor cadastrado
       sugerirFornecedorParaDespesa();
@@ -5099,6 +5133,18 @@
     function cancelarFormularioDespesa() {
       limparFormularioDespesa();
       document.getElementById('formDespesa').style.display = 'none';
+    }
+    // Popula o select "Fornecedor vinculado" com os fornecedores atuais,
+    // em ordem alfabética, preservando a seleção informada.
+    function popularSelectFornecedorDespesa(idSelecionado) {
+      const sel = document.getElementById('fornecedorDaDespesa');
+      if (!sel) return;
+      garantirIdsFornecedores();
+      const ordenados = [...(dados.fornecedores || [])]
+        .sort((a, b) => (a.nome || '').localeCompare(b.nome || '', CONFIG_SISTEMA.geral.idioma));
+      sel.innerHTML = '<option value="">— Nenhum —</option>' +
+        ordenados.map(f => `<option value="${f.id}">${f.nome} (${f.categoria})</option>`).join('');
+      sel.value = idSelecionado || '';
     }
     function limparFormularioDespesa() {
       despesaEmEdicao = null;
@@ -5109,6 +5155,15 @@
       document.getElementById('valorPagoDespesa').value = '';
       const selPagD0 = document.getElementById('pagadorDespesa');
       if (selPagD0) selPagD0.selectedIndex = 0;
+      popularSelectFornecedorDespesa('');
+      const selModD = document.getElementById('modalidadePagamentoDespesa');
+      if (selModD) selModD.selectedIndex = 0;
+      const grupoP = document.getElementById('grupoParcelasDespesa');
+      if (grupoP) grupoP.style.display = 'none';
+      const listaP = document.getElementById('listaParcelasDespesa');
+      if (listaP) { listaP.innerHTML = ''; listaP.style.display = 'none'; }
+      const qtdP = document.getElementById('parcelasDespesa');
+      if (qtdP) qtdP.value = '1';
       document.getElementById('dataVencimentoDespesa').value = '';
       document.getElementById('statusDespesa').selectedIndex = 0;
       document.getElementById('prioridadeDespesa').selectedIndex = 0;
@@ -5130,6 +5185,16 @@
       document.getElementById('dataVencimentoDespesa').value = d.dataVencimento || '';
       document.getElementById('statusDespesa').value = d.status || 'Previsto';
       document.getElementById('prioridadeDespesa').value = d.prioridade || 'Baixa';
+      popularSelectFornecedorDespesa(d.idFornecedor || '');
+      // Modalidade + parcelas (Onda 2b)
+      const selMod = document.getElementById('modalidadePagamentoDespesa');
+      if (selMod) selMod.value = d.modalidadePagamento || '';
+      aoMudarModalidadeDespesa();
+      if (Array.isArray(d.parcelas) && d.parcelas.length > 0) {
+        const grupo = document.getElementById('grupoParcelasDespesa');
+        if (grupo) grupo.style.display = '';
+        preencherParcelasDespesaNoForm(d.parcelas);
+      }
       document.getElementById('formDespesa').style.display = 'block';
     }
     function salvarDespesa() {
@@ -5155,7 +5220,13 @@
           return;
         }
       }
-      const registro = { categoria, descricao, valorPrevisto, valorContratado, valorPago, pagador, dataVencimento, status, prioridade };
+      const idFornecedor = (document.getElementById('fornecedorDaDespesa') || {}).value || '';
+      const modalidadePagamento = (document.getElementById('modalidadePagamentoDespesa') || {}).value || '';
+      const temParcelas = modalidadeDespesaTemParcelas();
+      const parcelas = temParcelas ? lerParcelasDespesaDoForm() : [];
+      // Com parcelas, o valor pago é derivado das parcelas pagas.
+      const valorPagoFinal = temParcelas ? calcularValorPagoParcelasDespesa() : valorPago;
+      const registro = { categoria, descricao, valorPrevisto, valorContratado, valorPago: valorPagoFinal, pagador, dataVencimento, status, prioridade, idFornecedor, modalidadePagamento, parcelas };
       if (despesaEmEdicao !== null) {
         dados.despesas[despesaEmEdicao] = registro;
       } else {
@@ -5163,6 +5234,7 @@
       }
       salvarDados();
       listarDespesas();
+      if (typeof listarFornecedores === 'function') listarFornecedores();
       const editandoDespesa = despesaEmEdicao !== null;
       limparFormularioDespesa();
       document.getElementById('formDespesa').style.display = 'none';
@@ -5272,8 +5344,19 @@
         algumaExibida = true;
         const div = document.createElement('div');
         div.className = 'item-lista venc-' + sit.tipo;
+        // Cor de fundo pelo andamento do pagamento:
+        // verde = quitada; azul = pagamento parcial/em andamento.
+        const contrato = Number(d.valorContratado) || 0;
+        const pago = Number(d.valorPago) || 0;
+        const quitada = (d.status === 'Pago') || (contrato > 0 && pago >= contrato);
+        const parcial = !quitada && (d.status === 'Pago parcial' || (pago > 0 && pago < contrato));
+        if (quitada) div.classList.add('pagamento-quitado');
+        else if (parcial) div.classList.add('pagamento-parcial');
         const etiqueta = `<span class="etiqueta-venc ${sit.tipo}">${sit.rotulo}</span>`;
-        div.innerHTML = `<strong>#${index + 1} — ${d.descricao}</strong> - ${d.categoria} ${etiqueta}<br>` +
+        let selo = '';
+        if (quitada) selo = ' <span class="etiqueta-venc pago">✓ Pago</span>';
+        else if (parcial) selo = ' <span class="etiqueta-venc parcial-azul">Pagamento parcial</span>';
+        div.innerHTML = `<strong>#${index + 1} — ${d.descricao}</strong> - ${d.categoria} ${etiqueta}${selo}<br>` +
           `Previsto: ${formatarMoeda(d.valorPrevisto)} | Contratado: ${formatarMoeda(d.valorContratado)} | Pago: ${formatarMoeda(d.valorPago)}<br>` +
           `Pendência: ${formatarMoeda(d.valorContratado - d.valorPago)} | Status: ${d.status} | Prioridade: ${d.prioridade}` +
           (d.dataVencimento ? ` | Vencimento: ${d.dataVencimento}` : '');
@@ -6362,7 +6445,10 @@
         preencherCampoMoeda('valorContratadoFornecedor', f.valorContratado);
       }
       preencherCampoMoeda('valorPagoFornecedor', f.valorPago);
-      document.getElementById('statusFornecedor').value = f.status || 'Pesquisado';
+      // Status de pagamento antigo (Pago/Pago parcial) vira Contratado:
+      // pagamento agora vive no Orçamentador.
+      const statusForn = (f.status === 'Pago' || f.status === 'Pago parcial') ? 'Contratado' : (f.status || 'Pesquisado');
+      document.getElementById('statusFornecedor').value = statusForn;
       document.getElementById('prioridadeFornecedor').value = f.prioridade || 'Baixa';
       document.getElementById('contratoFornecedor').value = f.contrato || '';
       document.getElementById('observacoesFornecedor').value = f.observacoes || '';
@@ -6547,13 +6633,15 @@
         // Limpa a variável global após associar
         window.parcelamentoFornecedorAtual = null;
       }
-      // Quitação automática
-      if (valorContratado > 0 && valorPago >= valorContratado) {
-        registro.status = 'Pago';
-      }
+      // Onda 2b: a quitação automática foi removida. O status do fornecedor é
+      // só de negociação; o pagamento (e o "pago") vivem no Orçamentador.
       if (fornecedorEmEdicao !== null) {
+        // Preserva o id existente (vínculo com despesas não pode se perder)
+        registro.id = dados.fornecedores[fornecedorEmEdicao].id ||
+          ('forn_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7));
         dados.fornecedores[fornecedorEmEdicao] = registro;
       } else {
+        registro.id = 'forn_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
         dados.fornecedores.push(registro);
       }
       salvarDados();
@@ -6586,21 +6674,48 @@
     // fornecedor, totalmente quitada(s) (valorPago >= valorContratado), cujo
     // total pago cobre o valor contratado do fornecedor. Mantém a fonte única:
     // o "fechamento" é decidido pelo Orçamentador, não pelas parcelas.
-    function fornecedorFechadoNoOrcamento(f) {
-      if (!f || !(Number(f.valorContratado) > 0)) return false;
-      const cat = f.categoria;
-      let pagoNaCategoria = 0;
-      let temDespesaQuitada = false;
-      (dados.despesas || []).forEach(d => {
-        if (d.categoria !== cat) return;
-        const contr = Number(d.valorContratado) || 0;
-        const pago = Number(d.valorPago) || 0;
-        if (contr > 0 && pago >= contr) {        // despesa totalmente quitada
-          temDespesaQuitada = true;
-          pagoNaCategoria += pago;
+    // Gera um id estável para fornecedores que ainda não têm (dados antigos).
+    function garantirIdsFornecedores() {
+      let mudou = false;
+      (dados.fornecedores || []).forEach(f => {
+        if (!f.id) {
+          f.id = 'forn_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+          mudou = true;
         }
       });
-      return temDespesaQuitada && pagoNaCategoria >= (Number(f.valorContratado) || 0);
+      return mudou;
+    }
+    // Despesas que pertencem a este fornecedor.
+    // Prioridade ao VÍNCULO formal (idFornecedor). Se o fornecedor ainda não
+    // tem nenhuma despesa vinculada, cai no comportamento antigo (por categoria),
+    // para não quebrar dados anteriores ao vínculo.
+    function despesasDoFornecedor(f) {
+      if (!f) return [];
+      const porId = (dados.despesas || []).filter(d => d.idFornecedor && f.id && d.idFornecedor === f.id);
+      if (porId.length > 0) return porId;
+      return (dados.despesas || []).filter(d => !d.idFornecedor && d.categoria === f.categoria);
+    }
+
+    function fornecedorNoOrcamento(f) {
+      return despesasDoFornecedor(f).length > 0;
+    }
+    function fornecedorFechadoNoOrcamento(f) {
+      if (!f || !(Number(f.valorContratado) > 0)) return false;
+      const despesas = despesasDoFornecedor(f);
+      let pago = 0, temQuitada = false;
+      despesas.forEach(d => {
+        const contr = Number(d.valorContratado) || 0;
+        const p = Number(d.valorPago) || 0;
+        if (contr > 0 && p >= contr) { temQuitada = true; pago += p; }
+      });
+      return temQuitada && pago >= (Number(f.valorContratado) || 0);
+    }
+    function fornecedorParcialNoOrcamento(f) {
+      return despesasDoFornecedor(f).some(d => {
+        const contr = Number(d.valorContratado) || 0;
+        const p = Number(d.valorPago) || 0;
+        return p > 0 && p < contr;
+      });
     }
 
     function listarFornecedores() {
@@ -6659,19 +6774,24 @@
         const div = document.createElement('div');
         // Usa a classe utilitária para padronizar estilo dos itens de lista
         div.className = 'item-lista';
-        const restante = (Number(f.valorContratado) || 0) - (Number(f.valorPago) || 0);
-        const quitado = (Number(f.valorContratado) || 0) > 0 && restante <= 0;
         // Linha principal com numeração automática do lançamento
         let html = `<strong>#${index + 1} — ${f.nome}</strong> - ${f.categoria} | Status: ${f.status}`;
-        if (quitado) html += ' <span class="etiqueta-venc pago">Quitado</span>';
-        // Tarja verde de FECHAMENTO NO ORÇAMENTADOR: existe despesa(s) da mesma
-        // categoria totalmente quitada(s) (valorPago >= valorContratado) cobrindo
-        // o valor deste fornecedor. É a confirmação de que o gasto entrou e foi
-        // pago na fonte financeira da verdade (Orçamentador).
-        if (fornecedorFechadoNoOrcamento(f)) {
-          html += ' <span class="etiqueta-venc fechado-orcamento" title="Há despesa(s) quitada(s) no Orçamentador cobrindo este fornecedor">✓ Fechado no orçamento</span>';
-          // Fundo verde claro no card inteiro, reforçando o "fechado no orçamento".
+        // Reflexo do Orçamentador (fonte financeira):
+        // - despesa quitada cobrindo o valor  -> verde + "✓ Fechado no orçamento"
+        // - despesa em pagamento parcial       -> azul  + "Pagamento parcial (no orçamento)"
+        // - apenas presente no Orçamentador    -> selo "No orçamento" (item 3), sem cor
+        const noOrc = fornecedorNoOrcamento(f);
+        const fechado = fornecedorFechadoNoOrcamento(f);
+        const parcial = !fechado && fornecedorParcialNoOrcamento(f);
+        const restante = (Number(f.valorContratado) || 0) - (Number(f.valorPago) || 0);
+        if (fechado) {
+          html += ' <span class="etiqueta-venc fechado-orcamento" title="Despesa quitada no Orçamentador cobrindo este fornecedor">✓ Fechado no orçamento</span>';
           div.classList.add('fornecedor-fechado');
+        } else if (parcial) {
+          html += ' <span class="etiqueta-venc parcial-azul" title="Há pagamento parcial no Orçamentador">Pagamento parcial (no orçamento)</span>';
+          div.classList.add('pagamento-parcial');
+        } else if (noOrc) {
+          html += ' <span class="etiqueta-venc fechado-orcamento" title="Existe lançamento vinculado no Orçamentador">No orçamento</span>';
         }
         // Para Buffet, mostra também o valor por pessoa (que foi o que o usuário
         // digitou). O valorContratado salvo é o TOTAL (valor por pessoa × pagantes).
@@ -6832,6 +6952,159 @@ function calcularValorPagoPorParcelas(fornecedor) {
 // Gera dinamicamente campos de datas de parcelas para o fornecedor Buffet.
 // Quando o usuário define a quantidade de parcelas, esta função cria linhas
 // com campos de data de vencimento e data de pagamento para cada parcela.
+// ===== Parcelas da DESPESA (Orçamentador) — Onda 2b, Opção A =====
+// Sistema completo de parcelas por despesa, espelhando o do fornecedor, com
+// IDs próprios (despParcela*) para não colidir. Cada parcela tem vencimento,
+// data de pagamento, valor e quem pagou. O valorPago da despesa passa a ser
+// derivado das parcelas pagas quando há parcelas.
+function modalidadeDespesaTemParcelas() {
+  const sel = document.getElementById('modalidadePagamentoDespesa');
+  if (!sel) return false;
+  // "à vista", "pix", "débito" = sem cronograma de parcelas; demais = parcelado
+  const v = (sel.value || '').toLowerCase();
+  return v.includes('parcel') || v.includes('crédito');
+}
+function aoMudarModalidadeDespesa() {
+  const grupo = document.getElementById('grupoParcelasDespesa');
+  if (!grupo) return;
+  if (modalidadeDespesaTemParcelas()) {
+    grupo.style.display = '';
+    gerarCamposParcelasDespesa();
+  } else {
+    grupo.style.display = 'none';
+    const lista = document.getElementById('listaParcelasDespesa');
+    if (lista) { lista.innerHTML = ''; lista.style.display = 'none'; }
+  }
+  atualizarAjudaValorPagoDespesa();
+}
+function atualizarAjudaValorPagoDespesa() {
+  const ajuda = document.getElementById('ajudaValorPagoDespesa');
+  const campoPago = document.getElementById('valorPagoDespesa');
+  const temParcelas = document.getElementById('listaParcelasDespesa') &&
+    document.getElementById('listaParcelasDespesa').children.length > 0;
+  if (ajuda) ajuda.style.display = temParcelas ? '' : 'none';
+  if (campoPago) campoPago.readOnly = !!temParcelas; // com parcelas, é derivado
+}
+function gerarCamposParcelasDespesa() {
+  const container = document.getElementById('listaParcelasDespesa');
+  const qtdInput = document.getElementById('parcelasDespesa');
+  if (!container || !qtdInput) return;
+  const qtd = Number(qtdInput.value) || 0;
+  container.innerHTML = '';
+  if (qtd <= 0) { container.style.display = 'none'; atualizarAjudaValorPagoDespesa(); return; }
+  container.style.display = '';
+  for (let i = 0; i < qtd; i++) {
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.6rem; padding-bottom:0.4rem; border-bottom:1px dashed var(--cor-borda-suave);';
+    const col = (label, el) => {
+      const d = document.createElement('div');
+      d.style.cssText = 'display:flex; flex-direction:column; flex:1; min-width:120px;';
+      const l = document.createElement('label'); l.textContent = label;
+      d.appendChild(l); d.appendChild(el); return d;
+    };
+    const inV = document.createElement('input');
+    inV.type = 'text'; inV.id = `despParcelaVenc${i}`; inV.placeholder = 'dd/mm/aaaa';
+    inV.setAttribute('inputmode', 'numeric'); inV.setAttribute('oninput', 'aplicarMascaraData(this)');
+    const inP = document.createElement('input');
+    inP.type = 'text'; inP.id = `despParcelaPag${i}`; inP.placeholder = 'dd/mm/aaaa';
+    inP.setAttribute('inputmode', 'numeric'); inP.setAttribute('oninput', 'aplicarMascaraData(this)');
+    inP.setAttribute('onblur', 'atualizarValorPagoDespesaPorParcelas()');
+    const inVal = document.createElement('input');
+    inVal.type = 'text'; inVal.id = `despParcelaValor${i}`; inVal.placeholder = 'R$ 0,00';
+    inVal.setAttribute('inputmode', 'numeric'); inVal.setAttribute('oninput', 'aplicarMascaraMoeda(this)');
+    inVal.setAttribute('onblur', 'finalizarCampoMoeda(this); rebalancearParcelasDespesaApos(' + i + '); atualizarValorPagoDespesaPorParcelas()');
+    const selQ = document.createElement('select');
+    selQ.id = `despParcelaPagador${i}`;
+    selQ.innerHTML = '<option value="">—</option><option value="Noiva">Noiva</option><option value="Noivo">Noivo</option><option value="Noiva/Noivo">Noiva/Noivo (meio a meio)</option>';
+    div.appendChild(col(`Parcela ${i + 1} – Vencimento`, inV));
+    div.appendChild(col('Pago em', inP));
+    div.appendChild(col('Valor (R$)', inVal));
+    div.appendChild(col('Pago por', selQ));
+    container.appendChild(div);
+  }
+  const resumo = document.createElement('div');
+  resumo.id = 'resumoParcelasDespesa';
+  resumo.style.cssText = 'margin-top:0.25rem; font-size:0.88rem; color:#6b5a42;';
+  container.appendChild(resumo);
+  atualizarResumoParcelasDespesa();
+  atualizarAjudaValorPagoDespesa();
+}
+// Redistribui o restante do total entre as parcelas seguintes não pagas.
+function rebalancearParcelasDespesaApos(idx) {
+  const qtd = Number((document.getElementById('parcelasDespesa') || {}).value) || 0;
+  const total = moedaParaNumero((document.getElementById('valorContratadoDespesa') || {}).value) || 0;
+  if (total <= 0 || qtd <= 1) { atualizarResumoParcelasDespesa(); return; }
+  let fixo = 0; const ajustaveis = [];
+  for (let i = 0; i < qtd; i++) {
+    const valEl = document.getElementById(`despParcelaValor${i}`);
+    const pagEl = document.getElementById(`despParcelaPag${i}`);
+    const val = valEl ? (moedaParaNumero(valEl.value) || 0) : 0;
+    const paga = pagEl && pagEl.value.trim() !== '';
+    if (i <= idx || paga) fixo += val; else ajustaveis.push(i);
+  }
+  if (ajustaveis.length === 0) { atualizarResumoParcelasDespesa(); return; }
+  const restante = Math.max(0, total - fixo);
+  const base = Math.floor((restante / ajustaveis.length) * 100) / 100;
+  let acc = 0;
+  ajustaveis.forEach((i, k) => {
+    const valEl = document.getElementById(`despParcelaValor${i}`);
+    if (!valEl) return;
+    const v = (k === ajustaveis.length - 1) ? Math.round((restante - acc) * 100) / 100 : base;
+    acc += base;
+    valEl.value = v > 0 ? formatarMoeda(v) : '';
+  });
+  atualizarResumoParcelasDespesa();
+}
+function lerParcelasDespesaDoForm() {
+  const qtd = Number((document.getElementById('parcelasDespesa') || {}).value) || 0;
+  const parcelas = [];
+  for (let i = 0; i < qtd; i++) {
+    const venc = (document.getElementById(`despParcelaVenc${i}`) || {}).value || '';
+    const pag = (document.getElementById(`despParcelaPag${i}`) || {}).value || '';
+    const valor = moedaParaNumero((document.getElementById(`despParcelaValor${i}`) || {}).value) || 0;
+    const pagador = (document.getElementById(`despParcelaPagador${i}`) || {}).value || '';
+    parcelas.push({ vencimento: venc, pagamento: pag, valor: valor, pagador: pagador });
+  }
+  return parcelas;
+}
+function calcularValorPagoParcelasDespesa() {
+  return lerParcelasDespesaDoForm()
+    .filter(p => p.pagamento && dataValida(p.pagamento))
+    .reduce((s, p) => s + (Number(p.valor) || 0), 0);
+}
+function atualizarValorPagoDespesaPorParcelas() {
+  if (!modalidadeDespesaTemParcelas()) return;
+  const pago = calcularValorPagoParcelasDespesa();
+  const campo = document.getElementById('valorPagoDespesa');
+  if (campo) campo.value = formatarMoeda(pago);
+  atualizarResumoParcelasDespesa();
+}
+function atualizarResumoParcelasDespesa() {
+  const resumo = document.getElementById('resumoParcelasDespesa');
+  if (!resumo) return;
+  const total = moedaParaNumero((document.getElementById('valorContratadoDespesa') || {}).value) || 0;
+  const parcelas = lerParcelasDespesaDoForm();
+  const soma = parcelas.reduce((s, p) => s + (Number(p.valor) || 0), 0);
+  const pago = parcelas.filter(p => p.pagamento && dataValida(p.pagamento)).reduce((s, p) => s + (Number(p.valor) || 0), 0);
+  const fecha = Math.abs(soma - total) < 0.01;
+  resumo.innerHTML = `Lançado em parcelas: ${formatarMoeda(soma)} de ${formatarMoeda(total)}. Pago: ${formatarMoeda(pago)}. ` +
+    (fecha ? '<span style="color:#4f7a4a;">✓ As parcelas fecham o total.</span>'
+           : `<span style="color:#b00;">Diferença de ${formatarMoeda(Math.abs(soma - total))}.</span>`);
+}
+function preencherParcelasDespesaNoForm(parcelas) {
+  const qtdInput = document.getElementById('parcelasDespesa');
+  if (!qtdInput || !Array.isArray(parcelas) || parcelas.length === 0) return;
+  qtdInput.value = parcelas.length;
+  gerarCamposParcelasDespesa();
+  parcelas.forEach((p, i) => {
+    const v = document.getElementById(`despParcelaVenc${i}`); if (v) v.value = p.vencimento || '';
+    const pg = document.getElementById(`despParcelaPag${i}`); if (pg) pg.value = p.pagamento || '';
+    const val = document.getElementById(`despParcelaValor${i}`); if (val && Number(p.valor) > 0) val.value = formatarMoeda(Number(p.valor));
+    const q = document.getElementById(`despParcelaPagador${i}`); if (q) q.value = p.pagador || '';
+  });
+  atualizarValorPagoDespesaPorParcelas();
+}
+
 function gerarCamposParcelas() {
   const container = document.getElementById('listaParcelasFornecedor');
   const qtdInput = document.getElementById('parcelasFornecedor');
@@ -9208,13 +9481,23 @@ blocoRsvp +
       cats[i] = novo;
       let afetados = 0;
       (dados.fornecedores || []).forEach(f => { if (f.categoria === antigo) { f.categoria = novo; afetados++; } });
+      // Propaga também às despesas do Orçamentador (mesma categoria)
+      let afetadasDesp = 0;
+      (dados.despesas || []).forEach(d => { if (d.categoria === antigo) { d.categoria = novo; afetadasDesp++; } });
+      // E às metas por categoria, se existir meta com o nome antigo
+      if (dados.metasCategorias && dados.metasCategorias[antigo] !== undefined) {
+        dados.metasCategorias[novo] = dados.metasCategorias[antigo];
+        delete dados.metasCategorias[antigo];
+      }
       salvarDados();
       preencherSelectsDoConfig();
       renderizarCategoriasFornecedor();
       if (typeof sincronizarDisplayCategoria === 'function') sincronizarDisplayCategoria();
       if (typeof listarFornecedores === 'function') listarFornecedores();
+      if (typeof listarDespesas === 'function') listarDespesas();
+      if (typeof renderizarMetasCategorias === 'function') renderizarMetasCategorias();
       if (typeof atualizarDashboard === 'function') atualizarDashboard();
-      if (afetados > 0) alert(`Categoria renomeada. ${afetados} fornecedor(es) atualizado(s).`);
+      if (afetados + afetadasDesp > 0) alert(`Categoria renomeada. ${afetados} fornecedor(es) e ${afetadasDesp} despesa(s) atualizado(s).`);
     }
     function removerCategoriaFornecedor(i) {
       const cats = garantirCategoriasFornecedor();
@@ -9230,6 +9513,7 @@ blocoRsvp +
     }
 
     function preencherSelectsDoConfig() {
+      const ordenar = (arr) => [...new Set(arr)].sort((a, b) => a.localeCompare(b, CONFIG_SISTEMA.geral.idioma));
       const montar = (id, itens, placeholder) => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -9238,11 +9522,21 @@ blocoRsvp +
           itens.map(i => `<option>${i}</option>`).join('');
         if (atual) el.value = atual;
       };
-      montar('categoriaFornecedor', obterCategoriasFornecedor());
-      montar('categoriaDespesa', CONFIG_SISTEMA.financeiro.categoriasDespesa);
+      // Categorias de fornecedor e despesa usam a MESMA lista gerenciável
+      // (união da lista do usuário + categorias já em uso), em ordem alfabética.
+      // Assim, criar categoria no fornecedor faz ela aparecer no Orçamentador.
+      const catsUnificadas = ordenar([
+        ...obterCategoriasFornecedor(),
+        ...CONFIG_SISTEMA.financeiro.categoriasDespesa,
+        ...(dados.fornecedores || []).map(f => f.categoria).filter(Boolean),
+        ...(dados.despesas || []).map(d => d.categoria).filter(Boolean)
+      ]);
+      montar('categoriaFornecedor', catsUnificadas);
+      montar('categoriaDespesa', catsUnificadas);
       montar('categoriaConvidado', CONFIG_SISTEMA.convidados.categorias, 'Selecione...');
       montar('statusPresencaConvidado', CONFIG_SISTEMA.convidados.statusConfirmacao);
       montar('modalidadePagamentoFornecedor', CONFIG_SISTEMA.financeiro.modalidadesPagamento, 'Selecione...');
+      montar('modalidadePagamentoDespesa', CONFIG_SISTEMA.financeiro.modalidadesPagamento, 'Selecione...');
     }
 
     function inicializar() {
@@ -9261,6 +9555,21 @@ blocoRsvp +
       if (elOpSim) elOpSim.textContent = `Só pagantes (${idadeMin}+ anos)`;
       // Preenche os selects de categorias/status/modalidades a partir do CONFIG
       preencherSelectsDoConfig();
+      // Garante id estável em todos os fornecedores (necessário para o vínculo
+      // com despesas). Persiste se algum foi gerado agora.
+      let precisaSalvarMigracao = false;
+      if (typeof garantirIdsFornecedores === 'function' && garantirIdsFornecedores()) {
+        precisaSalvarMigracao = true;
+      }
+      // Onda 2b: o pagamento agora vive no Orçamentador. Fornecedores com status
+      // de pagamento antigo viram "Contratado" (status de negociação).
+      (dados.fornecedores || []).forEach(f => {
+        if (f.status === 'Pago' || f.status === 'Pago parcial') {
+          f.status = 'Contratado';
+          precisaSalvarMigracao = true;
+        }
+      });
+      if (precisaSalvarMigracao) salvarDados();
       // Bug-fix: migração silenciosa — recalcula buffets salvos em versões
       // antigas que podem ter ficado defasados (convidados adicionados depois
       // do buffet sem o buffet ser atualizado).
