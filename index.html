@@ -963,6 +963,7 @@
         <button class="btn-danger" onclick="abrirModalLimparDados()" style="margin-top:0.5rem;">Limpar dados</button>
       </div>
     </div>
+    <button class="btn-secondary" onclick="sairDoSistema()" title="Encerrar a sessão e voltar à tela de senha" style="margin-left:0.5rem;">Sair</button>
   </div>
 
   <!-- Modal de limpar dados (apaga TUDO — exige senha) -->
@@ -3153,6 +3154,14 @@
       const erro = document.getElementById('erroSenhaSistema');
       if (erro && mensagem) { erro.textContent = mensagem; erro.style.display = 'block'; }
       setTimeout(() => { _logoutEmAndamento = false; if (inp) inp.focus(); }, 200);
+    }
+
+    // Logout intencional, acionado pelo botão "Sair". Pede confirmação para
+    // evitar saída acidental e então encerra a sessão.
+    function sairDoSistema() {
+      if (confirm('Deseja sair do sistema? Você precisará informar a senha para entrar novamente.')) {
+        forcarLogout('');
+      }
     }
 
     // Usuários aceitos (a senha é a mesma para todos). Comparação ignora
