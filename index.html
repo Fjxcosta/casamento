@@ -1671,7 +1671,7 @@
           <div id="avisoFornecedorDespesa" style="display:none; background:#fff8e1; border:1px solid #f0c674; border-radius:6px; padding:0.6rem 0.9rem; margin-bottom:0.75rem; font-size:0.88rem;"></div>
           <div class="form-group">
             <label for="fornecedorDaDespesa">Fornecedor vinculado (opcional)</label>
-            <select id="fornecedorDaDespesa">
+            <select id="fornecedorDaDespesa" onchange="aoVincularFornecedorDespesa()">
               <option value="">— Nenhum —</option>
             </select>
             <small style="color:#777;">Vincular conecta esta despesa ao fornecedor, para refletir o pagamento certinho no cadastro dele.</small>
@@ -2949,25 +2949,49 @@
     // recarregar, se ainda estiver dentro do prazo, pula a tela de senha.
     const SESSAO_CHAVE = CONFIG_SISTEMA.seguranca.sessao.chaveSessao;
     const TOKEN_CHAVE = CONFIG_SISTEMA.seguranca.sessao.chaveToken;
-    // A sessão fica em sessionStorage: ela SOBREVIVE ao recarregar a página
-    // (F5, mesma aba), mas é APAGADA quando a aba/janela é FECHADA.
-    // Resultado: atualizar a página mantém logado; fechar no X desloga.
+    const SESSAO_TS_CHAVE = SESSAO_CHAVE + '_ts';
+    const INATIVIDADE_MS = CONFIG_SISTEMA.seguranca.sessao.inatividadeMs;
+    // A sessão agora fica em localStorage com carimbo de hora (timestamp).
+    // - Atualizar a página (F5) NUNCA desloga: o localStorage persiste.
+    // - A sessão expira por INATIVIDADE (5 min): se o último uso foi há mais
+    //   que esse tempo, é considerada inválida. Cada atividade renova o carimbo.
+    // - Logout manual e "fechar + ficar 5 min sem reabrir" também encerram.
     function gravarSessaoValida() {
-      try { sessionStorage.setItem(SESSAO_CHAVE, '1'); } catch (e) { /* segue sem persistir */ }
+      try {
+        localStorage.setItem(SESSAO_CHAVE, '1');
+        localStorage.setItem(SESSAO_TS_CHAVE, String(Date.now()));
+      } catch (e) { /* segue sem persistir */ }
+    }
+    // Renova o carimbo de atividade (chamado a cada interação do usuário).
+    function renovarCarimboSessao() {
+      try {
+        if (localStorage.getItem(SESSAO_CHAVE) === '1') {
+          localStorage.setItem(SESSAO_TS_CHAVE, String(Date.now()));
+        }
+      } catch (e) { /* ignora */ }
     }
     function sessaoAindaValida() {
-      try { return sessionStorage.getItem(SESSAO_CHAVE) === '1'; } catch (e) { return false; }
+      try {
+        if (localStorage.getItem(SESSAO_CHAVE) !== '1') return false;
+        const ts = Number(localStorage.getItem(SESSAO_TS_CHAVE) || 0);
+        if (!ts) return false;
+        // Expira por inatividade (mesmo tempo de 5 min do logout automático)
+        if ((Date.now() - ts) > INATIVIDADE_MS) { limparSessao(); return false; }
+        return true;
+      } catch (e) { return false; }
     }
     function limparSessao() {
-      try { sessionStorage.removeItem(SESSAO_CHAVE); } catch (e) { /* ignora */ }
-      try { sessionStorage.removeItem(TOKEN_CHAVE); } catch (e) { /* ignora */ }
+      try { localStorage.removeItem(SESSAO_CHAVE); } catch (e) { /* ignora */ }
+      try { localStorage.removeItem(SESSAO_TS_CHAVE); } catch (e) { /* ignora */ }
+      try { localStorage.removeItem(TOKEN_CHAVE); } catch (e) { /* ignora */ }
+      try { sessionStorage.removeItem(SESSAO_CHAVE); } catch (e) { /* limpa resíduo do modelo antigo */ }
     }
-    // Token do cadeado, persistido na mesma aba. Ao recarregar, o token é o
-    // MESMO, então a página reconhece o cadeado como "seu" e não se bloqueia.
+    // Token do cadeado, persistido para a mesma pessoa. Ao recarregar, o token é
+    // o MESMO, então a página reconhece o cadeado como "seu" e não se bloqueia.
     function obterTokenPersistente() {
       try {
-        let t = sessionStorage.getItem(TOKEN_CHAVE);
-        if (!t) { t = gerarToken(); sessionStorage.setItem(TOKEN_CHAVE, t); }
+        let t = localStorage.getItem(TOKEN_CHAVE);
+        if (!t) { t = gerarToken(); localStorage.setItem(TOKEN_CHAVE, t); }
         return t;
       } catch (e) { return gerarToken(); }
     }
@@ -2978,7 +3002,6 @@
     // "lock" (cadeado) guardado no Supabase, numa LINHA SEPARADA da tabela —
     // assim a lógica de sessão NUNCA toca nos dados do casamento.
     const LOCK_TIPO = 'session_lock';
-    const INATIVIDADE_MS = CONFIG_SISTEMA.seguranca.sessao.inatividadeMs; // logout por inatividade
     const LOCK_TTL_MS = CONFIG_SISTEMA.seguranca.sessao.lockTtlMs;        // expiração do cadeado
     const HEARTBEAT_MS = CONFIG_SISTEMA.seguranca.sessao.heartbeatMs;     // renovação do cadeado
     let meuToken = null;                    // identifica ESTA aba/dispositivo
@@ -3100,6 +3123,7 @@
     // Inatividade: 5 min sem interação -> logout automático.
     function resetarInatividade() {
       if (_logoutEmAndamento) return;
+      renovarCarimboSessao();   // cada atividade renova o carimbo da sessão (localStorage)
       if (_inatividadeTimer) clearTimeout(_inatividadeTimer);
       _inatividadeTimer = setTimeout(() => {
         forcarLogout(CONFIG_SISTEMA.textos.sessaoExpirada);
@@ -3161,7 +3185,7 @@
       }
       // Usuário e senha corretos → grava sessão, esconde a tela, carrega e inicializa
       if (erro) erro.style.display = 'none';
-      try { sessionStorage.setItem('gestaoCasamento_usuario', usuario); } catch (e) { /* ok */ }
+      try { localStorage.setItem('gestaoCasamento_usuario', usuario); } catch (e) { /* ok */ }
       gravarSessaoValida();
       entrarNoSistema();
     }
@@ -3711,9 +3735,25 @@
         const porCategoria = {};
         (dados.fornecedores || []).forEach(f => {
           const v = Number(f.valorContratado) || 0;
-          if (v > 0) porCategoria[f.categoria] = (porCategoria[f.categoria] || 0) + v;
+          const cat = f.categoria || 'Outros';
+          porCategoria[cat] = (porCategoria[cat] || 0) + v;
         });
-        const labels = Object.keys(porCategoria);
+        // Categorias criadas pelo usuário (que não fazem parte das padrão do
+        // sistema) aparecem no gráfico mesmo sem fornecedor ainda — começam em 0.
+        const padrao = (CONFIG_SISTEMA.fornecedores && CONFIG_SISTEMA.fornecedores.categorias) || [];
+        if (typeof obterCategoriasFornecedor === 'function') {
+          obterCategoriasFornecedor().forEach(cat => {
+            const ehNova = !padrao.includes(cat);
+            if (ehNova && !(cat in porCategoria)) porCategoria[cat] = 0;
+          });
+        }
+        // Ordena do MAIOR para o MENOR valor (visual mais limpo). Empate ou
+        // categorias zeradas (novas, sem fornecedor) vão para o fim, em ordem alfabética.
+        const labels = Object.keys(porCategoria).sort((a, b) => {
+          const dif = (porCategoria[b] || 0) - (porCategoria[a] || 0);
+          if (dif !== 0) return dif;
+          return a.localeCompare(b, CONFIG_SISTEMA.geral.idioma);
+        });
         const valores = labels.map(l => porCategoria[l]);
         // destrói instância anterior para redesenhar limpo
         if (chartFornecedoresInst) { chartFornecedoresInst.destroy(); chartFornecedoresInst = null; }
@@ -3749,6 +3789,13 @@
               x: {
                 beginAtZero: true,
                 ticks: { callback: (v) => formatarMoeda(v) }
+              },
+              y: {
+                ticks: {
+                  autoSkip: false,        // não pula rótulos de categoria
+                  font: { size: 12 },
+                  color: '#5b4a36'
+                }
               }
             }
           }
@@ -5199,6 +5246,32 @@
       sel.innerHTML = '<option value="">— Nenhum —</option>' +
         ordenados.map(f => `<option value="${f.id}">${f.nome} (${f.categoria})</option>`).join('');
       sel.value = idSelecionado || '';
+    }
+    // Ao vincular um fornecedor à despesa: se o "Valor contratado" estiver
+    // VAZIO, puxa o valor do fornecedor (e a categoria, se ainda não definida).
+    // Nunca sobrescreve um valor que o usuário já tenha digitado/ajustado.
+    function aoVincularFornecedorDespesa() {
+      const sel = document.getElementById('fornecedorDaDespesa');
+      if (!sel || !sel.value) return;
+      const forn = (dados.fornecedores || []).find(f => f.id === sel.value);
+      if (!forn) return;
+      const campoValor = document.getElementById('valorContratadoDespesa');
+      if (campoValor) {
+        const atual = moedaParaNumero(campoValor.value) || 0;
+        if (atual <= 0 && Number(forn.valorContratado) > 0) {
+          campoValor.value = formatarMoeda(Number(forn.valorContratado));
+          // recalcula o resumo de parcelamento, se já estiver no modo "a pagar"
+          if (typeof atualizarCalculoEntradaDespesa === 'function') atualizarCalculoEntradaDespesa();
+        }
+      }
+      // Alinha a categoria da despesa à do fornecedor, se fizer sentido
+      const selCat = document.getElementById('categoriaDespesa');
+      if (selCat && forn.categoria) {
+        const temOpcao = Array.from(selCat.options).some(o => o.value === forn.categoria);
+        if (temOpcao && (!selCat.value || selCat.selectedIndex === 0)) {
+          selCat.value = forn.categoria;
+        }
+      }
     }
     function limparFormularioDespesa() {
       despesaEmEdicao = null;
@@ -10010,12 +10083,9 @@ blocoRsvp +
       else if (inp) inp.focus();
     });
 
-    // Fechar a aba/janela (X) NÃO precisa de tratamento aqui: o sessionStorage
-    // é apagado automaticamente pelo navegador ao fechar -> ao reabrir, pede
-    // senha (= deslogado). O cadeado de sessão única é liberado para outros
-    // dispositivos pelo tempo de expiração (TTL) na nuvem.
-    // IMPORTANTE: não deslogamos no recarregar (F5) — por isso não usamos mais
-    // beforeunload/pagehide para limpar a sessão (eles disparam também no F5).
+    // A sessão fica em localStorage com carimbo de hora: atualizar a página
+    // (F5) NUNCA desloga. O encerramento vem do logout manual ou da expiração
+    // por inatividade (5 min sem uso) — o monitor de inatividade cuida disso.
 
     // ===== Item 2°: Limpar dados (com senha) =====
     // Apaga TODOS os dados do sistema. Exige senha hardcoded e confirmação dupla.
