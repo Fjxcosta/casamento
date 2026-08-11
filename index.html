@@ -1392,7 +1392,7 @@
     <div class="card">
       <h3>Total contratado</h3>
       <p id="cardTotalContratado">R$ 0,00</p>
-      <small style="font-weight:normal; color:#777;">despesas do Orçamentador</small>
+      <small style="font-weight:normal; color:#777;">despesas lançadas</small>
     </div>
     <div class="card">
       <h3>Total pago</h3>
@@ -1411,7 +1411,7 @@
     <div class="card">
       <h3>Saldo do orçamento</h3>
       <p id="cardSaldoOrcamento">R$ 0,00</p>
-      <small id="cardSaldoDetalhe" style="font-weight:normal; color:#777;">Defina o orçamento no Orçamentador</small>
+      <small id="cardSaldoDetalhe" style="font-weight:normal; color:#777;">Defina o orçamento total na aba Orçamento e Despesas</small>
     </div>
     <div class="card">
       <h3>Progresso geral</h3>
@@ -1444,7 +1444,7 @@
         <canvas id="graficoSitFornecedor"></canvas>
       </div>
       <p id="graficoSitFornecedorVazio" class="grafico-vazio" style="display:none;">
-        Registre despesas no Orçamentador vinculadas a fornecedores para visualizar o gráfico.
+        Registre despesas vinculadas a fornecedores para visualizar o gráfico.
       </p>
     </div>
     <div class="grafico-bloco">
@@ -1462,7 +1462,7 @@
         <canvas id="graficoPagadores"></canvas>
       </div>
       <p id="graficoPagadoresVazio" class="grafico-vazio" style="display:none;">
-        Informe "Pago por" nas despesas do Orçamentador (com valor pago) para visualizar quanto cada um já pagou.
+        Informe "Pago por" nas despesas lançadas (com valor pago) para visualizar quanto cada um já pagou.
       </p>
     </div>
   </section>
@@ -1483,7 +1483,7 @@
         <button onclick="mostrarSecao('secaoPadrinhos')">Padrinhos</button>
         <button onclick="mostrarSecao('secaoCronograma')">Cronograma do dia</button>
         <button onclick="mostrarSecao('secaoMesas')">Mesas</button>
-        <button onclick="mostrarSecao('secaoOrcamento')">Orçamentador</button>
+        <button onclick="mostrarSecao('secaoOrcamento')">Orçamento e Despesas</button>
         <button onclick="mostrarSecao('secaoFornecedoresCasamento')">Fornecedores</button>
         <button onclick="mostrarSecao('secaoSite')">Site do Casamento</button>
       </div>
@@ -2081,7 +2081,7 @@
         </div>
       </section>
       <section id="secaoOrcamento" class="secao" style="display:none;">
-        <h3>Orçamentador</h3>
+        <h3>Orçamento e Despesas</h3>
         <!-- Caixa de resumo com tons claros inspirados no dourado do monograma -->
         <div style="background:#fffbf5; border:1px solid var(--cor-borda-suave); padding:1rem; border-radius:6px; margin-bottom:1rem;">
           <div class="form-group" style="margin-bottom:0.5rem;">
@@ -2101,7 +2101,7 @@
           </button>
           <div id="conteudoMetasCategorias" style="display:none; margin-top:0.75rem;">
             <p style="font-size:0.85rem; color:#777; margin:0 0 0.75rem;">
-              Planejado × comprometido. O comprometido vem das <strong>despesas do Orçamentador</strong>
+              Planejado × comprometido. O comprometido vem das <strong>despesas lançadas</strong>
               da categoria (fonte financeira única — fornecedores não são somados aqui, para não duplicar).
             </p>
             <div id="listaMetasCategorias"></div>
@@ -2345,12 +2345,12 @@
         </div>
         <!-- ============ Fase 3b (seção 7): Fornecedores e Cotações ============
              Módulo de pesquisa e negociação ANTES da contratação. Ao escolher
-             uma cotação, ela é COPIADA para o Orçamentador — alterações
+             uma cotação, ela é COPIADA para Orçamento e Despesas — alterações
              posteriores na cotação não mexem no que já foi contratado. -->
         <div id="subFornecCotacoes" style="display:none;">
           <p style="font-size:0.88rem; color:#777; margin-top:0;">
             Cotações são propostas em negociação. Só viram compromisso financeiro
-            quando enviadas ao Orçamentador.
+            quando enviadas para Orçamento e Despesas.
           </p>
           <button class="btn-primary" onclick="abrirFormularioCotacao()">Adicionar cotação</button>
           <button class="btn-secondary" onclick="alternarComparativoCotacoes()">Comparar por categoria</button>
@@ -2468,7 +2468,7 @@
           <input type="text" id="valorContratadoFornecedor" placeholder="R$ 0,00" inputmode="numeric" oninput="aplicarMascaraMoeda(this); atualizarValoresBuffet();" onblur="finalizarCampoMoeda(this); atualizarValoresBuffet();">
           <small id="ajudaValorContratado" style="color:#777; display:none;">No Buffet, este é o valor por pessoa. O total será calculado automaticamente.</small>
         </div>
-        <!-- Onda 2b: pagamento (modalidade/parcelas) migrou para o Orçamentador.
+        <!-- Onda 2b: pagamento (modalidade/parcelas) migrou para Orçamento e Despesas.
              Mantido oculto para preservar dados antigos sem exibir/editar aqui. -->
         <div id="secaoPagamentoFornecedor" style="display:none;">
         <!-- Modalidade de pagamento -->
@@ -2534,9 +2534,9 @@
         <!-- Botão para adicionar parcelamento -->
         <button type="button" class="btn-primary" onclick="abrirModal('modalParcelamentoFornecedor'); atualizarHintEntrada();" style="margin-top:0.5rem;">Gerar parcelamento (entrada + parcelas)</button>
         </div><!-- /secaoPagamentoFornecedor -->
-        <!-- Aviso de que o pagamento agora é no Orçamentador -->
+        <!-- Aviso de que o pagamento agora é em Orçamento e Despesas -->
         <div style="background:#e6eff7; border:1px solid #b3cce8; border-radius:6px; padding:0.6rem 0.9rem; margin-top:0.75rem; font-size:0.88rem; color:#34506b;">
-          💳 O controle de pagamento (modalidade, parcelas, valores pagos) agora é feito no <strong>Orçamentador</strong>, vinculando a despesa a este fornecedor.
+          💳 O controle de pagamento (modalidade, parcelas, valores pagos) agora é feito em <strong>Orçamento e Despesas</strong>, vinculando a despesa a este fornecedor.
         </div>
         <!-- LINHA 8: Status do contrato + Prioridade -->
         <div class="linha-campo label-acima" style="margin-top:1rem;">
@@ -3193,7 +3193,7 @@
       }
       return { tipo: 'em-dia', rotulo: `Vence em ${dias} dia(s)`, dias };
     }
-    // Pagamentos, parcelas e vencimentos pertencem exclusivamente ao Orçamentador.
+    // Pagamentos, parcelas e vencimentos pertencem exclusivamente a Orçamento e Despesas.
     // Esta função é mantida apenas por compatibilidade com chamadas antigas.
     function coletarParcelasFornecedores() {
       return { vencidas: [], proximas: [] };
@@ -3494,7 +3494,7 @@
       // casamento; é o registro de como resolver os conflitos na fusão).
       _planoUnificacao: { decisoes: {}, atualizadoEm: null },
       // Fase 3b: propostas em negociação (seção 7). Não são compromisso
-      // financeiro — só viram despesa quando enviadas ao Orçamentador.
+      // financeiro — só viram despesa quando enviadas para Orçamento e Despesas.
       cotacoes: [],
       // Fase 5: configuração e estado dos lembretes. A fila em si é derivada.
       notificacoes: {
@@ -3573,7 +3573,7 @@
         (dados.listaEspera || []).forEach(le => { if (le && le.lado === 'Ambos') le.lado = 'Noiva'; });
 
         // Correção v3: elimina imediatamente qualquer parcelamento/pagamento
-        // legado ainda salvo dentro de fornecedores. O Orçamentador é a única
+        // legado ainda salvo dentro de fornecedores. Orçamento e Despesas é a única
         // fonte financeira. A limpeza é persistida na nuvem antes de renderizar,
         // inclusive ao usar o botão "Recarregar da nuvem".
         let limpouFinanceiroFornecedor = false;
@@ -4311,7 +4311,7 @@
       const elPg = document.getElementById('cardPagantesBuffet');
       if (elPg) elPg.textContent = pagantes;
       // Fornecedores: total orçado dos que AINDA NÃO foram fechados no
-      // Orçamentador (despesa quitada cobrindo o fornecedor). Mostra o quanto
+      // Orçamento e Despesas (despesa quitada cobrindo o fornecedor). Mostra o quanto
       // ainda está em aberto/contratado mas não pago. Os já fechados saem da soma.
       let fornOrcadoAberto = 0, fornCount = 0, fornFechados = 0;
       (dados.fornecedores || []).forEach(f => {
@@ -4352,7 +4352,7 @@
       elSaldo.textContent = formatarMoeda(saldo);
       if (orcamento === 0) {
         elSaldo.style.color = 'var(--texto-escuro)';
-        elDetalhe.textContent = 'Defina o orçamento no Orçamentador';
+        elDetalhe.textContent = 'Defina o orçamento total na aba Orçamento e Despesas';
       } else {
         const percentUsado = Math.round((totalContratado / orcamento) * 100);
         if (saldo < 0) {
@@ -4379,7 +4379,7 @@
       const progresso = Math.min(100, Math.round((concluidos / totalItens) * 100));
       document.getElementById('cardProgressoGeral').textContent = progresso + '%';
       // ===== Card de alertas consolidados =====
-      // Fonte única: despesas e parcelas registradas no Orçamentador.
+      // Fonte única: despesas e parcelas registradas em Orçamento e Despesas.
       let despesasVencidas = 0, despesasProximas = 0;
       if (typeof situacaoVencimento === 'function') {
         (dados.despesas || []).forEach(d => {
@@ -4447,7 +4447,7 @@
     }
 
     // ===== Gráfico: quanto cada um (Noiva × Noivo) já pagou =====
-    // FONTE ÚNICA: o Orçamentador (despesas, campo "valor pago" + "Pago por").
+    // FONTE ÚNICA: Orçamento e Despesas (despesas, campo "valor pago" + "Pago por").
     // As parcelas dos fornecedores NÃO entram aqui de propósito: como o casal
     // lança o pagamento nos dois lugares (parcela do fornecedor E despesa),
     // somar ambos duplicaria o valor. 'Noiva/Noivo' divide meio a meio.
@@ -4522,7 +4522,7 @@
       }
     }
     // ---------- Fase 3b (seção 18): situação financeira por fornecedor ----------
-    // Fonte: SOMENTE o Orçamentador (dados.despesas). Cotações não contratadas
+    // Fonte: SOMENTE Orçamento e Despesas (dados.despesas). Cotações não contratadas
     // e fornecedores sem lançamento financeiro ficam de fora, por definição.
     let chartSitFornecInst = null;
 
@@ -6305,7 +6305,7 @@
       aviso.innerHTML = `<strong>Atenção:</strong> já existe fornecedor cadastrado nesta categoria. Se a despesa é o mesmo serviço, importe os dados para evitar lançar duplicado.${lista}`;
       aviso.style.display = 'block';
     }
-    // Importa o fornecedor para o Orçamentador e cria o vínculo formal.
+    // Importa o fornecedor para Orçamento e Despesas e cria o vínculo formal.
     // O vínculo é indispensável para que, ao salvar, o novo lançamento
     // SUBSTITUA qualquer lançamento financeiro anterior do mesmo fornecedor.
     function importarFornecedorNaDespesa(indexFornec) {
@@ -6613,7 +6613,7 @@
       }
 
       const valorPrevisto = moedaParaNumero((document.getElementById('valorPrevistoDespesa') || {}).value) || valorContratado;
-      // Fase 3b: PIX (seção 10) e contrato (seção 9) vivem no Orçamentador,
+      // Fase 3b: PIX (seção 10) e contrato (seção 9) vivem em Orçamento e Despesas,
       // vinculados ao fornecedor contratado. Não existe área separada de contratos.
       const lerTxt = id => ((document.getElementById(id) || {}).value || '').trim();
       const pix = {
@@ -6676,7 +6676,7 @@
         }
 
         // O valor total do cadastro do fornecedor acompanha o lançamento vigente
-        // do Orçamentador. Nenhuma parcela/pagamento é gravada no fornecedor.
+        // de Orçamento e Despesas. Nenhuma parcela/pagamento é gravada no fornecedor.
         if (fornecedorVinculado) {
           fornecedorVinculado.valorContratado = valorContratado;
           fornecedorVinculado.categoria = categoria || fornecedorVinculado.categoria;
@@ -6748,7 +6748,7 @@
       const lista = document.getElementById('listaDespesas');
       lista.innerHTML = '';
 
-      // ----- Caixa de alertas de vencimento (somente Orçamentador) -----
+      // ----- Caixa de alertas de vencimento (somente Orçamento e Despesas) -----
       const vencidas = [];
       const proximas = [];
       dados.despesas.forEach(d => {
@@ -6868,8 +6868,8 @@
         lista.appendChild(p);
       }
     }
-    // Contato do fornecedor e contrato dentro do lançamento do Orçamentador.
-    // O Orçamentador é o lugar onde se decide pagar; ter o telefone e o contrato
+    // Contato do fornecedor e contrato dentro do lançamento do Orçamento e Despesas.
+    // O Orçamento e Despesas é o lugar onde se decide pagar; ter o telefone e o contrato
     // à mão aqui evita ir e voltar até a aba Fornecedores.
     function urlSeguraContrato(u) {
       const t = String(u || '').trim();
@@ -7809,7 +7809,7 @@
     }
     // Abre o formulário já preenchido com os dados do fornecedor para edição.
     // Bloqueia o campo de valor do fornecedor quando ele já está pago no
-    // Orçamentador (despesa vinculada quitada). Mostra um aviso explicativo.
+    // Orçamento e Despesas (despesa vinculada quitada). Mostra um aviso explicativo.
     // Nome, contato, categoria e observações permanecem editáveis.
     function aplicarBloqueioValorFornecedor(f) {
       const campoValor = document.getElementById('valorContratadoFornecedor');
@@ -7819,7 +7819,7 @@
         aviso = document.createElement('small');
         aviso.id = 'avisoValorBloqueado';
         aviso.style.cssText = 'display:none; color:#4f7a4a; margin-top:0.25rem;';
-        aviso.textContent = '🔒 Este fornecedor está pago no Orçamentador. O valor está bloqueado para não desalinhar do pagamento. Para alterar, ajuste a despesa vinculada no Orçamentador.';
+        aviso.textContent = '🔒 Este fornecedor está pago em Orçamento e Despesas. O valor está bloqueado para não desalinhar do pagamento. Para alterar, ajuste a despesa vinculada em Orçamento e Despesas.';
         campoValor.parentElement.appendChild(aviso);
       }
       if (campoValor) {
@@ -7956,9 +7956,9 @@
 
       // SINCRONIZAÇÃO FORNECEDOR -> ORÇAMENTADOR:
       // se já existir uma despesa formalmente vinculada a este fornecedor,
-      // atualiza os dados cadastrais e os valores totais no Orçamentador.
+      // atualiza os dados cadastrais e os valores totais em Orçamento e Despesas.
       // Parcelas, datas, modalidades e pagamentos permanecem intactos porque
-      // continuam sendo administrados exclusivamente no Orçamentador.
+      // continuam sendo administrados exclusivamente em Orçamento e Despesas.
       const fornecedorSalvo = fornecedorEmEdicao !== null
         ? dados.fornecedores[fornecedorEmEdicao]
         : dados.fornecedores[dados.fornecedores.length - 1];
@@ -7970,7 +7970,7 @@
           d.valorPrevisto = Number(fornecedorSalvo.valorContratado) || 0;
           d.valorContratado = Number(fornecedorSalvo.valorContratado) || 0;
           // Recalcula apenas o total pago a partir das parcelas existentes,
-          // sem alterar a programação financeira definida no Orçamentador.
+          // sem alterar a programação financeira definida em Orçamento e Despesas.
           if (Array.isArray(d.parcelas)) {
             d.valorPago = d.parcelas
               .filter(p => p && p.pagamento && dataValida(p.pagamento))
@@ -8004,10 +8004,10 @@
       filtroFornecedores = { categoria: '', status: '', busca: '' };
       listarFornecedores();
     }
-    // Verdadeiro quando há despesa(s) no Orçamentador, da MESMA categoria do
+    // Verdadeiro quando há despesa(s) em Orçamento e Despesas, da MESMA categoria do
     // fornecedor, totalmente quitada(s) (valorPago >= valorContratado), cujo
     // total pago cobre o valor contratado do fornecedor. Mantém a fonte única:
-    // o "fechamento" é decidido pelo Orçamentador, não pelas parcelas.
+    // o "fechamento" é decidido pelo Orçamento e Despesas, não pelas parcelas.
     // Gera um id estável para fornecedores que ainda não têm (dados antigos).
     function garantirIdsFornecedores() {
       let mudou = false;
@@ -8021,7 +8021,7 @@
     }
 
     // Remove definitivamente qualquer parcelamento/pagamento legado salvo dentro
-    // do cadastro de fornecedores. A fonte única desses dados é o Orçamentador.
+    // do cadastro de fornecedores. A fonte única desses dados é o Orçamento e Despesas.
     // Esta migração também limpa automaticamente o cadastro antigo do fornecedor
     // Refúgio Espaço de Eventos sem tocar na despesa vinculada nem nos pagamentos.
     function removerFinanceiroLegadoDosFornecedores() {
@@ -8137,7 +8137,7 @@
         const statusNegociacao = (f.status === 'Pago' || f.status === 'Pago parcial') ? 'Contratado' : (f.status || 'Pesquisado');
         let html = `<strong>#${f.codigo || String(index + 1)} — ${f.nome}</strong> - ${f.categoria} | Negociação: ${statusNegociacao}`;
         // O módulo Fornecedores exibe somente o valor total contratado.
-        // Pagamentos, saldo, parcelas e vencimentos são consultados no Orçamentador.
+        // Pagamentos, saldo, parcelas e vencimentos são consultados em Orçamento e Despesas.
         if (f.categoria === 'Buffet' && Number(f.valorPorPessoa) > 0) {
           html += '<br>' +
             `<span style="font-size:0.85rem; color:#777;">Por pessoa: ${formatarMoeda(f.valorPorPessoa)}</span><br>` +
@@ -8179,7 +8179,7 @@
             listarFornecedores();
             if (typeof listarDespesas === 'function') listarDespesas();
             if (desvinculadas > 0) {
-              notificar(`Fornecedor excluído. ${desvinculadas} despesa(s) do Orçamentador foram desvinculadas (continuam lá, sem fornecedor).`);
+              notificar(`Fornecedor excluído. ${desvinculadas} despesa(s) foram desvinculadas (continuam lá, sem fornecedor).`);
             }
           }
         };
@@ -8252,7 +8252,7 @@ function recalcularBuffetsSalvos() {
       const novoTotal = (Number(f.valorPorPessoa) || 0) * pagantes;
       if (novoTotal !== Number(f.valorContratado)) {
         f.valorContratado = novoTotal;
-        // O status financeiro não pertence ao fornecedor; fica no Orçamentador.
+        // O status financeiro não pertence ao fornecedor; fica em Orçamento e Despesas.
         alterou = true;
       }
     }
@@ -8284,7 +8284,7 @@ function calcularValorPagoPorParcelas(fornecedor) {
 // Gera dinamicamente campos de datas de parcelas para o fornecedor Buffet.
 // Quando o usuário define a quantidade de parcelas, esta função cria linhas
 // com campos de data de vencimento e data de pagamento para cada parcela.
-// ===== Parcelas da DESPESA (Orçamentador) — Onda 2b, Opção A =====
+// ===== Parcelas da DESPESA (Orçamento e Despesas) — Onda 2b, Opção A =====
 // Sistema completo de parcelas por despesa, espelhando o do fornecedor, com
 // IDs próprios (despParcela*) para não colidir. Cada parcela tem vencimento,
 // data de pagamento, valor e quem pagou. O valorPago da despesa passa a ser
@@ -8309,7 +8309,7 @@ function toggleEntradaDespesa() {
 }
 // Gera as parcelas da despesa: entrada (opcional, como 1ª parcela) + saldo
 // dividido em N parcelas mensais a partir do vencimento informado.
-// ===== Orçamentador v2: forma de pagamento (À vista / A pagar) =====
+// ===== Orçamento e Despesas v2: forma de pagamento (À vista / A pagar) =====
 // Popula os selects de modalidade dos novos blocos.
 function popularModalidadesDespesaV2() {
   const mods = CONFIG_SISTEMA.financeiro.modalidadesPagamento || [];
@@ -10111,7 +10111,7 @@ function atualizarValoresBuffet() {
 
     // =====================================================================
     // FASE 3b (seção 7) — Fornecedores e Cotações
-    // Cotação é proposta em negociação. O vínculo com o Orçamentador é por
+    // Cotação é proposta em negociação. O vínculo com o Orçamento e Despesas é por
     // CÓPIA (snapshot), nunca por referência: editar a cotação depois de
     // contratar não pode alterar valor contratado nem parcelas já lançadas.
     // =====================================================================
@@ -10183,7 +10183,7 @@ function atualizarValoresBuffet() {
         condicoes: lerTxt('condicoesCotacao'),
         observacoes: lerTxt('obsCotacao'),
         situacao: lerTxt('situacaoCotacao') || 'Em pesquisa',
-        // Preserva o histórico de envio ao Orçamentador
+        // Preserva o histórico de envio a Orçamento e Despesas
         enviadaEm: anterior ? (anterior.enviadaEm || null) : null,
         idDespesaGerada: anterior ? (anterior.idDespesaGerada || null) : null
       };
@@ -10222,7 +10222,7 @@ function atualizarValoresBuffet() {
       const c = lista[i];
       if (!c) return;
       const aviso = c.enviadaEm
-        ? '\n\nEsta cotação já foi enviada ao Orçamentador. Excluí-la NÃO apaga o lançamento financeiro — apenas o histórico da proposta.'
+        ? '\n\nEsta cotação já foi enviada para Orçamento e Despesas. Excluí-la NÃO apaga o lançamento financeiro — apenas o histórico da proposta.'
         : '';
       if (!confirm('Excluir a cotação "' + (c.descricao || '') + '"?' + aviso)) return;
       lista.splice(i, 1);
@@ -10281,12 +10281,12 @@ function atualizarValoresBuffet() {
                 esc(c.validade) + (venc ? ' (vencida)' : '') + '</span>';
             }
             if (enviada) {
-              html += '<br><span style="font-size:0.85rem; color:#2e7d32;">Fornecedor contratado — visualizar no Orçamentador (enviada em ' + esc(c.enviadaEm) + ')</span>';
+              html += '<br><span style="font-size:0.85rem; color:#2e7d32;">Fornecedor contratado — visualizar em Orçamento e Despesas (enviada em ' + esc(c.enviadaEm) + ')</span>';
             }
             html += '<div style="margin-top:0.5rem; display:flex; gap:0.4rem; flex-wrap:wrap;">' +
               '<button class="btn-secondary" onclick="editarCotacao(' + i + ')">Editar</button>' +
               '<button class="btn-primary" onclick="enviarCotacaoParaOrcamentador(' + i + ')">' +
-                (enviada ? 'Enviar novamente' : 'Enviar para o Orçamentador') + '</button>' +
+                (enviada ? 'Enviar novamente' : 'Enviar para Orçamento e Despesas') + '</button>' +
               '<button class="btn-secondary" onclick="excluirCotacao(' + i + ')">Excluir</button>' +
               '</div></div>';
           });
@@ -10340,7 +10340,7 @@ function atualizarValoresBuffet() {
       el.style.display = '';
     }
 
-    // Envia a cotação escolhida ao Orçamentador. COPIA os dados; a cotação
+    // Envia a cotação escolhida a Orçamento e Despesas. COPIA os dados; a cotação
     // original permanece intacta para consulta e histórico.
     function enviarCotacaoParaOrcamentador(i) {
       const c = garantirCotacoes()[i];
@@ -10349,10 +10349,10 @@ function atualizarValoresBuffet() {
       if (!Array.isArray(dados.despesas)) dados.despesas = [];
       const jaExiste = dados.despesas.some(d => d && d.idFornecedor === c.idFornecedor);
       const aviso = jaExiste
-        ? '\n\nATENÇÃO: já existe um lançamento no Orçamentador para "' + nomeForn +
+        ? '\n\nATENÇÃO: já existe um lançamento em Orçamento e Despesas para "' + nomeForn +
           '". A regra do sistema é um lançamento por fornecedor — o formulário abrirá sobre o registro existente, e salvar substitui o que estiver lá (inclusive parcelas e pagamentos já registrados).'
         : '';
-      if (!confirm('Enviar esta cotação para o Orçamentador?\n\nFornecedor: ' + nomeForn +
+      if (!confirm('Enviar esta cotação para Orçamento e Despesas?\n\nFornecedor: ' + nomeForn +
                    '\nServiço: ' + (c.descricao || '') +
                    '\nValor: ' + formatarMoeda(Number(c.valor) || 0) + aviso)) return;
 
@@ -10385,7 +10385,7 @@ function atualizarValoresBuffet() {
       if (c.prazoExecucao) partes.push('Prazo: ' + c.prazoExecucao);
       partes.push('Origem: cotação ' + c.id + (c.dataCotacao ? ' de ' + c.dataCotacao : ''));
       setV('obsContratoDespesa', partes.join('\n'));
-      notificar('Cotação copiada para o Orçamentador. Confira o valor contratado e defina o parcelamento antes de salvar.');
+      notificar('Cotação copiada para Orçamento e Despesas. Confira o valor contratado e defina o parcelamento antes de salvar.');
     }
 
     // ---------- Fase 3b: utilitários de PIX e contrato ----------
@@ -10436,7 +10436,7 @@ function atualizarValoresBuffet() {
       preencherCampoMoeda('orcamentoTotal', dados.orcamentoTotal);
       atualizarResumoOrcamento();
     }
-    // Atualiza o resumo de orçamento exibido dentro da seção Orçamentador.
+    // Atualiza o resumo de orçamento exibido dentro da seção Orçamento e Despesas.
     function atualizarResumoOrcamento() {
       const el = document.getElementById('resumoOrcamento');
       if (!el) return;
@@ -10484,7 +10484,7 @@ function atualizarValoresBuffet() {
     // Comprometido = fornecedores + despesas da categoria (mesma convenção do
     // resumo do PDF). Metas ficam em dados.metasCategorias = { categoria: valor }.
     function calcularComprometidoPorCategoria() {
-      // FONTE ÚNICA: Orçamentador (despesas). Os fornecedores NÃO somam aqui —
+      // FONTE ÚNICA: Orçamento e Despesas (despesas). Os fornecedores NÃO somam aqui —
       // como o casal lança o mesmo gasto nos dois módulos, somar ambos dobraria
       // o comprometido. Mesma regra do gráfico "Quem já pagou".
       const mapa = {};
@@ -11220,7 +11220,7 @@ blocoRsvp +
         s + (Array.isArray(c.acompanhantes) ? c.acompanhantes.length : 0), 0);
       const totalPessoas = totalConvidados + totalAcompanhantes;
       const totalFornecedores = (dados.fornecedores || []).length;
-      // Totais financeiros: FONTE ÚNICA = Orçamentador (despesas). Fornecedores
+      // Totais financeiros: FONTE ÚNICA = Orçamento e Despesas (despesas). Fornecedores
       // entram apenas como visão operacional separada, sem somar (evita dobra).
       let _totContratado = 0, _totPago = 0, _fornOrcado = 0;
       (dados.despesas || []).forEach(d => {
@@ -11234,7 +11234,7 @@ blocoRsvp +
       linhaInfo('Total de pessoas', totalPessoas);
       linhaInfo('Presença confirmada (titulares)', confirmadosCount);
       espaco(4);
-      subTitulo('Financeiro (Orçamentador)');
+      subTitulo('Financeiro (Orçamento e Despesas)');
       linhaInfo('Orçamento total', (Number(dados.orcamentoTotal) || 0) > 0 ? formatarMoeda(dados.orcamentoTotal) : 'não definido');
       linhaInfo('Total contratado', formatarMoeda(_totContratado));
       linhaInfo('Total pago', formatarMoeda(_totPago));
@@ -12223,12 +12223,12 @@ blocoRsvp +
         if (el.classList && el.classList.contains('alertas-vencimento')) {
           // Limpa a caixa antiga; a próxima renderização de listarDespesas
           // recriará o alerta exclusivamente a partir de dados.despesas.
-          el.textContent = 'Atualizando alertas do Orçamentador...';
+          el.textContent = 'Atualizando alertas financeiros...';
           setTimeout(() => {
             if (typeof listarDespesas === 'function') listarDespesas();
           }, 0);
         } else {
-          el.textContent = 'despesas e vencimentos do Orçamentador';
+          el.textContent = 'despesas e vencimentos das despesas';
         }
       });
     }
@@ -12558,7 +12558,7 @@ blocoRsvp +
       cats[i] = novo;
       let afetados = 0;
       (dados.fornecedores || []).forEach(f => { if (f.categoria === antigo) { f.categoria = novo; afetados++; } });
-      // Propaga também às despesas do Orçamentador (mesma categoria)
+      // Propaga também às despesas lançadas (mesma categoria)
       let afetadasDesp = 0;
       (dados.despesas || []).forEach(d => { if (d.categoria === antigo) { d.categoria = novo; afetadasDesp++; } });
       // E às metas por categoria, se existir meta com o nome antigo
@@ -12601,7 +12601,7 @@ blocoRsvp +
       };
       // Categorias de fornecedor e despesa usam a MESMA lista gerenciável
       // (união da lista do usuário + categorias já em uso), em ordem alfabética.
-      // Assim, criar categoria no fornecedor faz ela aparecer no Orçamentador.
+      // Assim, criar categoria no fornecedor faz ela aparecer em Orçamento e Despesas.
       const catsUnificadas = ordenar([
         ...obterCategoriasFornecedor(),
         ...CONFIG_SISTEMA.financeiro.categoriasDespesa,
@@ -12644,7 +12644,7 @@ blocoRsvp +
       if (typeof removerFinanceiroLegadoDosFornecedores === 'function' && removerFinanceiroLegadoDosFornecedores()) {
         precisaSalvarMigracao = true;
       }
-      // Onda 2b: o pagamento agora vive no Orçamentador. Fornecedores com status
+      // Onda 2b: o pagamento agora vive em Orçamento e Despesas. Fornecedores com status
       // de pagamento antigo viram "Contratado" (status de negociação).
       (dados.fornecedores || []).forEach(f => {
         if (f.status === 'Pago' || f.status === 'Pago parcial') {
@@ -12981,7 +12981,7 @@ blocoRsvp +
           </div>`);
       }
 
-      // Orçamentador: campos contratuais complementares e comprovantes.
+      // Orçamento e Despesas: campos contratuais complementares e comprovantes.
       if (!document.getElementById('valorContratoDespesa')) {
         const sit=document.getElementById('situacaoContratoDespesa'), linha=sit&&sit.closest('.linha-campo');
         if(linha) linha.insertAdjacentHTML('afterend', `
@@ -13068,12 +13068,12 @@ blocoRsvp +
       sec.innerHTML=`<h3>Financeiro</h3><p style="color:var(--ui-texto-2);margin-top:0">Cotações, contratações, parcelas, pagamentos, contratos e indicadores em uma única área.</p>
         <div class="v4-subtabs" id="abasFinanceiroV4">
           <button data-painel="fornecedores" onclick="mostrarPainelFinanceiroV4('fornecedores')">Fornecedores e Cotações</button>
-          <button data-painel="orcamentador" onclick="alternarPainelFinanceiroV4('orcamentador')">Orçamentador</button>
+          <button data-painel="orcamentador" onclick="alternarPainelFinanceiroV4('orcamentador')">Orçamento e Despesas</button>
           <button data-painel="relatorios" onclick="mostrarPainelFinanceiroV4('relatorios')">Relatórios</button>
         </div>
         <div id="financeiroFornecedoresV4" class="v4-fin-painel"></div>
         <div id="financeiroOrcamentadorV4" class="v4-fin-painel"></div>
-        <div id="financeiroRelatoriosV4" class="v4-fin-painel"><div class="v4-toolbar"><button class="btn-secondary" onclick="exportarCsvOrcamentadorV4()">Exportar Orçamentador em CSV</button></div></div>
+        <div id="financeiroRelatoriosV4" class="v4-fin-painel"><div class="v4-toolbar"><button class="btn-secondary" onclick="exportarCsvOrcamentadorV4()">Exportar despesas em CSV</button></div></div>
         <p id="dicaFinanceiroV4" style="padding:18px;color:var(--ui-texto-2,#6B7078);font-size:.9rem">Selecione uma das áreas acima para abrir.</p>`;
       const sf=document.getElementById('secaoFornecedoresCasamento'), so=document.getElementById('secaoOrcamento'), gra=document.querySelector('.area-graficos');
       if(sf){ sf.classList.remove('secao'); sf.style.display='block'; document.getElementById('financeiroFornecedoresV4').appendChild(sf); }
@@ -13084,7 +13084,7 @@ blocoRsvp +
         if(dashboard && gra.previousElementSibling!==dashboard) dashboard.insertAdjacentElement('afterend',gra);
         gra.style.display='grid';
       }
-      // Nenhum painel abre sozinho: o Orçamentador é a área mais pesada da tela
+      // Nenhum painel abre sozinho: o Orçamento e Despesas é a área mais pesada da tela
       // e abri-la por padrão fazia a seção Financeiro demorar a responder.
       window.mostrarPainelFinanceiroV4('');
     }
