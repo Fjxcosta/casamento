@@ -656,7 +656,7 @@
     .area-graficos {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 1rem;
+      gap: .85rem;
       padding: 0 1rem 1rem;
     }
     /* Layout duas colunas em Convidados (form esquerda, lista direita).
@@ -676,49 +676,453 @@
       min-width: 0;  /* impede que o conteúdo "estoure" a coluna */
     }
     .grafico-bloco {
-      background: #fff;
-      border: 1px solid var(--cor-borda-suave);
-      border-radius: 8px;
-      padding: 0.75rem 1rem 1rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      min-width:0;
+      background:linear-gradient(145deg,#fff 0%,#fdfbf7 100%);
+      border:1px solid rgba(185,150,71,.28);
+      border-radius:10px;
+      padding:.75rem .9rem .85rem;
+      box-shadow:0 8px 24px -19px rgba(97,72,24,.55);
     }
     .grafico-bloco h3 {
-      margin: 0 0 0.5rem;
-      font-size: 0.95rem;
-      color: var(--cor-primaria);
+      margin:0 0 .55rem;
+      padding:0 0 .45rem;
+      border-bottom:1px solid var(--cor-champagne,#D7B56D);
+      color:var(--cor-primaria);
+      font-size:.78rem;
+      letter-spacing:.06em;
     }
     .grafico-canvas-wrap {
+      position:relative;
+      width:100%;
+      height:230px;
+      max-height:230px;
+      overflow:auto;
+      overscroll-behavior:contain;
+      scrollbar-width:thin;
+      scrollbar-color:rgba(185,150,71,.55) transparent;
+    }
+    .grafico-canvas-inner {
+      position:relative;
+      width:100%;
+      height:100%;
+      min-height:100%;
+    }
+    .grafico-toolbar {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:.55rem;
+      min-height:30px;
+      margin:0 0 .45rem;
+      flex-wrap:wrap;
+    }
+    .grafico-segmentado {
+      display:inline-flex;
+      padding:2px;
+      border:1px solid var(--ui-borda,#E4E5E8);
+      border-radius:8px;
+      background:#f7f4ed;
+    }
+    .grafico-segmentado button {
+      min-width:48px;
+      padding:.3rem .48rem;
+      border:0;
+      border-radius:6px;
+      background:transparent;
+      color:var(--ui-texto-2,#6B7078);
+      font:600 .66rem 'Inter',sans-serif;
+      cursor:pointer;
+    }
+    .grafico-segmentado button.ativo {
+      background:#fff;
+      color:var(--cor-primaria,#6E5720);
+      box-shadow:0 1px 4px rgba(97,72,24,.16);
+    }
+    .grafico-info {
+      color:var(--ui-texto-2,#6B7078);
+      font:500 .66rem 'Inter',sans-serif;
+      text-align:right;
+    }
+    .grafico-paginacao {
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:.5rem;
+      min-height:28px;
+      margin-top:.35rem;
+    }
+    .grafico-paginacao[hidden] { display:none; }
+    .grafico-paginacao button {
+      width:28px;
+      height:26px;
+      padding:0;
+      border:1px solid rgba(185,150,71,.38);
+      border-radius:7px;
+      background:#fff;
+      color:var(--cor-primaria,#6E5720);
+      font:700 .82rem 'Inter',sans-serif;
+      cursor:pointer;
+    }
+    .grafico-paginacao button:disabled { opacity:.35; cursor:not-allowed; }
+    .grafico-paginacao span { color:var(--ui-texto-2,#6B7078); font:500 .68rem 'Inter',sans-serif; }
+    @media (max-width:720px) {
+      .area-graficos { grid-template-columns:1fr; }
+      .grafico-canvas-wrap { height:220px; max-height:220px; }
+      .grafico-toolbar { align-items:flex-start; }
+      .grafico-info { width:100%; text-align:left; }
+    }
+    /* Contagem regressiva: dias em destaque e relógio disposto logo abaixo. */
+    .card-contagem {
+      grid-column: span 2;
       position: relative;
-      height: 260px;     /* altura fixa para não ficar gigante e não cortar nada */
+      justify-content: flex-start;
+      min-height: 0;
+      padding: .95rem 1.25rem 1rem;
+      overflow: hidden;
+      border-color: rgba(185,150,71,.42);
+      background:
+        radial-gradient(circle at 92% 8%, rgba(212,178,97,.20), transparent 34%),
+        linear-gradient(135deg, #fff 0%, #fdfaf4 100%);
+      box-shadow: 0 12px 34px -25px rgba(97,72,24,.62);
+    }
+    .card-contagem::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 4px;
+      background: linear-gradient(180deg, var(--ui-marca, #B99647), #e2c981);
+    }
+    .card-contagem .cr-cabecalho {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .8rem;
+      margin-bottom: .6rem;
+    }
+    .card-contagem .cr-cabecalho h3 { width:100%; margin:0; text-align:center; }
+    .card-contagem .cr-conteudo {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .65rem;
       width: 100%;
     }
-    /* Contagem regressiva: números grandes com rótulo abaixo, atualizando a
-       cada segundo. A largura é fixa em ch para o card não "tremer" quando
-       os dígitos mudam. */
-    .card-contagem .cr-grid {
-      display: flex; align-items: flex-end; justify-content: center;
-      gap: 2px; margin: 2px 0 4px; flex-wrap: nowrap;
+    .card-contagem .cr-dias-hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
     }
-    .card-contagem .cr-bloco { display:flex; flex-direction:column; align-items:center; min-width:3.1ch; }
+    .card-contagem .cr-prefixo,
+    .card-contagem .cr-mensagem {
+      display: block;
+      color: var(--ui-texto-2, #6B7078);
+      font: 500 .75rem 'Inter', sans-serif;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .card-contagem .cr-dia-linha {
+      display: flex;
+      align-items: baseline;
+      gap: .48rem;
+      position:relative;
+      width:max-content;
+      min-width:112px;
+      min-height:56px;
+      margin:.25rem auto .32rem;
+      padding:.48rem .8rem .42rem;
+      border:1px solid rgba(185,150,71,.42);
+      border-radius:8px;
+      overflow:hidden;
+      background:linear-gradient(180deg,#fffefb 0%,#fbf7ed 49%,#f2ead8 50%,#faf5ea 100%);
+      box-shadow:0 7px 16px -13px rgba(97,72,24,.72),inset 0 1px 0 rgba(255,255,255,.9);
+      transform-style:preserve-3d;
+      transform-origin:center center;
+      will-change:transform;
+    }
+    .card-contagem .cr-dia-linha::before,
+    .card-contagem .cr-bloco::before {
+      content:"";
+      position:absolute;
+      z-index:1;
+      left:0;
+      right:0;
+      top:50%;
+      height:1px;
+      background:rgba(185,150,71,.24);
+      box-shadow:0 1px 0 rgba(255,255,255,.72);
+      pointer-events:none;
+    }
+    .card-contagem .cr-dia-linha > *,
+    .card-contagem .cr-bloco > * { position:relative; z-index:2; }
+    .card-contagem .cr-dias-hero,
+    .card-contagem .cr-grid { perspective:650px; }
+    .card-contagem .cr-num-dias {
+      color: var(--cor-bronze,#A67C2E);
+      font: 600 clamp(2.15rem, 5vw, 3.15rem)/.92 'Cinzel', serif;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -.025em;
+      text-shadow:0 1px 0 rgba(255,255,255,.9);
+    }
+    .card-contagem .cr-unidade-dias {
+      color: #75613B;
+      font: 600 clamp(.85rem, 1.8vw, 1.05rem) 'Inter', sans-serif;
+    }
+    .card-contagem .cr-detalhes {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .5rem;
+      width: min(100%, 360px);
+      padding-bottom: 0;
+    }
+    .card-contagem .cr-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(52px, 1fr));
+      gap: .4rem;
+      width: 100%;
+    }
+    .card-contagem .cr-bloco {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position:relative;
+      min-height: 54px;
+      padding: .45rem .35rem .38rem;
+      border: 1px solid rgba(185,150,71,.36);
+      border-radius: 8px;
+      overflow:hidden;
+      background:linear-gradient(180deg,#fffefb 0%,#fbf7ed 49%,#f2ead8 50%,#faf5ea 100%);
+      box-shadow:0 6px 14px -12px rgba(97,72,24,.65),inset 0 1px 0 rgba(255,255,255,.9);
+      transform-style:preserve-3d;
+      transform-origin:center center;
+      will-change:transform;
+    }
     .card-contagem .cr-num {
-      font-variant-numeric: tabular-nums; font-weight: 700; line-height: 1;
-      font-size: clamp(1.15rem, 4.4vw, 1.7rem); color: var(--ui-texto, #1F2126);
+      color: var(--cor-bronze,#A67C2E);
+      font: 700 clamp(1rem, 2.4vw, 1.3rem)/1 'Inter', sans-serif;
+      font-variant-numeric: tabular-nums;
+      letter-spacing:.04em;
+      text-shadow:0 1px 0 rgba(255,255,255,.9);
     }
     .card-contagem .cr-rot {
-      font-size: .62rem; text-transform: uppercase; letter-spacing: .06em;
-      color: var(--ui-texto-2, #6B7078); margin-top: 3px; font-weight: 600;
+      margin-top: 4px;
+      color: #927637;
+      font: 700 .52rem 'Inter', sans-serif;
+      letter-spacing: .08em;
+      text-transform: uppercase;
     }
-    .card-contagem .cr-sep {
-      font-size: clamp(1rem, 3.6vw, 1.4rem); font-weight: 700; line-height: 1;
-      color: var(--ui-marca, #B99647); padding-bottom: 14px; opacity: .55;
+    .card-contagem .cr-data {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .38rem;
+      color: var(--ui-texto-2, #6B7078);
+      font: 500 .7rem 'Inter', sans-serif;
+      line-height: 1.4;
+      letter-spacing: .045em;
+      text-transform: uppercase;
     }
-    /* Pulso apenas nos segundos: sinaliza que está correndo sem distrair. */
-    .card-contagem .cr-seg { color: var(--ui-marca, #B99647); animation: crPulso 1s ease-in-out infinite; }
-    @keyframes crPulso { 0%,100% { opacity:1 } 50% { opacity:.55 } }
-    .card-contagem.cr-passou .cr-num { color: var(--ui-texto-2, #6B7078); }
-    .card-contagem.cr-passou .cr-seg { animation: none; }
-    .card-contagem.cr-hoje .cr-num { color: var(--ui-sucesso, #2F7D4F); }
-    @media (prefers-reduced-motion: reduce) { .card-contagem .cr-seg { animation: none } }
+    .card-contagem .cr-data::before {
+      content: "";
+      width: 5px;
+      height: 5px;
+      flex: 0 0 5px;
+      border-radius: 50%;
+      background: var(--ui-marca, #B99647);
+      box-shadow: 0 0 0 3px rgba(185,150,71,.1);
+    }
+    .card-contagem .cr-vazio {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      min-height: 90px;
+      padding: .9rem 0 .25rem;
+    }
+    .card-contagem .cr-vazio strong {
+      display: block;
+      margin-bottom: .3rem;
+      color: var(--ui-texto, #1F2126);
+      font: 600 1.05rem 'Inter', sans-serif;
+    }
+    .card-contagem .cr-vazio span {
+      color: var(--ui-texto-2, #6B7078);
+      font: 400 .82rem 'Inter', sans-serif;
+    }
+    .card-contagem .cr-vazio button { flex: 0 0 auto; }
+    .card-contagem.cr-sem-data .cr-conteudo { display: none; }
+    .card-contagem.cr-sem-data .cr-vazio { display: flex; }
+    .card-contagem.cr-passou .cr-num-dias { color:#7D7F84; }
+    .card-contagem.cr-hoje {
+      border-color: rgba(47,125,79,.38);
+      background:
+        radial-gradient(circle at 92% 8%, rgba(47,125,79,.15), transparent 34%),
+        linear-gradient(135deg, #fff 0%, #f5fbf7 100%);
+    }
+    .card-contagem.cr-hoje::before { background: var(--ui-sucesso, #2F7D4F); }
+    .card-contagem.cr-hoje .cr-num-dias { color:#2F7D4F; }
+    .card-contagem.cr-hoje .cr-num-dias {
+      font-size: clamp(2.3rem, 5vw, 3.5rem);
+      letter-spacing: -.03em;
+      white-space: nowrap;
+    }
+    .card-contagem.cr-ultimos-7:not(.cr-hoje) {
+      border-color: rgba(185,150,71,.72);
+      box-shadow: 0 16px 38px -24px rgba(130,91,16,.70);
+    }
+    .card-publico {
+      grid-column:span 2; justify-content:flex-start; padding:1.25rem 1.35rem;
+      border-color:rgba(185,150,71,.26); background:linear-gradient(145deg,#fff 0%,#fdfbf7 100%);
+    }
+    .card-publico > h3 { text-align:center; }
+    .publico-totais {
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      border-bottom:1px solid var(--ui-borda,#E4E5E8);
+    }
+    .publico-total {
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      min-width:0; padding:.65rem .75rem 1rem; text-align:center;
+    }
+    .publico-total + .publico-total { border-left:1px solid var(--ui-borda,#E4E5E8); }
+    .publico-total strong {
+      color:var(--cor-bronze,#A67C2E); font:600 clamp(2.2rem,5vw,3.3rem)/1 'Cinzel',serif;
+      font-variant-numeric:tabular-nums;
+      text-shadow:0 1px 0 rgba(255,255,255,.9);
+    }
+    .publico-total span { margin-top:.28rem; color:var(--ui-texto-2,#6B7078); font:600 .76rem 'Inter',sans-serif; letter-spacing:.045em; text-transform:uppercase; }
+    .publico-total small { margin-top:.2rem; color:var(--ui-texto-2,#6B7078); font:500 .64rem/1.35 'Inter',sans-serif; letter-spacing:.035em; text-transform:uppercase; }
+    .publico-divisoes { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); padding-top:.9rem; }
+    .publico-item { min-width:0; padding:.1rem .75rem; text-align:center; }
+    .publico-item + .publico-item { border-left:1px solid var(--ui-borda,#E4E5E8); }
+    .publico-item strong {
+      display:block; color:var(--cor-bronze,#A67C2E); font:600 1.55rem/1 'Cinzel',serif;
+      font-variant-numeric:tabular-nums;
+      text-shadow:0 1px 0 rgba(255,255,255,.9);
+    }
+    .publico-item span { display:block; margin-top:.38rem; color:var(--ui-texto-2,#6B7078); font:600 .68rem 'Inter',sans-serif; letter-spacing:.045em; text-transform:uppercase; }
+    .publico-item small { display:block; margin-top:.2rem; color:var(--ui-texto-2,#6B7078); font:500 .59rem/1.35 'Inter',sans-serif; letter-spacing:.035em; text-transform:uppercase; }
+    .card-resumo {
+      grid-column:span 2;
+      justify-content:flex-start;
+      padding:1.15rem 1.25rem;
+      border-color:rgba(185,150,71,.26);
+      background:linear-gradient(145deg,#fff 0%,#fdfbf7 100%);
+    }
+    .dashboard-linha-principal {
+      grid-column:1 / -1;
+      display:grid;
+      grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) minmax(0,1fr);
+      gap:1rem;
+      min-width:0;
+    }
+    .dashboard-linha-principal > .card { grid-column:auto; min-width:0; }
+    .dashboard-linha-financeira {
+      grid-column:1 / -1;
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:1rem;
+      min-width:0;
+    }
+    .dashboard-linha-financeira .card-resumo { grid-column:auto; min-width:0; }
+    .card-resumo > h3 { margin-bottom:.9rem; text-align:center; }
+    .resumo-grid {
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      align-items:center;
+      width:100%;
+      flex:1;
+    }
+    .resumo-grid.resumo-duplo { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .resumo-item {
+      display:flex;
+      min-width:0;
+      padding:.15rem .9rem;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+    }
+    .resumo-item + .resumo-item { border-left:1px solid var(--ui-borda,#E4E5E8); }
+    .resumo-item h4 {
+      min-height:2.2em;
+      margin:0;
+      color:var(--ui-texto-2,#6B7078);
+      font:600 .67rem/1.25 'Cinzel',serif;
+      letter-spacing:.07em;
+      text-transform:uppercase;
+    }
+    .resumo-item p {
+      margin:.42rem 0 .22rem;
+      color:var(--cor-bronze,#A67C2E);
+      max-width:100%;
+      font:600 clamp(.95rem,1.6vw,1.25rem)/1.15 'Cinzel',serif;
+      font-variant-numeric:tabular-nums;
+      text-shadow:0 1px 0 rgba(255,255,255,.9);
+      white-space:nowrap;
+    }
+    .resumo-item small {
+      display:block;
+      color:var(--ui-texto-2,#6B7078);
+      font:500 .61rem/1.4 'Inter',sans-serif;
+      letter-spacing:.035em;
+      text-transform:uppercase;
+    }
+    .resumo-alertas { transition:border-color .2s ease; }
+    /* Padrão visual único para todos os cartões do dashboard. */
+    #dashboard > .card,
+    #dashboard .dashboard-linha-principal > .card,
+    #dashboard .dashboard-linha-financeira > .card {
+      border:1px solid rgba(185,150,71,.28);
+      border-radius:10px;
+      background:linear-gradient(145deg,#fff 0%,#fdfbf7 100%);
+      box-shadow:0 8px 24px -19px rgba(97,72,24,.55);
+    }
+    #dashboard .card-contagem::before { display:none; }
+    #dashboard .card > h3,
+    #dashboard .card-contagem .cr-cabecalho h3 {
+      margin:0 0 .8rem;
+      padding:0 0 .55rem;
+      border-bottom:1px solid var(--cor-champagne,#D7B56D);
+      color:var(--cor-primaria,#6E5720);
+      font:500 .78rem/1.25 'Cinzel',serif;
+      letter-spacing:.12em;
+      text-align:center;
+      text-transform:uppercase;
+    }
+    #dashboard .card-contagem .cr-cabecalho { margin-bottom:0; }
+    #dashboard .card-publico > h3,
+    #dashboard .card-resumo > h3 { color:var(--ui-texto-2,#6B7078); }
+    @media (max-width: 980px) {
+      .dashboard-linha-principal { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .dashboard-linha-principal > .card-resumo { grid-column:1 / -1; }
+      .dashboard-linha-financeira { grid-template-columns:1fr; }
+    }
+    @media (max-width: 640px) {
+      .dashboard-linha-principal { grid-template-columns:1fr; }
+      .dashboard-linha-principal > .card-resumo { grid-column:auto; }
+      .card-contagem { grid-column: 1 / -1; min-height: 0; padding: .9rem 1rem; }
+      .card-publico { grid-column:1 / -1; padding:1.1rem; }
+      .card-resumo { grid-column:1 / -1; padding:1rem; }
+      .card-contagem .cr-conteudo { gap: .65rem; }
+      .card-contagem .cr-detalhes { padding-bottom: 0; }
+      .card-contagem .cr-vazio { align-items: flex-start; flex-direction: column; }
+      .card-contagem .cr-vazio button { width: 100%; }
+      .publico-divisoes { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .publico-item { padding:.6rem .42rem; }
+      .publico-item:nth-child(odd) { border-left:0; }
+      .publico-item:nth-child(n+3) { border-top:1px solid var(--ui-borda,#E4E5E8); }
+      .resumo-grid,
+      .resumo-grid.resumo-duplo { grid-template-columns:1fr; }
+      .resumo-item { padding:.7rem .35rem; }
+      .resumo-item + .resumo-item { border-left:0; border-top:1px solid var(--ui-borda,#E4E5E8); }
+      .resumo-item h4 { min-height:0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .card-contagem * { scroll-behavior: auto !important; }
+    }
     .grafico-vazio {
       font-size: 0.85rem;
       color: #888;
@@ -1134,6 +1538,33 @@
     .v4-comprovantes-lista { display:flex; flex-direction:column; gap:6px; margin-top:7px; }
     .v4-comprovante { display:flex; gap:8px; justify-content:space-between; align-items:center; padding:7px 9px; border:1px solid var(--ui-borda); border-radius:7px; background:#fff; }
     .v4-sync-info { font-size:.76rem; color:var(--ui-texto-2); margin:10px 4px 0; }
+    .v6-orcamento-total {
+      margin-bottom:16px; border:1px solid var(--ui-borda); border-radius:10px;
+      background:#fff; box-shadow:var(--ui-sombra); overflow:hidden;
+    }
+    .v6-orcamento-total > summary {
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      min-height:54px; padding:13px 15px; cursor:pointer; list-style:none;
+      color:var(--ui-texto); font:700 .92rem 'Inter',sans-serif;
+    }
+    .v6-orcamento-total > summary::-webkit-details-marker { display:none; }
+    .v6-orcamento-total > summary:hover { background:#faf8f2; }
+    .v6-orcamento-total .v6-orcamento-acao {
+      flex:none; border:1px solid rgba(185,150,71,.32); border-radius:999px;
+      padding:4px 9px; color:#745d28; background:var(--ui-marca-sub);
+      font-size:.7rem; letter-spacing:.04em; text-transform:uppercase;
+    }
+    .v6-orcamento-total .v6-acao-aberta { display:none; }
+    .v6-orcamento-total[open] .v6-acao-fechada { display:none; }
+    .v6-orcamento-total[open] .v6-acao-aberta { display:inline-flex; }
+    .v6-orcamento-conteudo { padding:15px; border-top:1px solid var(--ui-borda); background:#fffbf5; }
+    .v6-relatorio-card {
+      max-width:760px; padding:20px; border:1px solid var(--ui-borda); border-radius:12px;
+      background:linear-gradient(135deg,#fff 0%,#fbf8f1 100%); box-shadow:var(--ui-sombra);
+    }
+    .v6-relatorio-card h4 { margin:0 0 6px; color:var(--ui-texto); font-size:1.05rem; }
+    .v6-relatorio-card p { margin:0 0 16px; color:var(--ui-texto-2); font-size:.86rem; line-height:1.5; }
+    .v6-relatorio-acoes { display:flex; gap:8px; flex-wrap:wrap; }
     @media (max-width: 850px) {
       #modalMeuCasamento > .modal-content { width:100%; height:100%; border-radius:0; grid-template-columns:1fr; grid-template-rows:auto auto minmax(0,1fr); }
       #modalMeuCasamento > .modal-content > h2 { grid-column:1; grid-row:1; min-height:56px; padding:16px 55px 12px 16px; }
@@ -1147,6 +1578,7 @@
       .v4-tabela td { border:0; padding:5px 7px; }
       .v4-tabela td::before { content:attr(data-label); display:block; font-size:.68rem; text-transform:uppercase; color:var(--ui-texto-2); margin-bottom:2px; }
       #secaoFinanceiro .area-graficos { grid-template-columns:1fr; }
+      .v6-relatorio-acoes button { width:100%; }
     }
   </style>
 
@@ -1341,86 +1773,131 @@
 
   <!-- Área do dashboard -->
   <main id="dashboard">
-    <div class="card card-contagem">
-      <h3>Contagem regressiva</h3>
-      <div id="contagemRegressiva" class="cr-grid">
-        <div class="cr-bloco"><span class="cr-num" id="crDias">--</span><span class="cr-rot">dias</span></div>
-        <span class="cr-sep">:</span>
-        <div class="cr-bloco"><span class="cr-num" id="crHoras">--</span><span class="cr-rot">horas</span></div>
-        <span class="cr-sep">:</span>
-        <div class="cr-bloco"><span class="cr-num" id="crMinutos">--</span><span class="cr-rot">min</span></div>
-        <span class="cr-sep">:</span>
-        <div class="cr-bloco"><span class="cr-num cr-seg" id="crSegundos">--</span><span class="cr-rot">seg</span></div>
+    <div class="dashboard-linha-principal">
+    <div class="card card-contagem cr-sem-data">
+      <div class="cr-cabecalho">
+        <h3>Contagem regressiva</h3>
       </div>
-      <small id="crLegenda" style="font-weight:normal; color:#777;">defina a data do casamento</small>
+      <div class="cr-conteudo">
+        <div class="cr-dias-hero">
+          <span class="cr-prefixo" id="crPrefixo">FALTAM</span>
+          <div class="cr-dia-linha">
+            <strong class="cr-num-dias" id="crDias">--</strong>
+            <span class="cr-unidade-dias" id="crUnidadeDias">dias</span>
+          </div>
+          <span class="cr-mensagem" id="crMensagem">PARA O NOSSO SIM</span>
+        </div>
+        <div class="cr-detalhes">
+          <div id="contagemRegressiva" class="cr-grid" aria-label="Tempo restante até o casamento">
+            <div class="cr-bloco"><span class="cr-num" id="crHoras">--</span><span class="cr-rot">horas</span></div>
+            <div class="cr-bloco"><span class="cr-num" id="crMinutos">--</span><span class="cr-rot">minutos</span></div>
+            <div class="cr-bloco"><span class="cr-num" id="crSegundos">--</span><span class="cr-rot">segundos</span></div>
+          </div>
+          <time id="crLegenda" class="cr-data">DATA DO CASAMENTO NÃO DEFINIDA</time>
+        </div>
+      </div>
+      <div class="cr-vazio" id="crVazio">
+        <div>
+          <strong>Data do casamento ainda não definida</strong>
+          <span>Informe a data para iniciar a contagem regressiva.</span>
+        </div>
+        <button type="button" class="btn-primary" onclick="abrirDadosCasamentoContagem()">Definir data do casamento</button>
+      </div>
     </div>
-    <div class="card">
-      <h3>Total de convidados</h3>
-      <p id="cardTotalConvidados">0</p>
-      <small style="font-weight:normal; color:#777;">inclui os noivos e filhos do casal; não inclui a lista de espera</small>
+    <div class="card card-publico">
+      <h3>Convidados</h3>
+      <div class="publico-totais">
+        <div class="publico-total">
+          <strong id="cardTotalConvidados">0</strong>
+          <span>Total de convidados</span>
+          <small>Inclui os noivos e filhos do casal; não inclui a lista de espera</small>
+        </div>
+        <div class="publico-total">
+          <strong id="cardPagantesBuffet">0</strong>
+          <span>Pagantes (buffet)</span>
+          <small id="textoRegraBuffetCard">crianças até 7 anos não pagam</small>
+        </div>
+      </div>
+      <div class="publico-divisoes">
+        <div class="publico-item">
+          <strong id="cardAdultos">0</strong>
+          <span>Adultos</span>
+          <small>Inclui os noivos</small>
+        </div>
+        <div class="publico-item">
+          <strong id="cardCriancas">0</strong>
+          <span>Crianças</span>
+          <small>Inclui filhos do casal</small>
+        </div>
+        <div class="publico-item">
+          <strong id="cardConvidadosConfirmados">0</strong>
+          <span>Confirmados</span>
+          <small>RSVP; não inclui os noivos</small>
+        </div>
+        <div class="publico-item">
+          <strong id="cardListaEspera">0</strong>
+          <span>Lista de espera</span>
+          <small>Fora do total</small>
+        </div>
+      </div>
     </div>
-    <div class="card">
-      <h3>Lista de espera</h3>
-      <p id="cardListaEspera">0</p>
-      <small style="font-weight:normal; color:#777;">ainda não convidados; fora de todos os demais números</small>
+    <div class="card card-resumo">
+      <h3>Progresso e alertas</h3>
+      <div class="resumo-grid resumo-duplo">
+        <div class="resumo-item">
+          <h4>Progresso geral</h4>
+          <p id="cardProgressoGeral">0%</p>
+          <small>andamento do planejamento</small>
+        </div>
+        <div class="resumo-item resumo-alertas" id="cardAlertas">
+          <h4>Alertas</h4>
+          <p id="cardAlertasResumo">—</p>
+          <small id="cardAlertasDetalhe">despesas e parcelas em atraso</small>
+        </div>
+      </div>
     </div>
-    <div class="card">
-      <h3>Convidados confirmados</h3>
-      <p id="cardConvidadosConfirmados">0</p>
-      <small style="font-weight:normal; color:#777;">só convidados (RSVP); não inclui os noivos</small>
     </div>
-    <div class="card">
-      <h3>Adultos</h3>
-      <p id="cardAdultos">0</p>
-      <small style="font-weight:normal; color:#777;">inclui os noivos</small>
+    <div class="dashboard-linha-financeira">
+    <div class="card card-resumo">
+      <h3>Orçamento e fornecedores</h3>
+      <div class="resumo-grid">
+        <div class="resumo-item">
+          <h4>Fornecedores (orçado em aberto)</h4>
+          <p id="cardTotalFornecedores">R$ 0,00</p>
+          <small id="cardFornecedoresDetalhe">contratados ainda não fechados no orçamento</small>
+        </div>
+        <div class="resumo-item">
+          <h4>Orçamento total</h4>
+          <p id="cardOrcamentoTotal">R$ 0,00</p>
+          <small>valor planejado para o casamento</small>
+        </div>
+        <div class="resumo-item">
+          <h4>Saldo do orçamento</h4>
+          <p id="cardSaldoOrcamento">R$ 0,00</p>
+          <small id="cardSaldoDetalhe">Defina o orçamento total na aba Fornecedores contratados</small>
+        </div>
+      </div>
     </div>
-    <div class="card">
-      <h3>Crianças</h3>
-      <p id="cardCriancas">0</p>
-      <small style="font-weight:normal; color:#777;">inclui filhos do casal</small>
+    <div class="card card-resumo">
+      <h3>Resumo financeiro</h3>
+      <div class="resumo-grid">
+        <div class="resumo-item">
+          <h4>Total contratado</h4>
+          <p id="cardTotalContratado">R$ 0,00</p>
+          <small>despesas lançadas</small>
+        </div>
+        <div class="resumo-item">
+          <h4>Total pago</h4>
+          <p id="cardTotalPago">R$ 0,00</p>
+          <small id="cardPercentualPago">0% do contratado</small>
+        </div>
+        <div class="resumo-item">
+          <h4>Total pendente</h4>
+          <p id="cardTotalPendente">R$ 0,00</p>
+          <small id="cardPercentualPendente">0% do contratado</small>
+        </div>
+      </div>
     </div>
-    <div class="card">
-      <h3>Pagantes (buffet)</h3>
-      <p id="cardPagantesBuffet">0</p>
-      <small id="textoRegraBuffetCard" style="font-weight:normal; color:#777;">crianças até 7 anos não pagam</small>
-    </div>
-    <div class="card">
-      <h3>Fornecedores (orçado em aberto)</h3>
-      <p id="cardTotalFornecedores">R$ 0,00</p>
-      <small id="cardFornecedoresDetalhe" style="font-weight:normal; color:#777;">contratados ainda não fechados no orçamento</small>
-    </div>
-    <div class="card">
-      <h3>Total contratado</h3>
-      <p id="cardTotalContratado">R$ 0,00</p>
-      <small style="font-weight:normal; color:#777;">despesas lançadas</small>
-    </div>
-    <div class="card">
-      <h3>Total pago</h3>
-      <p id="cardTotalPago">R$ 0,00</p>
-      <small id="cardPercentualPago" style="font-weight:normal; color:#777;">0% do contratado</small>
-    </div>
-    <div class="card">
-      <h3>Total pendente</h3>
-      <p id="cardTotalPendente">R$ 0,00</p>
-      <small id="cardPercentualPendente" style="font-weight:normal; color:#777;">0% do contratado</small>
-    </div>
-    <div class="card">
-      <h3>Orçamento total</h3>
-      <p id="cardOrcamentoTotal">R$ 0,00</p>
-    </div>
-    <div class="card">
-      <h3>Saldo do orçamento</h3>
-      <p id="cardSaldoOrcamento">R$ 0,00</p>
-      <small id="cardSaldoDetalhe" style="font-weight:normal; color:#777;">Defina o orçamento total na aba Orçamento e Despesas</small>
-    </div>
-    <div class="card">
-      <h3>Progresso geral</h3>
-      <p id="cardProgressoGeral">0%</p>
-    </div>
-    <div class="card" id="cardAlertas">
-      <h3>Alertas</h3>
-      <p id="cardAlertasResumo" style="font-size:1.5rem;">—</p>
-      <small id="cardAlertasDetalhe" style="font-weight:normal; color:#777;">despesas e parcelas em atraso</small>
     </div>
   </main>
 
@@ -1430,8 +1907,18 @@
   <section class="area-graficos">
     <div class="grafico-bloco">
       <h3>Fornecedores por categoria (Valor contratado)</h3>
+      <div class="grafico-toolbar">
+        <div class="grafico-segmentado" aria-label="Quantidade de categorias exibidas">
+          <button type="button" class="ativo" data-limite-cat="5" onclick="definirLimiteGraficoCategorias(5)">Top 5</button>
+          <button type="button" data-limite-cat="10" onclick="definirLimiteGraficoCategorias(10)">Top 10</button>
+          <button type="button" data-limite-cat="todos" onclick="definirLimiteGraficoCategorias('todos')">Todos</button>
+        </div>
+        <span class="grafico-info" id="graficoFornecedoresInfo">Top 5</span>
+      </div>
       <div class="grafico-canvas-wrap">
-        <canvas id="graficoFornecedores"></canvas>
+        <div class="grafico-canvas-inner" id="graficoFornecedoresInner">
+          <canvas id="graficoFornecedores"></canvas>
+        </div>
       </div>
       <p id="graficoFornecedoresVazio" class="grafico-vazio" style="display:none;">
         Cadastre fornecedores com valor contratado para visualizar o gráfico.
@@ -1440,8 +1927,23 @@
     <!-- Fase 3b (seção 18): situação financeira por fornecedor -->
     <div class="grafico-bloco">
       <h3>Situação financeira por fornecedor</h3>
-      <div class="grafico-canvas-wrap" style="max-height:420px; overflow-y:auto;">
-        <canvas id="graficoSitFornecedor"></canvas>
+      <div class="grafico-toolbar">
+        <div class="grafico-segmentado" aria-label="Quantidade de fornecedores exibidos">
+          <button type="button" class="ativo" data-limite-sit="5" onclick="definirLimiteGraficoSituacao(5)">Top 5</button>
+          <button type="button" data-limite-sit="10" onclick="definirLimiteGraficoSituacao(10)">Top 10</button>
+          <button type="button" data-limite-sit="todos" onclick="definirLimiteGraficoSituacao('todos')">Todos</button>
+        </div>
+        <span class="grafico-info" id="graficoSitFornecedorInfo">Top 5</span>
+      </div>
+      <div class="grafico-canvas-wrap">
+        <div class="grafico-canvas-inner" id="graficoSitFornecedorInner">
+          <canvas id="graficoSitFornecedor"></canvas>
+        </div>
+      </div>
+      <div class="grafico-paginacao" id="paginacaoSitFornecedor" hidden>
+        <button type="button" id="btnSitFornecedorAnterior" onclick="mudarPaginaGraficoSituacao(-1)" aria-label="Página anterior">‹</button>
+        <span id="paginaSitFornecedor">Página 1 de 1</span>
+        <button type="button" id="btnSitFornecedorProximo" onclick="mudarPaginaGraficoSituacao(1)" aria-label="Próxima página">›</button>
       </div>
       <p id="graficoSitFornecedorVazio" class="grafico-vazio" style="display:none;">
         Registre despesas vinculadas a fornecedores para visualizar o gráfico.
@@ -1450,7 +1952,9 @@
     <div class="grafico-bloco">
       <h3>Despesas: previsto × contratado × pago</h3>
       <div class="grafico-canvas-wrap">
-        <canvas id="graficoDespesas"></canvas>
+        <div class="grafico-canvas-inner">
+          <canvas id="graficoDespesas"></canvas>
+        </div>
       </div>
       <p id="graficoDespesasVazio" class="grafico-vazio" style="display:none;">
         Cadastre despesas com valores para visualizar o gráfico.
@@ -1459,7 +1963,9 @@
     <div class="grafico-bloco">
       <h3>Quem já pagou: Noiva × Noivo</h3>
       <div class="grafico-canvas-wrap">
-        <canvas id="graficoPagadores"></canvas>
+        <div class="grafico-canvas-inner">
+          <canvas id="graficoPagadores"></canvas>
+        </div>
       </div>
       <p id="graficoPagadoresVazio" class="grafico-vazio" style="display:none;">
         Informe "Pago por" nas despesas lançadas (com valor pago) para visualizar quanto cada um já pagou.
@@ -1483,7 +1989,7 @@
         <button onclick="mostrarSecao('secaoPadrinhos')">Padrinhos</button>
         <button onclick="mostrarSecao('secaoCronograma')">Cronograma do dia</button>
         <button onclick="mostrarSecao('secaoMesas')">Mesas</button>
-        <button onclick="mostrarSecao('secaoOrcamento')">Orçamento e Despesas</button>
+        <button onclick="mostrarSecao('secaoOrcamento')">Fornecedores contratados</button>
         <button onclick="mostrarSecao('secaoFornecedoresCasamento')">Fornecedores</button>
         <button onclick="mostrarSecao('secaoSite')">Site do Casamento</button>
       </div>
@@ -2081,18 +2587,25 @@
         </div>
       </section>
       <section id="secaoOrcamento" class="secao" style="display:none;">
-        <h3>Orçamento e Despesas</h3>
-        <!-- Caixa de resumo com tons claros inspirados no dourado do monograma -->
-        <div style="background:#fffbf5; border:1px solid var(--cor-borda-suave); padding:1rem; border-radius:6px; margin-bottom:1rem;">
-          <div class="form-group" style="margin-bottom:0.5rem;">
-            <label for="orcamentoTotal">Orçamento total do casamento</label>
-            <input type="text" id="orcamentoTotal" placeholder="R$ 0,00" inputmode="numeric" oninput="aplicarMascaraMoeda(this)" onblur="finalizarCampoMoeda(this)">
+        <h3>Fornecedores contratados</h3>
+        <!-- O orçamento total começa oculto e só é exibido por ação do usuário. -->
+        <details class="v6-orcamento-total" id="blocoOrcamentoTotal">
+          <summary>
+            <span>Orçamento total do casamento</span>
+            <span class="v6-orcamento-acao v6-acao-fechada">Exibir</span>
+            <span class="v6-orcamento-acao v6-acao-aberta">Ocultar</span>
+          </summary>
+          <div class="v6-orcamento-conteudo">
+            <div class="form-group" style="margin-bottom:0.5rem;">
+              <label for="orcamentoTotal">Valor do orçamento</label>
+              <input type="text" id="orcamentoTotal" placeholder="R$ 0,00" inputmode="numeric" oninput="aplicarMascaraMoeda(this)" onblur="finalizarCampoMoeda(this)">
+            </div>
+            <div class="actions" style="margin-bottom:0.5rem;">
+              <button class="btn-success" onclick="salvarOrcamentoTotal()">Salvar orçamento total</button>
+            </div>
+            <div id="resumoOrcamento" style="font-size:0.95rem; line-height:1.6;"></div>
           </div>
-          <div class="actions" style="margin-bottom:0.5rem;">
-            <button class="btn-success" onclick="salvarOrcamentoTotal()">Salvar orçamento</button>
-          </div>
-          <div id="resumoOrcamento" style="font-size:0.95rem; line-height:1.6;"></div>
-        </div>
+        </details>
         <!-- Metas por categoria: planejado × comprometido -->
         <div style="background:#fffbf5; border:1px solid var(--cor-borda-suave); padding:1rem; border-radius:6px; margin-bottom:1rem;">
           <button type="button" onclick="toggleMetasCategorias()" style="width:100%; display:flex; align-items:center; justify-content:space-between; background:none; border:none; cursor:pointer; font:inherit; padding:0; color:inherit;">
@@ -2118,7 +2631,7 @@
             </div>
           </div>
         </div>
-        <button class="btn-primary" onclick="abrirFormularioDespesa()">Adicionar despesa</button>
+        <button class="btn-primary" onclick="abrirFormularioDespesa()">Adicionar fornecedor contratado</button>
         <div id="listaDespesas" style="margin-top:1rem;"></div>
         <div id="formDespesa" style="display:none; margin-top:1rem; border:1px solid var(--cor-borda-suave); padding:1rem; border-radius:4px;">
           <div class="form-group">
@@ -2350,7 +2863,7 @@
         <div id="subFornecCotacoes" style="display:none;">
           <p style="font-size:0.88rem; color:#777; margin-top:0;">
             Cotações são propostas em negociação. Só viram compromisso financeiro
-            quando enviadas para Orçamento e Despesas.
+            quando enviadas para Fornecedores contratados.
           </p>
           <button class="btn-primary" onclick="abrirFormularioCotacao()">Adicionar cotação</button>
           <button class="btn-secondary" onclick="alternarComparativoCotacoes()">Comparar por categoria</button>
@@ -2536,7 +3049,7 @@
         </div><!-- /secaoPagamentoFornecedor -->
         <!-- Aviso de que o pagamento agora é em Orçamento e Despesas -->
         <div style="background:#e6eff7; border:1px solid #b3cce8; border-radius:6px; padding:0.6rem 0.9rem; margin-top:0.75rem; font-size:0.88rem; color:#34506b;">
-          💳 O controle de pagamento (modalidade, parcelas, valores pagos) agora é feito em <strong>Orçamento e Despesas</strong>, vinculando a despesa a este fornecedor.
+          💳 O controle de pagamento (modalidade, parcelas, valores pagos) agora é feito em <strong>Fornecedores contratados</strong>, vinculando a despesa a este fornecedor.
         </div>
         <!-- LINHA 8: Status do contrato + Prioridade -->
         <div class="linha-campo label-acima" style="margin-top:1rem;">
@@ -4186,41 +4699,113 @@
     function atualizarContagemRegressiva() {
       const card = document.querySelector('.card-contagem');
       const legenda = document.getElementById('crLegenda');
+      const prefixo = document.getElementById('crPrefixo');
+      const unidade = document.getElementById('crUnidadeDias');
+      const mensagem = document.getElementById('crMensagem');
+      const reduzirMovimento = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       const set = (id, v, pad) => {
         const el = document.getElementById(id);
-        if (el) el.textContent = pad ? String(v).padStart(2, '0') : String(v);
+        if (!el) return;
+        const novo = pad && typeof v === 'number' ? String(v).padStart(2, '0') : String(v);
+        if (el.textContent === novo) return;
+        el.textContent = novo;
+        const placa = id === 'crDias' ? el.closest('.cr-dia-linha') : el.closest('.cr-bloco');
+        if (!reduzirMovimento && placa && placa.animate) {
+          placa.animate([
+            { transform:'perspective(650px) rotateX(-78deg)', filter:'brightness(.58)', opacity:.62, offset:0 },
+            { transform:'perspective(650px) rotateX(10deg)', filter:'brightness(1.08)', opacity:1, offset:.72 },
+            { transform:'perspective(650px) rotateX(0deg)', filter:'brightness(1)', opacity:1, offset:1 }
+          ],{
+            duration:id==='crSegundos'?420:520,
+            easing:'cubic-bezier(.22,.75,.2,1)'
+          });
+        }
       };
       const alvo = momentoCasamentoV7();
-      if (card) card.classList.remove('cr-passou', 'cr-hoje');
+      if (card) card.classList.remove('cr-passou', 'cr-hoje', 'cr-ultimos-7', 'cr-sem-data');
       if (!alvo) {
+        if (card) card.classList.add('cr-sem-data');
         ['crDias','crHoras','crMinutos','crSegundos'].forEach(id => set(id, '--'));
-        if (legenda) legenda.textContent = 'defina a data do casamento';
+        if (legenda) { legenda.textContent = 'DATA DO CASAMENTO NÃO DEFINIDA'; legenda.removeAttribute('datetime'); }
         return;
       }
-      const restante = alvo - new Date();
+
+      const agora = new Date();
+      const restante = alvo - agora;
       const p = partesContagemV7(Math.abs(restante));
-      set('crDias', p.dias); set('crHoras', p.horas, true);
-      set('crMinutos', p.minutos, true); set('crSegundos', p.segundos, true);
-      if (restante <= 0) {
-        // Depois da hora marcada a contagem passa a subir, indicando há quanto tempo.
-        if (card) card.classList.add(p.dias === 0 ? 'cr-hoje' : 'cr-passou');
-        if (legenda) legenda.textContent = p.dias === 0
-          ? 'é hoje — o casamento já começou'
-          : 'tempo decorrido desde o casamento';
-      } else {
-        if (card && p.dias === 0) card.classList.add('cr-hoje');
-        if (legenda) legenda.textContent = dataPorExtenso(dados.dataCasamento) +
-          (((dados.cerimonia || {}).hora || dados.horaCasamento) ? ' às ' + (((dados.cerimonia || {}).hora) || dados.horaCasamento) : '');
+      const mesmoDia = alvo.getFullYear() === agora.getFullYear() &&
+        alvo.getMonth() === agora.getMonth() && alvo.getDate() === agora.getDate();
+      const horaInformada = String(((dados.cerimonia || {}).hora) || dados.horaCasamento || '').trim();
+      const dataHoraLegivel = dataPorExtenso(dados.dataCasamento) + (horaInformada ? ' às ' + horaInformada : '');
+      const [diaIso, mesIso, anoIso] = dados.dataCasamento.split('/');
+      const dataIso = `${anoIso}-${mesIso}-${diaIso}` + (horaInformada ? 'T' + horaInformada : '');
+      if (legenda) { legenda.textContent = dataHoraLegivel.toLocaleUpperCase('pt-BR'); legenda.setAttribute('datetime', dataIso); }
+
+      set('crHoras', p.horas, true);
+      set('crMinutos', p.minutos, true);
+      set('crSegundos', p.segundos, true);
+
+      if (mesmoDia) {
+        if (card) card.classList.add('cr-hoje');
+        set('crDias', 'É hoje!');
+        if (prefixo) prefixo.textContent = 'O GRANDE DIA CHEGOU';
+        if (unidade) unidade.textContent = '';
+        if (mensagem) mensagem.textContent = restante > 0 ? 'FALTAM POUCAS HORAS' : 'APROVEITEM CADA MOMENTO';
+        return;
       }
+
+      if (restante < 0) {
+        const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+        const diaEvento = new Date(alvo.getFullYear(), alvo.getMonth(), alvo.getDate());
+        const diasCasados = Math.max(1, Math.round((hoje - diaEvento) / 86400000));
+        set('crDias', diasCasados);
+        if (unidade) unidade.textContent = diasCasados === 1 ? 'dia' : 'dias';
+        if (card) card.classList.add('cr-passou');
+        if (prefixo) prefixo.textContent = 'CASADOS HÁ';
+        if (mensagem) mensagem.textContent = 'DE UMA NOVA HISTÓRIA JUNTOS';
+        return;
+      }
+
+      set('crDias', p.dias);
+      if (unidade) unidade.textContent = p.dias === 1 ? 'dia' : 'dias';
+      if (prefixo) prefixo.textContent = 'FALTAM';
+      if (mensagem) mensagem.textContent = 'PARA O NOSSO SIM';
+      if (p.dias <= 7 && card) card.classList.add('cr-ultimos-7');
+      if (p.dias === 0 && card) card.classList.add('cr-hoje');
     }
 
-    // Um único intervalo para toda a página; recriar a cada render vazaria timers.
+    function abrirDadosCasamentoContagem() {
+      abrirModal('modalMeuCasamento');
+      setTimeout(() => {
+        mostrarSecao('secaoDadosCasamento');
+        const campo = document.getElementById('dataCasamento');
+        if (campo) { campo.focus(); campo.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      }, 80);
+    }
+
+    // Atualiza no início exato de cada segundo e pausa quando a aba está oculta.
     let timerContagemV7 = null;
+    function agendarContagemRegressiva() {
+      if (timerContagemV7 || document.hidden) return;
+      const espera = 1000 - (Date.now() % 1000) + 20;
+      timerContagemV7 = setTimeout(() => {
+        timerContagemV7 = null;
+        atualizarContagemRegressiva();
+        agendarContagemRegressiva();
+      }, espera);
+    }
     function iniciarContagemRegressiva() {
       atualizarContagemRegressiva();
-      if (timerContagemV7) return;
-      timerContagemV7 = setInterval(atualizarContagemRegressiva, 1000);
+      agendarContagemRegressiva();
     }
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        if (timerContagemV7) clearTimeout(timerContagemV7);
+        timerContagemV7 = null;
+      } else {
+        iniciarContagemRegressiva();
+      }
+    });
 
     function atualizarContadorDias() {
       const elemento = document.getElementById('contadorDias');
@@ -4229,26 +4814,9 @@
         atualizarContagemRegressiva();
         return;
       }
-      // Zera a hora de ambas as datas para comparar dia-a-dia, evitando
-      // que o horário atual altere a contagem (bug de fuso/virada do dia).
-      const agora = new Date();
-      const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
-      const [dia, mes, ano] = dados.dataCasamento.split('/');
-      const dataCasamentoDate = new Date(Number(ano), Number(mes) - 1, Number(dia));
-      const diffMs = dataCasamentoDate - hoje;
-      const diffDias = Math.round(diffMs / (1000 * 60 * 60 * 24));
-      let mensagem = '';
-      if (diffDias > 1) {
-        mensagem = `Faltam ${diffDias} dias para o casamento`;
-      } else if (diffDias === 1) {
-        mensagem = 'Falta 1 dia para o casamento';
-      } else if (diffDias === 0) {
-        mensagem = 'É hoje o grande dia!';
-      } else {
-        mensagem = `O casamento já passou há ${Math.abs(diffDias)} dias`;
-      }
-      // Acrescenta a data por extenso (ex.: 15 de Março de 2026)
-      mensagem += ' — ' + dataPorExtenso(dados.dataCasamento);
+      // O cabeçalho exibe apenas a data, evitando repetir os dias do card.
+      const hora = String(((dados.cerimonia || {}).hora) || dados.horaCasamento || '').trim();
+      const mensagem = dataPorExtenso(dados.dataCasamento) + (hora ? ' · ' + hora : '');
       if (elemento) elemento.textContent = mensagem;
       iniciarContagemRegressiva();
     }
@@ -4351,18 +4919,18 @@
       const elDetalhe = document.getElementById('cardSaldoDetalhe');
       elSaldo.textContent = formatarMoeda(saldo);
       if (orcamento === 0) {
-        elSaldo.style.color = 'var(--texto-escuro)';
-        elDetalhe.textContent = 'Defina o orçamento total na aba Orçamento e Despesas';
+        elSaldo.style.color = 'var(--cor-bronze, #A67C2E)';
+        elDetalhe.textContent = 'Defina o orçamento total na aba Fornecedores contratados';
       } else {
         const percentUsado = Math.round((totalContratado / orcamento) * 100);
         if (saldo < 0) {
-          elSaldo.style.color = 'var(--cor-erro)';
+          elSaldo.style.color = 'var(--cor-bronze, #A67C2E)';
           elDetalhe.textContent = `Orçamento estourado em ${formatarMoeda(Math.abs(saldo))} (${percentUsado}% usado)`;
         } else if (percentUsado >= CONFIG_SISTEMA.dashboard.alertaOrcamentoPercent) {
-          elSaldo.style.color = 'var(--cor-alerta)';
+          elSaldo.style.color = 'var(--cor-bronze, #A67C2E)';
           elDetalhe.textContent = `Atenção: ${percentUsado}% do orçamento já comprometido`;
         } else {
-          elSaldo.style.color = 'var(--cor-sucesso)';
+          elSaldo.style.color = 'var(--cor-bronze, #A67C2E)';
           elDetalhe.textContent = `${percentUsado}% do orçamento comprometido`;
         }
       }
@@ -4421,6 +4989,39 @@
     let chartDespesasInst = null;
     // Paleta de cores que harmoniza com o monograma dourado.
     const PALETA_GRAFICO = CONFIG_SISTEMA.visual.paletaGraficos;
+    const estadoGraficosCompactos = {
+      categoriasLimite: 5,
+      situacaoLimite: 5,
+      situacaoPagina: 0
+    };
+    const TAMANHO_PAGINA_SITUACAO = 5;
+
+    function atualizarBotoesLimiteGrafico(atributo, valor) {
+      document.querySelectorAll(`[${atributo}]`).forEach(btn => {
+        const ativo = String(btn.getAttribute(atributo)) === String(valor);
+        btn.classList.toggle('ativo', ativo);
+        btn.setAttribute('aria-pressed', ativo ? 'true' : 'false');
+      });
+    }
+    function definirLimiteGraficoCategorias(valor) {
+      estadoGraficosCompactos.categoriasLimite = valor === 'todos' ? 'todos' : Number(valor) || 5;
+      desenharGraficoFornecedores();
+    }
+    function definirLimiteGraficoSituacao(valor) {
+      estadoGraficosCompactos.situacaoLimite = valor === 'todos' ? 'todos' : Number(valor) || 5;
+      estadoGraficosCompactos.situacaoPagina = 0;
+      desenharGraficoSituacaoFornecedor();
+    }
+    function mudarPaginaGraficoSituacao(delta) {
+      estadoGraficosCompactos.situacaoPagina = Math.max(0, estadoGraficosCompactos.situacaoPagina + Number(delta || 0));
+      desenharGraficoSituacaoFornecedor();
+    }
+    function ajustarAlturaInternaGrafico(id, quantidade, alturaLinha) {
+      const inner = document.getElementById(id);
+      if (!inner) return;
+      const altura = Math.max(220, (Number(quantidade) || 0) * (alturaLinha || 34) + 34);
+      inner.style.height = altura + 'px';
+    }
     function atualizarGraficosDashboard() {
       // Proteção: se a biblioteca Chart não carregou (CDN bloqueado, offline),
       // mostra mensagem amigável em vez de quebrar o sistema inteiro.
@@ -4582,25 +5183,53 @@
         if (sit === 'pendente') linhas = linhas.filter(l => l.saldo > 0.009);
         if (sit === 'pago') linhas = linhas.filter(l => l.saldo <= 0.009 && l.contratado > 0);
 
+        const totalLinhas = linhas.length;
+        const modo = estadoGraficosCompactos.situacaoLimite;
+        const paginacao = document.getElementById('paginacaoSitFornecedor');
+        const paginaTexto = document.getElementById('paginaSitFornecedor');
+        const btnAnterior = document.getElementById('btnSitFornecedorAnterior');
+        const btnProximo = document.getElementById('btnSitFornecedorProximo');
+        const info = document.getElementById('graficoSitFornecedorInfo');
+        let linhasExibidas = linhas;
+
+        if (modo === 'todos') {
+          const totalPaginas = Math.max(1, Math.ceil(totalLinhas / TAMANHO_PAGINA_SITUACAO));
+          estadoGraficosCompactos.situacaoPagina = Math.min(estadoGraficosCompactos.situacaoPagina, totalPaginas - 1);
+          const inicio = estadoGraficosCompactos.situacaoPagina * TAMANHO_PAGINA_SITUACAO;
+          linhasExibidas = linhas.slice(inicio, inicio + TAMANHO_PAGINA_SITUACAO);
+          if (paginacao) paginacao.hidden = totalPaginas <= 1;
+          if (paginaTexto) paginaTexto.textContent = `Página ${estadoGraficosCompactos.situacaoPagina + 1} de ${totalPaginas}`;
+          if (btnAnterior) btnAnterior.disabled = estadoGraficosCompactos.situacaoPagina === 0;
+          if (btnProximo) btnProximo.disabled = estadoGraficosCompactos.situacaoPagina >= totalPaginas - 1;
+          if (info) info.textContent = totalLinhas ? `${inicio + 1}–${Math.min(inicio + TAMANHO_PAGINA_SITUACAO, totalLinhas)} de ${totalLinhas}` : 'Nenhum fornecedor';
+        } else {
+          const limite = Number(modo) || 5;
+          estadoGraficosCompactos.situacaoPagina = 0;
+          linhasExibidas = linhas.slice(0, limite);
+          if (paginacao) paginacao.hidden = true;
+          if (info) info.textContent = totalLinhas ? `Top ${Math.min(limite, totalLinhas)} de ${totalLinhas}` : 'Nenhum fornecedor';
+        }
+        atualizarBotoesLimiteGrafico('data-limite-sit', modo);
+
         if (chartSitFornecInst) { chartSitFornecInst.destroy(); chartSitFornecInst = null; }
-        if (!linhas.length || typeof Chart === 'undefined') {
+        if (!linhasExibidas.length || typeof Chart === 'undefined') {
           canvas.style.display = 'none';
           if (vazio) vazio.style.display = '';
           return;
         }
         canvas.style.display = '';
         if (vazio) vazio.style.display = 'none';
-        // Barras horizontais: a lista cresce para baixo e continua legível.
-        canvas.parentElement.style.height = Math.max(220, linhas.length * 42) + 'px';
+        // O cartão permanece compacto; Top 10 usa rolagem interna e "Todos" pagina.
+        ajustarAlturaInternaGrafico('graficoSitFornecedorInner', linhasExibidas.length, 36);
 
         chartSitFornecInst = new Chart(canvas.getContext('2d'), {
           type: 'bar',
           data: {
-            labels: linhas.map(l => l.nome),
+            labels: linhasExibidas.map(l => l.nome),
             datasets: [
-              { label: 'Contratado', data: linhas.map(l => l.contratado), backgroundColor: 'rgba(120,120,120,0.45)' },
-              { label: 'Pago',       data: linhas.map(l => l.pago),       backgroundColor: 'rgba(46,125,50,0.75)' },
-              { label: 'Saldo',      data: linhas.map(l => l.saldo),      backgroundColor: 'rgba(192,57,43,0.75)' }
+              { label: 'Contratado', data: linhasExibidas.map(l => l.contratado), backgroundColor: 'rgba(120,120,120,0.45)' },
+              { label: 'Pago',       data: linhasExibidas.map(l => l.pago),       backgroundColor: 'rgba(46,125,50,0.75)' },
+              { label: 'Saldo',      data: linhasExibidas.map(l => l.saldo),      backgroundColor: 'rgba(192,57,43,0.75)' }
             ]
           },
           options: {
@@ -4608,7 +5237,7 @@
             responsive: true, maintainAspectRatio: false,
             onClick: (evt, els) => {
               if (!els || !els.length) return;
-              const linha = linhas[els[0].index];
+              const linha = linhasExibidas[els[0].index];
               if (linha && typeof editarDespesa === 'function') {
                 if (typeof mostrarSecao === 'function') mostrarSecao('secaoOrcamento');
                 editarDespesa(linha.indice);
@@ -4617,8 +5246,14 @@
             plugins: {
               legend: { position: 'bottom' },
               tooltip: {
+                mode: 'index',
+                intersect: false,
                 callbacks: {
-                  label: ctx => ctx.dataset.label + ': ' + formatarMoeda(ctx.parsed.x)
+                  label: ctx => ctx.dataset.label + ': ' + formatarMoeda(ctx.parsed.x),
+                  footer: itens => {
+                    const linha = linhasExibidas[itens[0] ? itens[0].dataIndex : -1];
+                    return linha ? `Categoria: ${linha.categoria} · clique para editar` : '';
+                  }
                 }
               }
             },
@@ -4655,12 +5290,38 @@
         }
         // Ordena do MAIOR para o MENOR valor (visual mais limpo). Empate ou
         // categorias zeradas (novas, sem fornecedor) vão para o fim, em ordem alfabética.
-        const labels = Object.keys(porCategoria).sort((a, b) => {
+        const todasCategorias = Object.keys(porCategoria).sort((a, b) => {
           const dif = (porCategoria[b] || 0) - (porCategoria[a] || 0);
           if (dif !== 0) return dif;
           return a.localeCompare(b, CONFIG_SISTEMA.geral.idioma);
-        });
-        const valores = labels.map(l => porCategoria[l]);
+        }).map(nome => ({ nome, valor: porCategoria[nome] || 0, detalhes: [] }));
+        const totalGeral = todasCategorias.reduce((s, item) => s + item.valor, 0);
+        const modo = estadoGraficosCompactos.categoriasLimite;
+        let categoriasExibidas = todasCategorias.slice();
+        const info = document.getElementById('graficoFornecedoresInfo');
+
+        if (modo !== 'todos') {
+          const limite = Number(modo) || 5;
+          const principais = todasCategorias.slice(0, limite);
+          const restantes = todasCategorias.slice(limite);
+          const totalOutros = restantes.reduce((s, item) => s + item.valor, 0);
+          categoriasExibidas = principais.slice();
+          if (restantes.length && totalOutros > 0) {
+            categoriasExibidas.push({
+              nome: `Outros (${restantes.length})`,
+              valor: totalOutros,
+              detalhes: restantes.map(item => `${item.nome}: ${formatarMoeda(item.valor)}`)
+            });
+          }
+          if (info) info.textContent = todasCategorias.length
+            ? `Top ${Math.min(limite, todasCategorias.length)} de ${todasCategorias.length}` + (restantes.length && totalOutros > 0 ? ' · demais em Outros' : '')
+            : 'Nenhuma categoria';
+        } else if (info) {
+          info.textContent = `${todasCategorias.length} categoria(s) · rolagem interna`;
+        }
+        atualizarBotoesLimiteGrafico('data-limite-cat', modo);
+        const labels = categoriasExibidas.map(item => item.nome);
+        const valores = categoriasExibidas.map(item => item.valor);
         // destrói instância anterior para redesenhar limpo
         if (chartFornecedoresInst) { chartFornecedoresInst.destroy(); chartFornecedoresInst = null; }
         if (labels.length === 0) {
@@ -4670,6 +5331,7 @@
         }
         canvas.style.display = 'block';
         if (vazio) vazio.style.display = 'none';
+        ajustarAlturaInternaGrafico('graficoFornecedoresInner', categoriasExibidas.length, 30);
         chartFornecedoresInst = new Chart(canvas.getContext('2d'), {
           type: 'bar',
           data: {
@@ -4688,7 +5350,17 @@
             plugins: {
               legend: { display: false },
               tooltip: {
-                callbacks: { label: (ctx) => formatarMoeda(ctx.parsed.x) }
+                callbacks: {
+                  label: ctx => {
+                    const valor = Number(ctx.parsed.x) || 0;
+                    const percentual = totalGeral > 0 ? (valor / totalGeral * 100).toFixed(1) : '0.0';
+                    return `${formatarMoeda(valor)} · ${percentual}% do total`;
+                  },
+                  afterLabel: ctx => {
+                    const detalhes = (categoriasExibidas[ctx.dataIndex] || {}).detalhes || [];
+                    return detalhes.length ? ['Inclui:', ...detalhes] : '';
+                  }
+                }
               }
             },
             scales: {
@@ -6336,7 +7008,7 @@
       // Garante que o formulário abra zerado ao adicionar um novo registro
       limparFormularioDespesa();
       popularModalidadesDespesaV2();
-      abrirModalDespesaV7('Nova despesa');
+      abrirModalDespesaV7('Novo fornecedor contratado');
       // Verifica imediatamente se a categoria default já tem fornecedor cadastrado
       sugerirFornecedorParaDespesa();
     }
@@ -6359,7 +7031,7 @@
       modal.setAttribute('aria-hidden', 'true');
       modal.innerHTML = '<div class="modal-content" style="max-width:780px;">' +
         '<button class="close-btn" onclick="cancelarFormularioDespesa()">&times;</button>' +
-        '<h3 id="tituloModalDespesa">Nova despesa</h3></div>';
+        '<h3 id="tituloModalDespesa">Novo fornecedor contratado</h3></div>';
       document.body.appendChild(modal);
       form.style.display = 'block';
       form.style.border = 'none';
@@ -6371,7 +7043,7 @@
     function abrirModalDespesaV7(titulo) {
       prepararModalDespesaV7();
       const t = document.getElementById('tituloModalDespesa');
-      if (t) t.textContent = titulo || 'Despesa';
+      if (t) t.textContent = titulo || 'Fornecedor contratado';
       const modal = document.getElementById('modalFormDespesa');
       if (modal) { modal.style.display = 'flex'; modal.scrollTop = 0; }
       const form = document.getElementById('formDespesa');
@@ -6542,7 +7214,7 @@
         if (typeof toggleCamposEntradaDespesaModal === 'function') toggleCamposEntradaDespesaModal();
         if (typeof atualizarCalculoEntradaDespesa === 'function') atualizarCalculoEntradaDespesa();
       }
-      abrirModalDespesaV7('Editar despesa');
+      abrirModalDespesaV7('Editar fornecedor contratado');
     }
     function salvarDespesa() {
       const categoria = document.getElementById('categoriaDespesa').value;
@@ -7197,7 +7869,7 @@
       if (!Array.isArray(dados.convidados)) return lista;
       dados.convidados.forEach((c, ci) => {
         if (!c) return;
-        if (c.categoria === 'Crianças') {
+        if (c.tipoPessoa === 'Criança' || c.categoria === 'Crianças') {
           lista.push({
             nome: c.nome,
             idade: c.idade,
@@ -7819,7 +8491,7 @@
         aviso = document.createElement('small');
         aviso.id = 'avisoValorBloqueado';
         aviso.style.cssText = 'display:none; color:#4f7a4a; margin-top:0.25rem;';
-        aviso.textContent = '🔒 Este fornecedor está pago em Orçamento e Despesas. O valor está bloqueado para não desalinhar do pagamento. Para alterar, ajuste a despesa vinculada em Orçamento e Despesas.';
+        aviso.textContent = '🔒 Este fornecedor está pago em Fornecedores contratados. O valor está bloqueado para não desalinhar do pagamento. Para alterar, ajuste o lançamento vinculado em Fornecedores contratados.';
         campoValor.parentElement.appendChild(aviso);
       }
       if (campoValor) {
@@ -10222,7 +10894,7 @@ function atualizarValoresBuffet() {
       const c = lista[i];
       if (!c) return;
       const aviso = c.enviadaEm
-        ? '\n\nEsta cotação já foi enviada para Orçamento e Despesas. Excluí-la NÃO apaga o lançamento financeiro — apenas o histórico da proposta.'
+        ? '\n\nEsta cotação já foi enviada para Fornecedores contratados. Excluí-la NÃO apaga o lançamento financeiro — apenas o histórico da proposta.'
         : '';
       if (!confirm('Excluir a cotação "' + (c.descricao || '') + '"?' + aviso)) return;
       lista.splice(i, 1);
@@ -10281,12 +10953,12 @@ function atualizarValoresBuffet() {
                 esc(c.validade) + (venc ? ' (vencida)' : '') + '</span>';
             }
             if (enviada) {
-              html += '<br><span style="font-size:0.85rem; color:#2e7d32;">Fornecedor contratado — visualizar em Orçamento e Despesas (enviada em ' + esc(c.enviadaEm) + ')</span>';
+              html += '<br><span style="font-size:0.85rem; color:#2e7d32;">Fornecedor contratado — visualizar em Fornecedores contratados (enviada em ' + esc(c.enviadaEm) + ')</span>';
             }
             html += '<div style="margin-top:0.5rem; display:flex; gap:0.4rem; flex-wrap:wrap;">' +
               '<button class="btn-secondary" onclick="editarCotacao(' + i + ')">Editar</button>' +
               '<button class="btn-primary" onclick="enviarCotacaoParaOrcamentador(' + i + ')">' +
-                (enviada ? 'Enviar novamente' : 'Enviar para Orçamento e Despesas') + '</button>' +
+                (enviada ? 'Enviar novamente' : 'Enviar para Fornecedores contratados') + '</button>' +
               '<button class="btn-secondary" onclick="excluirCotacao(' + i + ')">Excluir</button>' +
               '</div></div>';
           });
@@ -10349,10 +11021,10 @@ function atualizarValoresBuffet() {
       if (!Array.isArray(dados.despesas)) dados.despesas = [];
       const jaExiste = dados.despesas.some(d => d && d.idFornecedor === c.idFornecedor);
       const aviso = jaExiste
-        ? '\n\nATENÇÃO: já existe um lançamento em Orçamento e Despesas para "' + nomeForn +
+        ? '\n\nATENÇÃO: já existe um lançamento em Fornecedores contratados para "' + nomeForn +
           '". A regra do sistema é um lançamento por fornecedor — o formulário abrirá sobre o registro existente, e salvar substitui o que estiver lá (inclusive parcelas e pagamentos já registrados).'
         : '';
-      if (!confirm('Enviar esta cotação para Orçamento e Despesas?\n\nFornecedor: ' + nomeForn +
+      if (!confirm('Enviar esta cotação para Fornecedores contratados?\n\nFornecedor: ' + nomeForn +
                    '\nServiço: ' + (c.descricao || '') +
                    '\nValor: ' + formatarMoeda(Number(c.valor) || 0) + aviso)) return;
 
@@ -10385,7 +11057,7 @@ function atualizarValoresBuffet() {
       if (c.prazoExecucao) partes.push('Prazo: ' + c.prazoExecucao);
       partes.push('Origem: cotação ' + c.id + (c.dataCotacao ? ' de ' + c.dataCotacao : ''));
       setV('obsContratoDespesa', partes.join('\n'));
-      notificar('Cotação copiada para Orçamento e Despesas. Confira o valor contratado e defina o parcelamento antes de salvar.');
+      notificar('Cotação copiada para Fornecedores contratados. Confira o valor contratado e defina o parcelamento antes de salvar.');
     }
 
     // ---------- Fase 3b: utilitários de PIX e contrato ----------
@@ -11234,7 +11906,7 @@ blocoRsvp +
       linhaInfo('Total de pessoas', totalPessoas);
       linhaInfo('Presença confirmada (titulares)', confirmadosCount);
       espaco(4);
-      subTitulo('Financeiro (Orçamento e Despesas)');
+      subTitulo('Financeiro (Fornecedores contratados)');
       linhaInfo('Orçamento total', (Number(dados.orcamentoTotal) || 0) > 0 ? formatarMoeda(dados.orcamentoTotal) : 'não definido');
       linhaInfo('Total contratado', formatarMoeda(_totContratado));
       linhaInfo('Total pago', formatarMoeda(_totPago));
@@ -13068,12 +13740,21 @@ blocoRsvp +
       sec.innerHTML=`<h3>Financeiro</h3><p style="color:var(--ui-texto-2);margin-top:0">Cotações, contratações, parcelas, pagamentos, contratos e indicadores em uma única área.</p>
         <div class="v4-subtabs" id="abasFinanceiroV4">
           <button data-painel="fornecedores" onclick="mostrarPainelFinanceiroV4('fornecedores')">Fornecedores e Cotações</button>
-          <button data-painel="orcamentador" onclick="alternarPainelFinanceiroV4('orcamentador')">Orçamento e Despesas</button>
+          <button data-painel="orcamentador" onclick="alternarPainelFinanceiroV4('orcamentador')">Fornecedores contratados</button>
           <button data-painel="relatorios" onclick="mostrarPainelFinanceiroV4('relatorios')">Relatórios</button>
         </div>
         <div id="financeiroFornecedoresV4" class="v4-fin-painel"></div>
         <div id="financeiroOrcamentadorV4" class="v4-fin-painel"></div>
-        <div id="financeiroRelatoriosV4" class="v4-fin-painel"><div class="v4-toolbar"><button class="btn-secondary" onclick="exportarCsvOrcamentadorV4()">Exportar despesas em CSV</button></div></div>
+        <div id="financeiroRelatoriosV4" class="v4-fin-painel">
+          <div class="v6-relatorio-card">
+            <h4>Relatório financeiro</h4>
+            <p>Gere um documento completo com resumo financeiro, indicadores e a relação detalhada dos fornecedores contratados.</p>
+            <div class="v6-relatorio-acoes">
+              <button class="btn-primary" onclick="exportarPdfFinanceiroV6()">Exportar relatório em PDF</button>
+              <button class="btn-secondary" onclick="exportarCsvOrcamentadorV4()">Exportar em CSV</button>
+            </div>
+          </div>
+        </div>
         <p id="dicaFinanceiroV4" style="padding:18px;color:var(--ui-texto-2,#6B7078);font-size:.9rem">Selecione uma das áreas acima para abrir.</p>`;
       const sf=document.getElementById('secaoFornecedoresCasamento'), so=document.getElementById('secaoOrcamento'), gra=document.querySelector('.area-graficos');
       if(sf){ sf.classList.remove('secao'); sf.style.display='block'; document.getElementById('financeiroFornecedoresV4').appendChild(sf); }
@@ -13389,6 +14070,182 @@ blocoRsvp +
     window.exportarCsvConvidadosV4=function(){baixarCsvV4('convidados-unificados.csv',['Nome','Telefone','Lado','Grupo familiar','Categoria','Função','Tipo','Situação na lista','Confirmação','Acompanhantes','Mesa','Restrições'],(dados.convidados||[]).map(p=>[p.nome,p.telefone,p.lado,p.grupoFamiliar,p.categoria,p.funcao,tipoPessoaV4(p),p.statusLista,normalizarConfirmacaoV4(p.status),(p.acompanhantes||[]).map(a=>a.nome).join(', '),p.mesa,p.restricoesAlimentares]));};
     window.exportarCsvOrcamentadorV4=function(){baixarCsvV4('orcamentador-casamento.csv',['Fornecedor/Descrição','Categoria','Contratado','Pago','Saldo','Próximo vencimento','Situação','Contrato'],(dados.despesas||[]).map(d=>{const pago=Array.isArray(d.parcelas)?d.parcelas.filter(p=>!p.cancelada).reduce((n,p)=>n+(Number(p.valorPago)||((p.pagamento&&dataValida(p.pagamento))?Number(p.valor)||0:0)),0):Number(d.valorPago)||0;const prox=(d.parcelas||[]).filter(p=>!p.cancelada&&!p.pagamento&&p.vencimento).sort((a,b)=>a.vencimento.localeCompare(b.vencimento))[0];return[d.descricao,d.categoria,d.valorContratado,pago,Math.max(0,(Number(d.valorContratado)||0)-pago),prox?prox.vencimento:'',d.status,(d.contrato||{}).numero||''];}));};
 
+    function valorPagoFinanceiroV6(d){
+      if(!d) return 0;
+      if(Array.isArray(d.parcelas)&&d.parcelas.length){
+        return d.parcelas.filter(p=>p&&!p.cancelada).reduce((total,p)=>{
+          const informado=Number(p.valorPago)||0;
+          if(informado>0) return total+informado;
+          return total+((p.pagamento&&dataValida(p.pagamento))?(Number(p.valor)||0):0);
+        },0);
+      }
+      return Number(d.valorPago)||0;
+    }
+    function numeroDataFinanceiroV6(v){
+      if(!v||!dataValida(v)) return Infinity;
+      const [dia,mes,ano]=v.split('/').map(Number);
+      return new Date(ano,mes-1,dia).getTime();
+    }
+    function proximoVencimentoFinanceiroV6(d){
+      const candidatas=(Array.isArray(d.parcelas)?d.parcelas:[]).filter(p=>{
+        if(!p||p.cancelada||!p.vencimento||!dataValida(p.vencimento)) return false;
+        const valor=Number(p.valor)||0, pago=Number(p.valorPago)||0;
+        return !(p.pagamento&&dataValida(p.pagamento)) && !(valor>0&&pago>=valor-.01);
+      }).sort((a,b)=>numeroDataFinanceiroV6(a.vencimento)-numeroDataFinanceiroV6(b.vencimento));
+      if(candidatas.length) return candidatas[0].vencimento;
+      const saldo=Math.max(0,(Number(d.valorContratado)||0)-valorPagoFinanceiroV6(d));
+      return saldo>.01&&d.dataVencimento&&dataValida(d.dataVencimento)?d.dataVencimento:'';
+    }
+    function linhaFinanceiraV6(d,index){
+      const contratado=Number(d.valorContratado)||0;
+      const pago=valorPagoFinanceiroV6(d);
+      const saldo=Math.max(0,contratado-pago);
+      const proximo=proximoVencimentoFinanceiroV6(d);
+      const hoje=new Date(); hoje.setHours(0,0,0,0);
+      const vencido=proximo&&numeroDataFinanceiroV6(proximo)<hoje.getTime();
+      const statusInformado=String(d.status||'').trim();
+      let situacao=statusInformado||'Pendente';
+      if(/cancel/i.test(statusInformado)) situacao='Cancelado';
+      else if(contratado>0&&pago>=contratado-.01) situacao='Pago';
+      else if(vencido&&pago>0) situacao='Parcial / vencido';
+      else if(vencido) situacao='Vencido';
+      else if(pago>0) situacao='Pagamento parcial';
+      return {index,descricao:d.descricao||'Sem descrição',categoria:d.categoria||'Outros',contratado,pago,saldo,
+        proximo:proximo||'—',situacao,contrato:(d.contrato||{}).numero||''};
+    }
+
+    window.exportarPdfFinanceiroV6=function(){
+      if(!window.jspdf||!window.jspdf.jsPDF){
+        notificar('A biblioteca de PDF não foi carregada. Verifique a conexão e recarregue a página.','atencao');
+        return;
+      }
+      const {jsPDF}=window.jspdf;
+      const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4',compress:true});
+      const W=doc.internal.pageSize.getWidth(), H=doc.internal.pageSize.getHeight(), M=14, UTIL=W-(M*2);
+      const CORES={escuro:[31,33,38],ouro:[185,150,71],ouroClaro:[245,239,225],texto:[48,51,57],muted:[105,110,120],
+        borda:[224,225,228],verde:[47,125,79],vermelho:[192,72,60],branco:[255,255,255],linha:[248,249,250]};
+      const moeda=v=>(Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+      const linhas=(dados.despesas||[]).filter(Boolean).map(linhaFinanceiraV6);
+      const orcamento=Number(dados.orcamentoTotal)||0;
+      const contratado=linhas.reduce((n,l)=>n+l.contratado,0);
+      const pago=linhas.reduce((n,l)=>n+l.pago,0);
+      const pendente=Math.max(0,contratado-pago);
+      const percentual=contratado>0?(pago/contratado)*100:0;
+      const agora=new Date();
+      const gerado=agora.toLocaleDateString('pt-BR')+' às '+agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      const dataEvento=dados.dataCasamento&&dataValida(dados.dataCasamento)?dataPorExtenso(dados.dataCasamento):'Data do casamento não definida';
+      let y=0;
+
+      function cabecalho(continuacao){
+        doc.setFillColor(...CORES.escuro); doc.rect(0,0,W,31,'F');
+        doc.setFillColor(...CORES.ouro); doc.rect(0,31,W,2,'F');
+        doc.setTextColor(...CORES.branco); doc.setFont('helvetica','bold'); doc.setFontSize(17);
+        doc.text('RELATÓRIO FINANCEIRO',M,13);
+        doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+        doc.text('PAULA & FÁBIO JR'+(continuacao?'  ·  CONTINUAÇÃO':''),M,21);
+        doc.setFontSize(8); doc.text(dataEvento,W-M,12,{align:'right'});
+        doc.setTextColor(214,216,220); doc.text('Gerado em '+gerado,W-M,20,{align:'right'});
+      }
+      function cardKpi(x,rotulo,valor,cor){
+        const largura=(UTIL-12)/4;
+        doc.setFillColor(...CORES.ouroClaro); doc.roundedRect(x,41,largura,23,2,2,'F');
+        doc.setFillColor(...cor); doc.roundedRect(x,41,2.2,23,1,1,'F');
+        doc.setTextColor(...CORES.muted); doc.setFont('helvetica','bold'); doc.setFontSize(7.2);
+        doc.text(rotulo.toUpperCase(),x+6,48);
+        doc.setTextColor(...CORES.texto);
+        let tamanho=valor==='Não definido'?11:13;
+        doc.setFontSize(tamanho);
+        while(doc.getTextWidth(valor)>largura-11&&tamanho>8){tamanho-=.5;doc.setFontSize(tamanho);}
+        doc.text(valor,x+6,58);
+      }
+      function tituloTabela(texto,posY){
+        doc.setTextColor(...CORES.texto); doc.setFont('helvetica','bold'); doc.setFontSize(11);
+        doc.text(texto,M,posY===undefined?74:posY);
+        doc.setDrawColor(...CORES.ouro); doc.setLineWidth(.6);
+        const yy=posY===undefined?77:posY+3;
+        doc.line(M,yy,M+36,yy);
+      }
+      const colunas=[
+        {titulo:'FORNECEDOR / DESCRIÇÃO',chave:'descricao',largura:60,alinha:'left'},
+        {titulo:'CATEGORIA',chave:'categoria',largura:34,alinha:'left'},
+        {titulo:'CONTRATADO',chave:'contratado',largura:36,alinha:'right'},
+        {titulo:'PAGO',chave:'pago',largura:34,alinha:'right'},
+        {titulo:'A PAGAR',chave:'saldo',largura:34,alinha:'right'},
+        {titulo:'PRÓX. VENC.',chave:'proximo',largura:29,alinha:'center'},
+        {titulo:'SITUAÇÃO',chave:'situacao',largura:42,alinha:'left'}
+      ];
+      function cabecalhoTabela(){
+        let x=M;
+        doc.setFillColor(...CORES.escuro); doc.rect(M,y,UTIL,8,'F');
+        doc.setTextColor(...CORES.branco); doc.setFont('helvetica','bold'); doc.setFontSize(6.8);
+        colunas.forEach(c=>{doc.text(c.titulo,x+2,y+5.2);x+=c.largura;});
+        y+=8;
+      }
+      function novaPaginaTabela(){
+        doc.addPage(); cabecalho(true); tituloTabela('Fornecedores contratados — continuação',43); y=50; cabecalhoTabela();
+      }
+      function textoLinha(valor,c){
+        if(['contratado','pago','saldo'].includes(c.chave)) return moeda(valor);
+        return String(valor??'—');
+      }
+      function desenharLinha(linha,indice){
+        const valores={...linha,descricao:linha.descricao+(linha.contrato?'\nContrato: '+linha.contrato:'')};
+        const preparados=colunas.map(c=>doc.splitTextToSize(textoLinha(valores[c.chave],c),c.largura-4));
+        const altura=Math.max(9,...preparados.map(t=>t.length*3.4+3));
+        if(y+altura>H-15) novaPaginaTabela();
+        if(indice%2===0){doc.setFillColor(...CORES.linha);doc.rect(M,y,UTIL,altura,'F');}
+        let x=M;
+        doc.setDrawColor(...CORES.borda); doc.setLineWidth(.12);
+        colunas.forEach((c,i)=>{
+          const txt=preparados[i];
+          let cor=CORES.texto;
+          if(c.chave==='situacao'&&linha.situacao==='Pago') cor=CORES.verde;
+          if(c.chave==='situacao'&&/vencido/i.test(linha.situacao)) cor=CORES.vermelho;
+          doc.setTextColor(...cor); doc.setFont('helvetica',c.chave==='descricao'?'bold':'normal'); doc.setFontSize(7.2);
+          const tx=c.alinha==='right'?x+c.largura-2:(c.alinha==='center'?x+c.largura/2:x+2);
+          doc.text(txt,tx,y+4.5,{align:c.alinha==='right'?'right':(c.alinha==='center'?'center':'left')});
+          x+=c.largura; doc.line(x,y,x,y+altura);
+        });
+        doc.line(M,y+altura,M+UTIL,y+altura); y+=altura;
+      }
+
+      cabecalho(false);
+      const larguraKpi=(UTIL-12)/4;
+      cardKpi(M,'Orçamento total',orcamento>0?moeda(orcamento):'Não definido',CORES.ouro);
+      cardKpi(M+larguraKpi+4,'Total contratado',moeda(contratado),CORES.ouro);
+      cardKpi(M+(larguraKpi+4)*2,'Total pago',moeda(pago)+'  ('+percentual.toFixed(1)+'%)',CORES.verde);
+      cardKpi(M+(larguraKpi+4)*3,'Total a pagar',moeda(pendente),pendente>0?CORES.vermelho:CORES.verde);
+      tituloTabela('Fornecedores contratados',74); y=81; cabecalhoTabela();
+      if(linhas.length){
+        linhas.forEach(desenharLinha);
+        if(y+11>H-15) novaPaginaTabela();
+        doc.setFillColor(...CORES.ouroClaro); doc.rect(M,y,UTIL,10,'F');
+        doc.setTextColor(...CORES.texto); doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
+        doc.text('TOTAIS',M+2,y+6.3);
+        let x=M+60+34;
+        [contratado,pago,pendente].forEach((valor,i)=>{
+          const larg=[36,34,34][i]; doc.text(moeda(valor),x+larg-2,y+6.3,{align:'right'}); x+=larg;
+        });
+        y+=10;
+      }else{
+        doc.setTextColor(...CORES.muted); doc.setFont('helvetica','normal'); doc.setFontSize(10);
+        doc.text('Nenhum fornecedor contratado foi cadastrado.',M+4,y+14); y+=22;
+      }
+      if(y+15<H-15){
+        doc.setTextColor(...CORES.muted); doc.setFont('helvetica','normal'); doc.setFontSize(7.2);
+        doc.text('Valores calculados a partir dos lançamentos e parcelas registrados em Fornecedores contratados.',M,y+8);
+      }
+      const paginas=doc.getNumberOfPages();
+      for(let i=1;i<=paginas;i++){
+        doc.setPage(i); doc.setDrawColor(...CORES.borda); doc.line(M,H-11,W-M,H-11);
+        doc.setTextColor(...CORES.muted); doc.setFont('helvetica','normal'); doc.setFontSize(7);
+        doc.text('Gestão de Casamento · Relatório financeiro',M,H-6);
+        doc.text('Página '+i+' de '+paginas,W-M,H-6,{align:'right'});
+      }
+      doc.save('relatorio-financeiro-casamento-'+agora.toISOString().slice(0,10)+'.pdf');
+      notificar('Relatório financeiro em PDF gerado com sucesso.','sucesso');
+    };
+
     // =====================================================================
     // FASE 7 (V5) — Ajustes pedidos: numeração e agrupamento de acompanhantes,
     // contagem correta por lista, padrinho como papel (não como pessoa extra)
@@ -13404,6 +14261,7 @@ blocoRsvp +
         box-shadow:0 1px 2px rgba(20,20,25,.05);overflow:hidden}
       .v5-cartao.espera{border-left:4px solid var(--ui-atencao,#B7791F)}
       .v5-cartao.padrinho{border-left:4px solid var(--ui-marca,#B99647)}
+      .v5-cartao.crianca{border-left:4px solid #6687A8}
       .v5-cab{display:flex;align-items:flex-start;gap:10px;padding:10px 12px}
       .v5-num{flex:none;min-width:30px;height:30px;border-radius:8px;background:var(--ui-marca-sub,#F3ECDD);
         color:#6E5720;font-weight:700;font-size:.85rem;display:flex;align-items:center;justify-content:center}
@@ -13467,6 +14325,79 @@ blocoRsvp +
                pagantes: (typeof calcularConvidadosPagantes==='function'?calcularConvidadosPagantes():0) };
     }
 
+    function ehCriancaV6(valor){
+      return String(valor||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()==='crianca';
+    }
+    function coletarCriancasConvidadosV6(){
+      const lista=[];
+      (dados.convidados||[]).forEach((p,index)=>{
+        if(!p) return;
+        const confirmacao=normalizarConfirmacaoV4(p.status);
+        const base={index,lado:p.lado||'—',statusLista:p.statusLista||'Lista principal',confirmacao,
+          grupo:p.grupoFamiliar||'',mesa:p.mesa||'',responsavel:p.nome||'—'};
+        if(ehCriancaV6(tipoPessoaV4(p))){
+          lista.push({...base,tipoRegistro:'Titular',nome:p.nome||'Criança sem nome',idade:p.idade,
+            origem:'Convidada titular',observacoes:p.observacoes||''});
+        }
+        (Array.isArray(p.acompanhantes)?p.acompanhantes:[]).forEach((a,indexAcompanhante)=>{
+          if(!a || !ehCriancaV6(a.tipo||a.tipoPessoa)) return;
+          lista.push({...base,indexAcompanhante,tipoRegistro:'Acompanhante',nome:a.nome||'Criança sem nome',
+            idade:a.idade,mesa:a.mesa||p.mesa||'',origem:'Acompanhante de '+(p.nome||'titular'),
+            observacoes:a.observacoes||'',parentesco:a.parentesco||''});
+        });
+      });
+      return lista;
+    }
+    function classificacaoBuffetCriancaV6(idade){
+      const informada=idade!==''&&idade!==null&&idade!==undefined&&Number.isFinite(Number(idade));
+      if(!informada) return {rotulo:'Idade não informada',classe:'',idadeTexto:'idade não informada'};
+      const i=Number(idade), r=dados.regrasBuffet||{};
+      const isenta=Number(r.idadeIsentaAte??7), parcial=Number(r.idadeParcialAte??isenta);
+      const percentual=Math.max(0,Math.min(100,Number(r.percentualParcial??50)));
+      if(i<=isenta) return {rotulo:'Não paga buffet',classe:'ok',idadeTexto:i+' ano(s)'};
+      if(i<=parcial) return {rotulo:'Paga '+percentual+'%',classe:'',idadeTexto:i+' ano(s)'};
+      return {rotulo:'Pagamento integral',classe:'',idadeTexto:i+' ano(s)'};
+    }
+    function listarCriancasConvidadosV6(cont){
+      const todas=coletarCriancasConvidadosV6();
+      const busca=String(filtroPessoasV4.busca||'').toLowerCase();
+      const filtradas=todas.filter(c=>{
+        if(filtroPessoasV4.lado&&c.lado!==filtroPessoasV4.lado) return false;
+        if(filtroPessoasV4.confirmacao&&c.confirmacao!==filtroPessoasV4.confirmacao) return false;
+        if(busca&&!([c.nome,c.responsavel,c.grupo,c.parentesco,c.origem].join(' ').toLowerCase().includes(busca))) return false;
+        return true;
+      });
+      const titulares=todas.filter(c=>c.tipoRegistro==='Titular').length;
+      const acompanhantes=todas.length-titulares;
+      const resumo=`<p style="margin:0 0 10px;font-size:.85rem;color:var(--ui-texto-2,#6B7078)">
+        <strong>${todas.length}</strong> criança(s): ${titulares} titular(es) e ${acompanhantes} acompanhante(s).</p>`;
+      if(!filtradas.length){
+        cont.innerHTML=resumo+`<p style="padding:18px;color:var(--ui-texto-2)">${todas.length?'Nenhuma criança corresponde aos filtros.':'Nenhuma criança cadastrada. Use “Adicionar pessoa” ou cadastre-a como acompanhante de um titular.'}</p>`;
+        return;
+      }
+      cont.innerHTML=resumo+'<div class="v5-lista">'+filtradas.map((c,i)=>{
+        const buffet=classificacaoBuffetCriancaV6(c.idade);
+        const cl=c.confirmacao==='Confirmado'?'ok':(['Recusado','Cancelado'].includes(c.confirmacao)?'erro':'');
+        const listaTxt=c.statusLista==='Lista de espera'?' · Lista de espera':'';
+        const origemDetalhe=c.tipoRegistro==='Acompanhante'
+          ? `${escV4(c.origem)}${c.parentesco?' · '+escV4(c.parentesco):''}`
+          : 'Cadastro individual';
+        return `<div class="v5-cartao crianca">
+          <div class="v5-cab">
+            <span class="v5-num">${i+1}</span>
+            <div class="v5-ident"><strong>${escV4(c.nome)}</strong>
+              <small>${escV4(c.lado)} · ${escV4(c.tipoRegistro)} · ${escV4(buffet.idadeTexto)}${listaTxt}</small></div>
+            <span class="v5-tag ${cl}">${escV4(c.confirmacao)}</span>
+          </div>
+          <div class="v5-meta">${origemDetalhe} · Mesa: ${escV4(c.mesa||'não definida')}</div>
+          <div class="v5-acoes">
+            <span class="v5-tag ${buffet.classe}">${escV4(buffet.rotulo)}</span>
+            <button class="btn-primary btn-pequeno" onclick="editarConvidado(${c.index})">${c.tipoRegistro==='Acompanhante'?'Editar grupo familiar':'Editar criança'}</button>
+          </div>
+        </div>`;
+      }).join('')+'</div>';
+    }
+
     listarConvidados = function(){
       const cont=document.getElementById('listaConvidados'); if(!cont) return;
       const ind=document.getElementById('indicadoresPessoasV4');
@@ -13486,6 +14417,11 @@ blocoRsvp +
       }
       document.querySelectorAll('#abasPessoasV4 button')
         .forEach(b=>b.classList.toggle('ativo',b.dataset.grupo===filtroPessoasV4.grupo));
+
+      if(filtroPessoasV4.grupo==='criancas'){
+        listarCriancasConvidadosV6(cont);
+        return;
+      }
 
       const itens=pessoasFiltradasV4();
       const aviso = filtroPessoasV4.grupo==='padrinhos'
@@ -13535,19 +14471,13 @@ blocoRsvp +
         }).join('')+'</div>';
     };
 
-    // Gráficos com a mesma altura: mede o mais alto e nivela os demais.
-    // O teto evita que 30 fornecedores tornem a tela inteira impraticável.
-    const ALTURA_MIN_GRAFICO_V5=260, ALTURA_MAX_GRAFICO_V5=560;
+    // Gráficos compactos: o cartão nunca cresce com a quantidade de dados.
+    // Listas extensas usam rolagem interna ou paginação.
+    const ALTURA_GRAFICO_V5=230;
     function equalizarAlturaGraficosV5(){
       const wraps=Array.from(document.querySelectorAll('.area-graficos .grafico-canvas-wrap'));
       if(!wraps.length) return;
-      const sit=document.getElementById('graficoSitFornecedor');
-      let alvo=ALTURA_MIN_GRAFICO_V5;
-      if(sit&&sit.parentElement){
-        const h=parseFloat(sit.parentElement.style.height)||0;
-        alvo=Math.max(alvo,h);
-      }
-      alvo=Math.min(alvo,ALTURA_MAX_GRAFICO_V5);
+      const alvo=window.innerWidth<=720?220:ALTURA_GRAFICO_V5;
       wraps.forEach(w=>{ w.style.height=alvo+'px'; w.style.maxHeight=alvo+'px'; w.style.overflowY='auto'; });
       if(typeof Chart!=='undefined'&&Chart.instances){
         Object.values(Chart.instances).forEach(c=>{ try{c.resize();}catch(e){} });
@@ -13572,6 +14502,630 @@ blocoRsvp +
 
     // Em restaurações que chamem inicializar antes de esta extensão, garante montagem.
     if(document.readyState!=='loading') setTimeout(()=>{ if(document.getElementById('modalMeuCasamento')&&!document.getElementById('secaoFinanceiro')) inicializarInterfaceV4(); },0);
+  })();
+  </script>
+
+  <!-- Experiência mobile dedicada: navegação própria, telas únicas e menu lateral. -->
+  <style id="estilosMobileDedicado">
+    .mobile-appbar,
+    .mobile-menu-backdrop,
+    .mobile-menu-drawer { display:none; }
+
+    @media (max-width: 850px) {
+      :root {
+        --mobile-barra-altura: 60px;
+        --mobile-safe-top: env(safe-area-inset-top, 0px);
+        --mobile-safe-bottom: env(safe-area-inset-bottom, 0px);
+      }
+
+      html, body { width:100%; max-width:100%; overflow-x:hidden; }
+      body.mobile-ui-pronta {
+        padding-top:calc(var(--mobile-barra-altura) + var(--mobile-safe-top));
+        background:var(--ui-fundo);
+      }
+      body.mobile-ui-pronta.mobile-com-tela,
+      body.mobile-ui-pronta.mobile-menu-aberto { overflow:hidden; }
+
+      /* O cabeçalho institucional e a barra horizontal continuam intactos no
+         desktop. No celular, cedem lugar à barra nativa compacta. */
+      body.mobile-ui-pronta > header,
+      body.mobile-ui-pronta > .barra-dados { display:none !important; }
+      body.mobile-ui-pronta #indicadorSync { display:none !important; }
+
+      .mobile-appbar {
+        position:fixed; inset:0 0 auto 0;
+        height:calc(var(--mobile-barra-altura) + var(--mobile-safe-top));
+        padding:var(--mobile-safe-top) 10px 0;
+        box-sizing:border-box;
+        align-items:center; gap:7px;
+        background:rgba(255,255,255,.97);
+        border-bottom:1px solid var(--ui-borda);
+        box-shadow:0 2px 12px rgba(31,33,38,.07);
+        z-index:2147483640;
+        backdrop-filter:blur(12px);
+        -webkit-backdrop-filter:blur(12px);
+      }
+      body.mobile-ui-pronta .mobile-appbar { display:flex; }
+      .mobile-appbar button {
+        flex:none; width:44px; height:44px; min-height:44px; padding:0;
+        display:grid; place-items:center;
+        border:0; border-radius:12px; background:transparent;
+        color:var(--ui-texto); font:600 1.35rem/1 'Inter',sans-serif;
+        cursor:pointer; -webkit-tap-highlight-color:transparent;
+      }
+      .mobile-appbar button:active { background:var(--ui-marca-sub); transform:scale(.97); }
+      .mobile-appbar button[hidden] { display:block; visibility:hidden; pointer-events:none; }
+      .mobile-appbar-texto { min-width:0; flex:1; display:flex; flex-direction:column; justify-content:center; }
+      .mobile-appbar-contexto {
+        overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+        color:var(--ui-texto-2); font:600 .62rem/1.2 'Inter',sans-serif;
+        letter-spacing:.09em; text-transform:uppercase;
+      }
+      .mobile-appbar-titulo {
+        overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+        color:var(--ui-texto); font:700 1rem/1.35 'Inter',sans-serif;
+      }
+      .mobile-sync {
+        flex:none; display:flex; align-items:center; gap:5px;
+        color:var(--ui-texto-2); font:600 .62rem 'Inter',sans-serif;
+      }
+      .mobile-sync-dot { width:7px; height:7px; border-radius:50%; background:var(--ui-sucesso); }
+
+      .mobile-menu-backdrop {
+        position:fixed; inset:calc(var(--mobile-barra-altura) + var(--mobile-safe-top)) 0 0;
+        background:rgba(20,20,25,.42); opacity:0; pointer-events:none;
+        transition:opacity .2s ease; z-index:2147483637;
+      }
+      .mobile-menu-drawer {
+        position:fixed;
+        top:calc(var(--mobile-barra-altura) + var(--mobile-safe-top));
+        right:0; bottom:0; width:min(88vw, 360px);
+        box-sizing:border-box; padding:14px 14px calc(18px + var(--mobile-safe-bottom));
+        background:#fff; border-left:1px solid var(--ui-borda);
+        box-shadow:-14px 0 36px rgba(20,20,25,.16);
+        overflow-y:auto; transform:translateX(102%); visibility:hidden;
+        transition:transform .22s ease, visibility .22s;
+        z-index:2147483638;
+      }
+      body.mobile-ui-pronta .mobile-menu-backdrop,
+      body.mobile-ui-pronta .mobile-menu-drawer { display:block; }
+      body.mobile-menu-aberto .mobile-menu-backdrop { opacity:1; pointer-events:auto; }
+      body.mobile-menu-aberto .mobile-menu-drawer { transform:translateX(0); visibility:visible; }
+      .mobile-menu-cabecalho { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:3px 3px 12px; }
+      .mobile-menu-cabecalho strong { color:var(--ui-texto); font:700 1.05rem 'Inter',sans-serif; }
+      .mobile-menu-fechar {
+        width:44px; height:44px; border:0; border-radius:12px; background:#f4f4f5;
+        color:var(--ui-texto); font-size:1.35rem; cursor:pointer;
+      }
+      .mobile-menu-grupo { padding:10px 0; border-top:1px solid var(--ui-borda); }
+      .mobile-menu-rotulo {
+        display:block; padding:0 10px 7px; color:var(--ui-texto-2);
+        font:700 .65rem 'Inter',sans-serif; letter-spacing:.09em; text-transform:uppercase;
+      }
+      .mobile-menu-item {
+        width:100%; min-height:48px; padding:10px 11px; border:0; border-radius:11px;
+        display:flex; align-items:center; gap:11px; text-align:left;
+        background:transparent; color:var(--ui-texto); cursor:pointer;
+        font:600 .91rem 'Inter',sans-serif;
+      }
+      .mobile-menu-item:active,
+      .mobile-menu-item.ativo { background:var(--ui-marca-sub); color:#6e5720; }
+      .mobile-menu-icone {
+        width:30px; height:30px; flex:none; display:grid; place-items:center;
+        border-radius:9px; background:#f5f5f6; color:#745d28; font-size:.95rem;
+      }
+      .mobile-menu-item.ativo .mobile-menu-icone { background:#fff; }
+      .mobile-menu-item.mobile-perigo { color:var(--ui-erro); }
+      .mobile-menu-item.mobile-perigo .mobile-menu-icone { color:var(--ui-erro); background:#fbefed; }
+
+      /* Cada modal vira uma tela independente. Só a tela que está no topo da
+         pilha recebe interação; as anteriores permanecem preservadas. */
+      .modal {
+        inset:calc(var(--mobile-barra-altura) + var(--mobile-safe-top)) 0 0 0;
+        width:auto; height:auto; padding:0; align-items:stretch; justify-content:stretch;
+        background:var(--ui-fundo); z-index:10000;
+      }
+      .modal.modal-empilhado { z-index:10010; background:var(--ui-fundo); }
+      .modal.mobile-modal-pausado { visibility:hidden !important; pointer-events:none !important; }
+      .modal > .modal-content {
+        width:100% !important; max-width:none !important;
+        height:100% !important; max-height:none !important;
+        margin:0 !important; padding:16px 14px calc(30px + var(--mobile-safe-bottom)) !important;
+        box-sizing:border-box; overflow-y:auto;
+        border:0 !important; border-radius:0 !important;
+        background:var(--ui-fundo); box-shadow:none !important;
+        overscroll-behavior:contain; -webkit-overflow-scrolling:touch;
+      }
+      .modal > .modal-content > .close-btn { display:none !important; }
+      .modal > .modal-content > h2,
+      .modal > .modal-content > h3:first-of-type {
+        margin:0 0 16px; padding:0 0 12px; text-align:left;
+        border-bottom:1px solid var(--ui-borda); color:var(--ui-texto);
+        font:700 1.15rem/1.35 'Inter',sans-serif;
+        letter-spacing:0; text-transform:none;
+      }
+      .modal > .modal-content > h2::after { display:none; }
+
+      #modalMeuCasamento { background:var(--ui-fundo); }
+      #modalMeuCasamento > .modal-content {
+        display:block; overflow:hidden; background:var(--ui-fundo);
+      }
+      #modalMeuCasamento > .modal-content > h2,
+      #modalMeuCasamento > .modal-content > .close-btn,
+      #modalMeuCasamento > .modal-content > .subnav { display:none !important; }
+      #modalMeuCasamento > .modal-content > .secao {
+        width:100%; height:100%; margin:0; padding:14px 0 calc(28px + var(--mobile-safe-bottom));
+        box-sizing:border-box; overflow-y:auto; background:var(--ui-fundo);
+        -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+      }
+      #modalMeuCasamento .secao > h3:first-child {
+        margin:0 0 5px; color:var(--ui-texto);
+        font:700 1.3rem/1.3 'Inter',sans-serif;
+      }
+
+      /* Dashboard pensado para leitura com uma mão. */
+      #dashboard { display:block; padding:12px 10px 8px; }
+      .dashboard-linha-principal,
+      .dashboard-linha-financeira { display:grid; grid-template-columns:1fr; gap:10px; margin-bottom:10px; }
+      .dashboard-linha-principal > *,
+      .dashboard-linha-financeira > * { grid-column:auto !important; width:auto; min-width:0; }
+      #dashboard .card {
+        min-height:0; padding:15px 14px; border-radius:13px;
+        border-color:var(--ui-borda); box-shadow:var(--ui-sombra);
+      }
+      #dashboard .card h3 { font-size:.76rem; letter-spacing:.12em; }
+      .card-contagem .cr-conteudo { gap:.55rem; }
+      .card-contagem .cr-placa-dia { transform:scale(.94); transform-origin:center; }
+      .card-contagem .cr-relogio { gap:6px; }
+      .card-contagem .cr-unidade { min-width:0; }
+      .publico-totais,
+      .publico-divisoes,
+      .card-resumo .resumo-grid { gap:0; }
+      .publico-divisoes { grid-template-columns:repeat(2,minmax(0,1fr)); }
+
+      /* Abas internas viram trilhas roláveis, sem quebrar ou sobrepor. */
+      .v4-subtabs,
+      .subnav-fornec {
+        display:flex !important; flex-wrap:nowrap !important; overflow-x:auto;
+        gap:7px !important; margin-left:-14px !important; margin-right:-14px !important;
+        padding:2px 14px 12px !important; scroll-snap-type:x proximity;
+        scrollbar-width:none; -webkit-overflow-scrolling:touch;
+      }
+      .v4-subtabs::-webkit-scrollbar,
+      .subnav-fornec::-webkit-scrollbar { display:none; }
+      .v4-subtabs button,
+      .subnav-fornec button {
+        flex:0 0 auto; min-height:42px; white-space:nowrap; scroll-snap-align:start;
+      }
+      .v4-toolbar { display:grid; grid-template-columns:1fr; gap:8px; }
+      .v4-toolbar > *,
+      .v4-toolbar input,
+      .v4-toolbar select,
+      .v4-toolbar button { width:100% !important; min-width:0 !important; box-sizing:border-box; }
+      .v4-indicadores { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+      .v4-kpi { min-width:0; padding:11px; }
+      .v4-kpi strong { display:block; font-size:1.15rem; overflow-wrap:anywhere; }
+      .v5-cab { flex-wrap:wrap; }
+      .v5-ident { min-width:calc(100% - 52px); }
+      .v5-cab > .v5-tag { margin-left:40px; }
+      .v5-acoes button { flex:1 1 130px; }
+
+      /* Gráficos compactos e estáveis, mesmo com listas extensas. */
+      .area-graficos,
+      #secaoFinanceiro .area-graficos { grid-template-columns:1fr !important; gap:10px; padding:10px !important; }
+      .grafico-bloco { min-width:0; margin:0 !important; padding:13px !important; border-radius:13px !important; }
+      .grafico-canvas-wrap { height:200px !important; max-height:200px !important; }
+      .grafico-toolbar { gap:7px; }
+      .grafico-filtros { width:100%; overflow-x:auto; flex-wrap:nowrap; padding-bottom:2px; }
+      .grafico-filtros button { flex:none; min-height:38px; white-space:nowrap; }
+      .grafico-paginacao { justify-content:space-between; }
+
+      button, [role="button"] { touch-action:manipulation; }
+      button, .subnav button { min-height:44px; }
+      input, select, textarea { min-height:44px; max-width:100%; box-sizing:border-box; font-size:16px; }
+      .form-row, .linha-campo { flex-direction:column; }
+      table { max-width:100%; }
+      #areaNotificacoes { bottom:calc(10px + var(--mobile-safe-bottom)); width:calc(100vw - 20px); }
+    }
+
+    @media (max-width: 380px) {
+      .v4-indicadores { grid-template-columns:1fr; }
+      .publico-divisoes { grid-template-columns:1fr 1fr; }
+      .mobile-sync span:last-child { display:none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .mobile-menu-backdrop,
+      .mobile-menu-drawer { transition:none !important; }
+    }
+  </style>
+
+  <script>
+  (function criarExperienciaMobileDedicada(){
+    'use strict';
+    if (window.__experienciaMobileCasamento) return;
+    window.__experienciaMobileCasamento = true;
+
+    const consultaMobile = window.matchMedia('(max-width: 850px)');
+    const estado = {
+      pilhaModais: [],
+      conhecidos: new Set(),
+      secaoAtual: 'secaoDadosCasamento',
+      observerModais: null,
+      observerLogin: null,
+      observerSync: null
+    };
+
+    function estaNoMobile(){ return consultaMobile.matches; }
+    function modalEstaVisivel(modal){
+      return !!modal && window.getComputedStyle(modal).display !== 'none';
+    }
+    function modaisVisiveis(){
+      return Array.from(document.querySelectorAll('.modal')).filter(modalEstaVisivel);
+    }
+    function modalAtivo(){
+      const id = estado.pilhaModais[estado.pilhaModais.length - 1];
+      const modal = id ? document.getElementById(id) : null;
+      if (modalEstaVisivel(modal)) return modal;
+      const visiveis = modaisVisiveis();
+      return visiveis[visiveis.length - 1] || null;
+    }
+    function textoLimpo(valor){ return String(valor || '').replace(/\s+/g, ' ').trim(); }
+
+    function criarEstruturaMobile(){
+      if (document.getElementById('mobileAppBar')) return;
+      const appbar = document.createElement('div');
+      appbar.id = 'mobileAppBar';
+      appbar.className = 'mobile-appbar';
+      appbar.setAttribute('role', 'navigation');
+      appbar.setAttribute('aria-label', 'Navegação mobile');
+      appbar.innerHTML = `
+        <button type="button" id="mobileBtnVoltar" aria-label="Voltar" title="Voltar">‹</button>
+        <div class="mobile-appbar-texto">
+          <span class="mobile-appbar-contexto" id="mobileAppContexto">Gestão de casamento</span>
+          <strong class="mobile-appbar-titulo" id="mobileAppTitulo">Início</strong>
+        </div>
+        <div class="mobile-sync" id="mobileSync" aria-label="Estado da sincronização">
+          <span class="mobile-sync-dot" id="mobileSyncDot"></span><span id="mobileSyncTexto">Online</span>
+        </div>
+        <button type="button" id="mobileBtnMenu" aria-label="Abrir menu" aria-expanded="false" title="Menu">☰</button>`;
+
+      const backdrop = document.createElement('div');
+      backdrop.id = 'mobileMenuBackdrop';
+      backdrop.className = 'mobile-menu-backdrop';
+
+      const drawer = document.createElement('aside');
+      drawer.id = 'mobileMenuDrawer';
+      drawer.className = 'mobile-menu-drawer';
+      drawer.setAttribute('aria-hidden', 'true');
+      drawer.setAttribute('aria-label', 'Menu principal');
+      drawer.innerHTML = `
+        <div class="mobile-menu-cabecalho">
+          <strong>Navegação</strong>
+          <button type="button" class="mobile-menu-fechar" id="mobileMenuFechar" aria-label="Fechar menu">×</button>
+        </div>
+        <div class="mobile-menu-grupo">
+          <span class="mobile-menu-rotulo">Principal</span>
+          <button type="button" class="mobile-menu-item" data-mobile-rota="inicio"><span class="mobile-menu-icone">⌂</span>Início</button>
+          <button type="button" class="mobile-menu-item" data-mobile-rota="modalMeuCasamento"><span class="mobile-menu-icone">♡</span>Meu casamento</button>
+          <button type="button" class="mobile-menu-item" data-mobile-rota="modalNoiva"><span class="mobile-menu-icone">P</span>Noiva</button>
+          <button type="button" class="mobile-menu-item" data-mobile-rota="modalNoivo"><span class="mobile-menu-icone">F</span>Noivo</button>
+        </div>
+        <div class="mobile-menu-grupo" id="mobileMenuSecoes" hidden>
+          <span class="mobile-menu-rotulo">Meu casamento</span>
+          <div id="mobileMenuSecoesLista"></div>
+        </div>
+        <div class="mobile-menu-grupo">
+          <span class="mobile-menu-rotulo">Arquivos e segurança</span>
+          <button type="button" class="mobile-menu-item" data-mobile-acao="exportarJson"><span class="mobile-menu-icone">⇩</span>Exportar backup JSON</button>
+          <button type="button" class="mobile-menu-item" data-mobile-acao="importarJson"><span class="mobile-menu-icone">⇧</span>Importar backup JSON</button>
+          <button type="button" class="mobile-menu-item" data-mobile-acao="exportarPdf"><span class="mobile-menu-icone">PDF</span>Exportar relatório PDF</button>
+          <button type="button" class="mobile-menu-item" data-mobile-acao="backups"><span class="mobile-menu-icone">↻</span>Backups automáticos</button>
+        </div>
+        <div class="mobile-menu-grupo">
+          <button type="button" class="mobile-menu-item mobile-perigo" data-mobile-acao="sair"><span class="mobile-menu-icone">↪</span>Sair do sistema</button>
+        </div>`;
+
+      document.body.appendChild(appbar);
+      document.body.appendChild(backdrop);
+      document.body.appendChild(drawer);
+
+      document.getElementById('mobileBtnVoltar').addEventListener('click', voltarMobile);
+      document.getElementById('mobileBtnMenu').addEventListener('click', abrirMenuMobile);
+      document.getElementById('mobileMenuFechar').addEventListener('click', fecharMenuMobile);
+      backdrop.addEventListener('click', fecharMenuMobile);
+      drawer.addEventListener('click', tratarCliqueMenu);
+      document.addEventListener('keydown', function(evento){
+        if (evento.key !== 'Escape' || !estaNoMobile()) return;
+        if (document.body.classList.contains('mobile-menu-aberto')) fecharMenuMobile();
+        else voltarMobile();
+      });
+    }
+
+    function abrirMenuMobile(){
+      if (!estaNoMobile()) return;
+      reconstruirSecoesMenu();
+      document.body.classList.add('mobile-menu-aberto');
+      const botao = document.getElementById('mobileBtnMenu');
+      const drawer = document.getElementById('mobileMenuDrawer');
+      if (botao) botao.setAttribute('aria-expanded', 'true');
+      if (drawer) drawer.setAttribute('aria-hidden', 'false');
+      setTimeout(function(){
+        const primeiro = drawer && drawer.querySelector('.mobile-menu-item');
+        if (primeiro) primeiro.focus();
+      }, 40);
+    }
+    function fecharMenuMobile(){
+      document.body.classList.remove('mobile-menu-aberto');
+      const botao = document.getElementById('mobileBtnMenu');
+      const drawer = document.getElementById('mobileMenuDrawer');
+      if (botao) botao.setAttribute('aria-expanded', 'false');
+      if (drawer) drawer.setAttribute('aria-hidden', 'true');
+    }
+
+    function iconeSecao(id){
+      const mapa = {
+        secaoDadosCasamento:'◈', secaoAgenda:'◷', secaoConvidados:'◎',
+        secaoCronograma:'≡', secaoMesas:'▦', secaoFinanceiro:'$',
+        secaoSite:'⌂', secaoNotificacoes:'⚙'
+      };
+      return mapa[id] || '•';
+    }
+    function rotuloBotaoSecao(botao){
+      const clone = botao.cloneNode(true);
+      return textoLimpo(clone.textContent).replace(/^[◈◷◎≡▦$⌂⚙]\s*/, '');
+    }
+    function reconstruirSecoesMenu(){
+      const grupo = document.getElementById('mobileMenuSecoes');
+      const lista = document.getElementById('mobileMenuSecoesLista');
+      const casamentoVisivel = modalEstaVisivel(document.getElementById('modalMeuCasamento'));
+      if (!grupo || !lista) return;
+      grupo.hidden = !casamentoVisivel;
+      if (!casamentoVisivel) { lista.innerHTML = ''; return; }
+      const botoes = Array.from(document.querySelectorAll('#modalMeuCasamento .subnav button[data-secao]'));
+      lista.innerHTML = botoes.map(function(botao){
+        const id = botao.dataset.secao;
+        const ativo = id === estado.secaoAtual ? ' ativo' : '';
+        return `<button type="button" class="mobile-menu-item${ativo}" data-mobile-secao="${id}">
+          <span class="mobile-menu-icone">${iconeSecao(id)}</span>${rotuloBotaoSecao(botao)}</button>`;
+      }).join('');
+    }
+
+    function tratarCliqueMenu(evento){
+      const botao = evento.target.closest('button[data-mobile-rota], button[data-mobile-secao], button[data-mobile-acao]');
+      if (!botao) return;
+      const rota = botao.dataset.mobileRota;
+      const secao = botao.dataset.mobileSecao;
+      const acao = botao.dataset.mobileAcao;
+      fecharMenuMobile();
+      if (rota === 'inicio') { irParaInicioMobile(); return; }
+      if (rota) {
+        if (typeof window.abrirModal === 'function') window.abrirModal(rota);
+        setTimeout(sincronizarModaisMobile, 0);
+        return;
+      }
+      if (secao) {
+        if (typeof window.mostrarSecao === 'function') window.mostrarSecao(secao);
+        setTimeout(function(){
+          const alvo = document.getElementById(secao);
+          if (alvo) alvo.scrollTop = 0;
+          atualizarAppBarMobile();
+        }, 0);
+        return;
+      }
+      if (acao === 'importarJson') {
+        const input = document.getElementById('inputImportarJson');
+        if (input) input.click();
+      } else if (acao === 'backups' && typeof window.abrirModalBackups === 'function') {
+        window.abrirModalBackups();
+      } else if (acao === 'sair' && typeof window.sairDoSistema === 'function') {
+        window.sairDoSistema();
+      } else if (acao && typeof window[acao] === 'function') {
+        window[acao]();
+      }
+    }
+
+    function acionarFechamentoModal(modal){
+      if (!modal) return false;
+      const botaoFechar = modal.querySelector(':scope > .modal-content > .close-btn');
+      if (botaoFechar) {
+        botaoFechar.click();
+        return true;
+      }
+      if (typeof window.fecharModal === 'function') {
+        window.fecharModal(modal.id);
+        return true;
+      }
+      return false;
+    }
+    function voltarMobile(){
+      if (!estaNoMobile()) return;
+      if (document.body.classList.contains('mobile-menu-aberto')) {
+        fecharMenuMobile();
+        return;
+      }
+      const ativo = modalAtivo();
+      if (ativo) {
+        acionarFechamentoModal(ativo);
+        setTimeout(sincronizarModaisMobile, 0);
+        return;
+      }
+      window.scrollTo({top:0, behavior:'smooth'});
+    }
+    function irParaInicioMobile(){
+      function fecharProximaTela(idAnterior){
+        sincronizarModaisMobile();
+        const ativo = modalAtivo();
+        if (!ativo) {
+          window.scrollTo({top:0, behavior:'smooth'});
+          return;
+        }
+        /* Se o fechamento foi cancelado por haver alterações não salvas,
+           respeita a escolha do usuário e interrompe o retorno ao início. */
+        if (idAnterior && ativo.id === idAnterior) return;
+        const idAtual = ativo.id;
+        acionarFechamentoModal(ativo);
+        setTimeout(function(){ fecharProximaTela(idAtual); }, 0);
+      }
+      fecharProximaTela('');
+    }
+
+    function tituloDoModal(modal){
+      if (!modal) return {contexto:'Gestão de casamento', titulo:'Início'};
+      if (modal.id === 'modalMeuCasamento') {
+        const secao = document.getElementById(estado.secaoAtual);
+        const h = secao && secao.querySelector('h3');
+        return {contexto:'Meu casamento', titulo:textoLimpo(h && h.textContent) || 'Meu casamento'};
+      }
+      const conteudo = modal.querySelector(':scope > .modal-content');
+      const h = conteudo && conteudo.querySelector('h2, h3');
+      return {contexto:'Gestão de casamento', titulo:textoLimpo(h && h.textContent) || 'Detalhes'};
+    }
+    function atualizarAppBarMobile(){
+      if (!estaNoMobile()) return;
+      const ativo = modalAtivo();
+      const titulo = tituloDoModal(ativo);
+      const elContexto = document.getElementById('mobileAppContexto');
+      const elTitulo = document.getElementById('mobileAppTitulo');
+      const voltar = document.getElementById('mobileBtnVoltar');
+      if (elContexto) elContexto.textContent = titulo.contexto;
+      if (elTitulo) elTitulo.textContent = titulo.titulo;
+      if (voltar) voltar.hidden = !ativo;
+      reconstruirSecoesMenu();
+    }
+
+    function sincronizarModaisMobile(){
+      const visiveis = modaisVisiveis();
+      const idsVisiveis = new Set(visiveis.map(function(m){ return m.id; }));
+      if (!estaNoMobile()) {
+        document.querySelectorAll('.modal.mobile-modal-pausado').forEach(function(m){ m.classList.remove('mobile-modal-pausado'); });
+        estado.pilhaModais = [];
+        estado.conhecidos = idsVisiveis;
+        document.body.classList.remove('mobile-com-tela', 'mobile-menu-aberto');
+        return;
+      }
+
+      estado.pilhaModais = estado.pilhaModais.filter(function(id){ return idsVisiveis.has(id); });
+      visiveis.forEach(function(modal){
+        if (!estado.pilhaModais.includes(modal.id)) estado.pilhaModais.push(modal.id);
+      });
+      const topo = estado.pilhaModais[estado.pilhaModais.length - 1];
+      visiveis.forEach(function(modal){
+        modal.classList.toggle('mobile-modal-pausado', modal.id !== topo);
+        modal.setAttribute('aria-hidden', modal.id === topo ? 'false' : 'true');
+      });
+      estado.conhecidos = idsVisiveis;
+      document.body.classList.toggle('mobile-com-tela', !!topo);
+      atualizarAppBarMobile();
+    }
+
+    function acompanharModais(){
+      if (estado.observerModais) estado.observerModais.disconnect();
+      estado.observerModais = new MutationObserver(function(mutacoes){
+        const relevante = mutacoes.some(function(m){
+          if (m.type === 'attributes') {
+            return m.target instanceof Element && m.target.classList.contains('modal') &&
+              (m.attributeName === 'style' || m.attributeName === 'class');
+          }
+          if (m.type !== 'childList') return false;
+          return Array.from(m.addedNodes).concat(Array.from(m.removedNodes)).some(function(no){
+            return no instanceof Element && (no.matches('.modal') || no.querySelector('.modal'));
+          });
+        });
+        if (!relevante) return;
+        queueMicrotask(sincronizarModaisMobile);
+      });
+      estado.observerModais.observe(document.body, {subtree:true, childList:true, attributes:true, attributeFilter:['style','class']});
+    }
+
+    function sincronizarAutenticacaoMobile(){
+      const login = document.getElementById('telaSenha');
+      const autenticado = !login || window.getComputedStyle(login).display === 'none';
+      document.body.classList.toggle('mobile-ui-pronta', estaNoMobile() && autenticado);
+      if (!autenticado) fecharMenuMobile();
+      sincronizarModaisMobile();
+    }
+    function acompanharLogin(){
+      const login = document.getElementById('telaSenha');
+      if (!login) { sincronizarAutenticacaoMobile(); return; }
+      if (estado.observerLogin) estado.observerLogin.disconnect();
+      estado.observerLogin = new MutationObserver(sincronizarAutenticacaoMobile);
+      estado.observerLogin.observe(login, {attributes:true, attributeFilter:['style','class']});
+      sincronizarAutenticacaoMobile();
+    }
+
+    function sincronizarStatusMobile(){
+      const origemTexto = document.getElementById('indicadorSyncTexto');
+      const origemPonto = document.getElementById('indicadorSyncIcone');
+      const destinoTexto = document.getElementById('mobileSyncTexto');
+      const destinoPonto = document.getElementById('mobileSyncDot');
+      if (destinoTexto) destinoTexto.textContent = textoLimpo(origemTexto && origemTexto.textContent) || 'Online';
+      if (destinoPonto && origemPonto) destinoPonto.style.background = origemPonto.style.background || 'var(--ui-sucesso)';
+    }
+    function acompanharStatus(){
+      const origem = document.getElementById('indicadorSync');
+      if (!origem) return;
+      if (estado.observerSync) estado.observerSync.disconnect();
+      estado.observerSync = new MutationObserver(sincronizarStatusMobile);
+      estado.observerSync.observe(origem, {subtree:true, childList:true, characterData:true, attributes:true});
+      sincronizarStatusMobile();
+    }
+
+    function envolverNavegacaoExistente(){
+      const mostrarOriginal = window.mostrarSecao;
+      if (typeof mostrarOriginal === 'function' && !mostrarOriginal.__mobileDedicado) {
+        const mostrarComMobile = function(id){
+          const retorno = mostrarOriginal.apply(this, arguments);
+          if (id === 'secaoOrcamento' || id === 'secaoFornecedoresCasamento') id = 'secaoFinanceiro';
+          estado.secaoAtual = id;
+          setTimeout(atualizarAppBarMobile, 0);
+          return retorno;
+        };
+        mostrarComMobile.__mobileDedicado = true;
+        window.mostrarSecao = mostrarComMobile;
+      }
+
+      const abrirOriginal = window.abrirModal;
+      if (typeof abrirOriginal === 'function' && !abrirOriginal.__mobileDedicado) {
+        const abrirComMobile = function(){
+          const retorno = abrirOriginal.apply(this, arguments);
+          setTimeout(sincronizarModaisMobile, 0);
+          return retorno;
+        };
+        abrirComMobile.__mobileDedicado = true;
+        window.abrirModal = abrirComMobile;
+      }
+
+      const fecharOriginal = window.fecharModal;
+      if (typeof fecharOriginal === 'function' && !fecharOriginal.__mobileDedicado) {
+        const fecharComMobile = function(){
+          const retorno = fecharOriginal.apply(this, arguments);
+          setTimeout(sincronizarModaisMobile, 0);
+          return retorno;
+        };
+        fecharComMobile.__mobileDedicado = true;
+        window.fecharModal = fecharComMobile;
+      }
+    }
+
+    function aplicarModoMobile(){
+      if (!estaNoMobile()) fecharMenuMobile();
+      sincronizarAutenticacaoMobile();
+      if (typeof window.equalizarAlturaGraficosV5 === 'function') setTimeout(window.equalizarAlturaGraficosV5, 40);
+    }
+
+    function inicializarMobile(){
+      criarEstruturaMobile();
+      envolverNavegacaoExistente();
+      acompanharModais();
+      acompanharLogin();
+      acompanharStatus();
+      consultaMobile.addEventListener ? consultaMobile.addEventListener('change', aplicarModoMobile) : consultaMobile.addListener(aplicarModoMobile);
+      aplicarModoMobile();
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', inicializarMobile, {once:true});
+    else inicializarMobile();
   })();
   </script>
 
