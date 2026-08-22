@@ -7769,9 +7769,14 @@
         div.className = 'item-lista venc-' + sit.tipo;
         // Cor de fundo pelo andamento do pagamento:
         // verde = quitada; azul = pagamento parcial/em andamento.
-        const contrato = Number(d.valorContratado) || 0;
-        const pago = Number(d.valorPago) || 0;
-        const quitada = (d.status === 'Pago') || (contrato > 0 && pago >= contrato);
+        const contrato = calcularTotalDevidoDespesaRapida(d);
+        const pago = calcularTotalPagoDespesaRapida(d);
+        const saldoPendente = Math.max(0, contrato - pago);
+        // O saldo calculado é a fonte da verdade. Um status antigo "Pago" não
+        // pode esconder a ação se ainda existir valor a quitar.
+        const quitada = contrato > 0.009
+          ? saldoPendente <= 0.009
+          : /^pago$/i.test(String(d.status || '').trim());
         const parcial = !quitada && (d.status === 'Pago parcial' || (pago > 0 && pago < contrato));
         if (quitada) div.classList.add('pagamento-quitado');
         else if (parcial) div.classList.add('pagamento-parcial');
@@ -7785,8 +7790,8 @@
         // são mostrados pelo selo). Evita repetir "Pago" no mesmo card.
         const mostraStatus = !quitada && !parcial;
         div.innerHTML = `<strong>#${d.codigo || String(index + 1)} — ${d.descricao}</strong> - ${d.categoria} ${etiqueta}${selo}<br>` +
-          `Previsto: ${formatarMoeda(d.valorPrevisto)} | Contratado: ${formatarMoeda(d.valorContratado)} | Pago: ${formatarMoeda(d.valorPago)}<br>` +
-          `Pendência: ${formatarMoeda(d.valorContratado - d.valorPago)}` +
+          `Previsto: ${formatarMoeda(d.valorPrevisto)} | Contratado: ${formatarMoeda(contrato)} | Pago: ${formatarMoeda(pago)}<br>` +
+          `Pendência: ${formatarMoeda(saldoPendente)}` +
           (mostraStatus ? ` | Status: ${d.status}` : '') + ` | Prioridade: ${d.prioridade}` +
           (d.dataVencimento ? ` | Vencimento: ${d.dataVencimento}` : '') +
           blocoFornecedorContratoDespesa(d);
@@ -7795,6 +7800,17 @@
         btnEditar.className = 'btn-primary btn-pequeno';
         btnEditar.style.marginLeft = '0.5rem';
         btnEditar.onclick = () => editarDespesa(index);
+        const temPagamentoPendente = !/cancel/i.test(String(d.status || '')) && saldoPendente > 0.009;
+        if (temPagamentoPendente) {
+          const btnPagamento = document.createElement('button');
+          btnPagamento.textContent = 'Informar pagamento';
+          btnPagamento.className = 'btn-success btn-pequeno';
+          btnPagamento.style.marginLeft = '0.5rem';
+          btnPagamento.style.marginTop = '0.5rem';
+          btnPagamento.style.display = 'inline-flex';
+          btnPagamento.onclick = () => abrirPagamentoRapidoDespesa(index);
+          div.appendChild(btnPagamento);
+        }
         const btnExcluir = document.createElement('button');
         btnExcluir.textContent = 'Excluir';
         btnExcluir.className = 'btn-danger btn-pequeno';
@@ -7815,6 +7831,285 @@
         p.textContent = 'Nenhuma despesa corresponde ao filtro selecionado.';
         lista.appendChild(p);
       }
+    }
+
+    // Registro rápido de pagamento: permite baixar uma parcela diretamente no
+    // cartão do fornecedor contratado, sem abrir o formulário completo de edição.
+    let pagamentoRapidoDespesaIndice = null;
+
+    function numeroFinanceiroPagamentoRapido(valor) {
+      if (typeof valor === 'number') return Number.isFinite(valor) ? valor : 0;
+      if (valor === null || valor === undefined) return 0;
+      const texto = String(valor).trim();
+      if (!texto) return 0;
+      // Valores legados podem estar como "R$ 1.600,00" ou "1.600".
+      if (/R\$/i.test(texto) || texto.includes(',') || /^-?\d{1,3}(\.\d{3})+$/.test(texto)) {
+        return moedaParaNumero(texto);
+      }
+      const direto = Number(texto);
+      return Number.isFinite(direto) ? direto : moedaParaNumero(texto);
+    }
+
+    function valorPagoParcelaRapida(parcela) {
+      if (!parcela || parcela.cancelada) return 0;
+      const informado = numeroFinanceiroPagamentoRapido(parcela.valorPago);
+      if (informado > 0) return informado;
+      return parcela.pagamento && dataValida(parcela.pagamento)
+        ? numeroFinanceiroPagamentoRapido(parcela.valor)
+        : 0;
+    }
+
+    function calcularTotalPagoDespesaRapida(despesa) {
+      if (!despesa) return 0;
+      if (Array.isArray(despesa.parcelas) && despesa.parcelas.length) {
+        const pagoNasParcelas = despesa.parcelas.reduce((total, parcela) =>
+          total + valorPagoParcelaRapida(parcela), 0);
+        const pagoLegado = numeroFinanceiroPagamentoRapido(despesa.valorPago);
+        return Math.round(Math.max(pagoNasParcelas, pagoLegado) * 100) / 100;
+      }
+      return Math.round(numeroFinanceiroPagamentoRapido(despesa.valorPago) * 100) / 100;
+    }
+
+    function calcularTotalDevidoDespesaRapida(despesa) {
+      if (!despesa) return 0;
+      const contratado = numeroFinanceiroPagamentoRapido(despesa.valorContratado);
+      const parcelado = (Array.isArray(despesa.parcelas) ? despesa.parcelas : [])
+        .filter(parcela => parcela && !parcela.cancelada)
+        .reduce((total, parcela) => total + numeroFinanceiroPagamentoRapido(parcela.valor), 0);
+      return Math.round(Math.max(contratado, parcelado) * 100) / 100;
+    }
+
+    function saldoParcelaRapida(parcela) {
+      return Math.max(0, numeroFinanceiroPagamentoRapido(parcela && parcela.valor) - valorPagoParcelaRapida(parcela));
+    }
+
+    function numeroDataPagamentoRapido(valor) {
+      if (!valor || !dataValida(valor)) return Infinity;
+      const [dia, mes, ano] = valor.split('/').map(Number);
+      return new Date(ano, mes - 1, dia).getTime();
+    }
+
+    function prepararParcelasPagamentoRapido(despesa) {
+      if (!Array.isArray(despesa.parcelas)) despesa.parcelas = [];
+      const contratado = calcularTotalDevidoDespesaRapida(despesa);
+      if (despesa.parcelas.length === 0 && contratado > 0) {
+        despesa.parcelas.push({
+          rotulo: 'Parcela única',
+          valor: contratado,
+          valorPago: numeroFinanceiroPagamentoRapido(despesa.valorPago),
+          vencimento: despesa.dataVencimento || '',
+          pagamento: '',
+          modalidade: despesa.modalidadePagamento || '',
+          pagador: despesa.pagador || ''
+        });
+      }
+      // Migração de registros antigos: quando o total pago existia apenas no
+      // lançamento, distribui esse valor nas parcelas antes de registrar o novo
+      // pagamento. Assim o saldo exibido não volta para um valor já quitado.
+      let diferencaLegada = Math.max(0,
+        numeroFinanceiroPagamentoRapido(despesa.valorPago) -
+        despesa.parcelas.reduce((total, parcela) => total + valorPagoParcelaRapida(parcela), 0));
+      if (diferencaLegada > 0.009) {
+        despesa.parcelas.forEach(parcela => {
+          if (!parcela || parcela.cancelada || diferencaLegada <= 0.009) return;
+          const saldo = saldoParcelaRapida(parcela);
+          const alocar = Math.min(saldo, diferencaLegada);
+          if (alocar <= 0) return;
+          parcela.valorPago = Math.round((valorPagoParcelaRapida(parcela) + alocar) * 100) / 100;
+          diferencaLegada = Math.round((diferencaLegada - alocar) * 100) / 100;
+        });
+      }
+      const totalParcelado = despesa.parcelas
+        .filter(parcela => parcela && !parcela.cancelada)
+        .reduce((total, parcela) => total + numeroFinanceiroPagamentoRapido(parcela.valor), 0);
+      if (contratado - totalParcelado > 0.009) {
+        despesa.parcelas.push({
+          rotulo: 'Saldo do contrato',
+          valor: Math.round((contratado - totalParcelado) * 100) / 100,
+          valorPago: 0,
+          vencimento: despesa.dataVencimento || '',
+          pagamento: '',
+          modalidade: despesa.modalidadePagamento || '',
+          pagador: despesa.pagador || ''
+        });
+      }
+      return despesa.parcelas
+        .map((parcela, indice) => ({ parcela, indice, saldo: saldoParcelaRapida(parcela) }))
+        .filter(item => !item.parcela.cancelada && item.saldo > 0.009)
+        .sort((a, b) => numeroDataPagamentoRapido(a.parcela.vencimento) - numeroDataPagamentoRapido(b.parcela.vencimento));
+    }
+
+    function garantirModalPagamentoRapido() {
+      let modal = document.getElementById('modalPagamentoRapidoDespesa');
+      if (modal) return modal;
+      modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.id = 'modalPagamentoRapidoDespesa';
+      modal.setAttribute('aria-hidden', 'true');
+      modal.innerHTML = `
+        <div class="modal-content" style="max-width:560px;">
+          <button class="close-btn" aria-label="Fechar" onclick="fecharModal('modalPagamentoRapidoDespesa')">&times;</button>
+          <h3>Informar pagamento</h3>
+          <div id="resumoPagamentoRapido" style="background:var(--ui-marca-sub,#f3ecdd);border:1px solid var(--ui-borda,#e4e5e8);border-radius:9px;padding:0.8rem;margin-bottom:1rem;line-height:1.55;"></div>
+          <div class="form-group">
+            <label for="parcelaPagamentoRapido">Parcela</label>
+            <select id="parcelaPagamentoRapido" onchange="atualizarParcelaPagamentoRapido()"></select>
+          </div>
+          <div class="linha-campo label-acima" style="flex-wrap:wrap;">
+            <div class="form-group" style="flex:1;min-width:160px;">
+              <label for="valorPagamentoRapido">Valor deste pagamento</label>
+              <input id="valorPagamentoRapido" type="text" inputmode="numeric" placeholder="R$ 0,00" oninput="aplicarMascaraMoeda(this)" onblur="finalizarCampoMoeda(this)">
+            </div>
+            <div class="form-group" style="flex:1;min-width:150px;">
+              <label for="dataPagamentoRapido">Pago em</label>
+              <input id="dataPagamentoRapido" type="text" inputmode="numeric" placeholder="dd/mm/aaaa" oninput="aplicarMascaraData(this)">
+            </div>
+          </div>
+          <div class="linha-campo label-acima" style="flex-wrap:wrap;">
+            <div class="form-group" style="flex:1;min-width:160px;">
+              <label for="modalidadePagamentoRapido">Modalidade</label>
+              <select id="modalidadePagamentoRapido"></select>
+            </div>
+            <div class="form-group" style="flex:1;min-width:160px;">
+              <label for="pagadorPagamentoRapido">Pago por</label>
+              <select id="pagadorPagamentoRapido">
+                <option value="">— Selecione —</option>
+                <option>Noiva</option><option>Noivo</option><option>Noiva/Noivo</option><option>Terceiros</option>
+              </select>
+            </div>
+          </div>
+          <div id="ajudaPagamentoRapido" class="v4-campo-ajuda" style="margin:-0.3rem 0 1rem;"></div>
+          <div class="actions">
+            <button class="btn-success" onclick="salvarPagamentoRapidoDespesa()">Registrar pagamento</button>
+            <button class="btn-secondary" onclick="fecharModal('modalPagamentoRapidoDespesa')">Cancelar</button>
+          </div>
+        </div>`;
+      document.body.appendChild(modal);
+      return modal;
+    }
+
+    function atualizarParcelaPagamentoRapido() {
+      const despesa = dados.despesas[pagamentoRapidoDespesaIndice];
+      const seletor = document.getElementById('parcelaPagamentoRapido');
+      if (!despesa || !seletor) return;
+      const parcela = despesa.parcelas[Number(seletor.value)];
+      if (!parcela) return;
+      const saldo = saldoParcelaRapida(parcela);
+      preencherCampoMoeda('valorPagamentoRapido', saldo);
+      const modalidade = document.getElementById('modalidadePagamentoRapido');
+      const pagador = document.getElementById('pagadorPagamentoRapido');
+      if (modalidade) modalidade.value = parcela.modalidade || despesa.modalidadePagamento || '';
+      if (pagador) pagador.value = parcela.pagador || despesa.pagador || '';
+      const ajuda = document.getElementById('ajudaPagamentoRapido');
+      if (ajuda) ajuda.textContent = `Saldo desta parcela: ${formatarMoeda(saldo)}. Para pagamento parcial, informe somente o valor recebido agora.`;
+    }
+
+    function abrirPagamentoRapidoDespesa(index) {
+      const despesa = dados.despesas[index];
+      if (!despesa) return;
+      const pendentes = prepararParcelasPagamentoRapido(despesa);
+      if (!pendentes.length) {
+        notificar('Este fornecedor não possui pagamento pendente.', 'info');
+        return;
+      }
+      pagamentoRapidoDespesaIndice = index;
+      garantirModalPagamentoRapido();
+      const contratado = calcularTotalDevidoDespesaRapida(despesa);
+      const pago = calcularTotalPagoDespesaRapida(despesa);
+      const resumo = document.getElementById('resumoPagamentoRapido');
+      if (resumo) {
+        resumo.innerHTML = '';
+        const nome = document.createElement('strong');
+        nome.textContent = despesa.descricao || 'Fornecedor contratado';
+        const valores = document.createElement('div');
+        valores.textContent = `Contratado: ${formatarMoeda(contratado)} · Pago: ${formatarMoeda(pago)} · Pendente: ${formatarMoeda(Math.max(0, contratado - pago))}`;
+        resumo.appendChild(nome);
+        resumo.appendChild(valores);
+      }
+      const seletor = document.getElementById('parcelaPagamentoRapido');
+      seletor.innerHTML = '';
+      pendentes.forEach(item => {
+        const opcao = document.createElement('option');
+        opcao.value = String(item.indice);
+        opcao.textContent = `${item.parcela.rotulo || ('Parcela ' + (item.indice + 1))} — ${formatarMoeda(item.saldo)}${item.parcela.vencimento ? ' — vence ' + item.parcela.vencimento : ''}`;
+        seletor.appendChild(opcao);
+      });
+      const modalidades = ['', ...new Set([
+        ...((CONFIG_SISTEMA.financeiro && CONFIG_SISTEMA.financeiro.modalidadesPagamento) || []),
+        'Pix', 'Boleto', 'Cartão de crédito', 'Cartão de débito', 'Dinheiro', 'Transferência'
+      ])];
+      const selModalidade = document.getElementById('modalidadePagamentoRapido');
+      selModalidade.innerHTML = '';
+      modalidades.forEach(valor => {
+        const opcao = document.createElement('option');
+        opcao.value = valor;
+        opcao.textContent = valor || '— Selecione —';
+        selModalidade.appendChild(opcao);
+      });
+      const hoje = new Date();
+      document.getElementById('dataPagamentoRapido').value =
+        `${String(hoje.getDate()).padStart(2, '0')}/${String(hoje.getMonth() + 1).padStart(2, '0')}/${hoje.getFullYear()}`;
+      atualizarParcelaPagamentoRapido();
+      abrirModal('modalPagamentoRapidoDespesa');
+    }
+
+    function salvarPagamentoRapidoDespesa() {
+      const despesa = dados.despesas[pagamentoRapidoDespesaIndice];
+      const seletor = document.getElementById('parcelaPagamentoRapido');
+      const indiceParcela = seletor ? Number(seletor.value) : -1;
+      const parcela = despesa && Array.isArray(despesa.parcelas) ? despesa.parcelas[indiceParcela] : null;
+      if (!despesa || !parcela) {
+        notificar('Não foi possível localizar a parcela selecionada.', 'erro');
+        return;
+      }
+      const valor = moedaParaNumero((document.getElementById('valorPagamentoRapido') || {}).value);
+      const data = ((document.getElementById('dataPagamentoRapido') || {}).value || '').trim();
+      const modalidade = (document.getElementById('modalidadePagamentoRapido') || {}).value || '';
+      const pagador = (document.getElementById('pagadorPagamentoRapido') || {}).value || '';
+      const saldoAntes = saldoParcelaRapida(parcela);
+      if (!(valor > 0)) { notificar('Informe um valor de pagamento maior que zero.', 'atencao'); return; }
+      if (valor - saldoAntes > 0.009) { notificar(`O valor informado supera o saldo da parcela (${formatarMoeda(saldoAntes)}).`, 'atencao'); return; }
+      if (!dataValida(data)) { notificar('Informe uma data de pagamento válida em dd/mm/aaaa.', 'atencao'); return; }
+      if (!modalidade) { notificar('Selecione a modalidade do pagamento.', 'atencao'); return; }
+      if (!pagador) { notificar('Informe quem realizou o pagamento.', 'atencao'); return; }
+
+      const pagoAntes = valorPagoParcelaRapida(parcela);
+      const pagoDepois = Math.round((pagoAntes + valor) * 100) / 100;
+      const valorParcela = numeroFinanceiroPagamentoRapido(parcela.valor);
+      const quitouParcela = pagoDepois >= valorParcela - 0.009;
+      parcela.valorPago = quitouParcela ? (valorParcela || pagoDepois) : pagoDepois;
+      parcela.pagamento = quitouParcela ? data : '';
+      parcela.ultimoPagamento = data;
+      parcela.modalidade = modalidade;
+      parcela.pagador = pagador;
+      if (!Array.isArray(parcela.historicoPagamentos)) parcela.historicoPagamentos = [];
+      parcela.historicoPagamentos.push({
+        id: 'pg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        valor: Math.round(valor * 100) / 100,
+        data,
+        modalidade,
+        pagador,
+        registradoEm: new Date().toISOString()
+      });
+
+      const totalPago = calcularTotalPagoDespesaRapida(despesa);
+      const contratado = calcularTotalDevidoDespesaRapida(despesa);
+      despesa.valorPago = totalPago;
+      despesa.modalidadePagamento = modalidade;
+      despesa.pagador = pagador;
+      despesa.status = contratado > 0 && totalPago >= contratado - 0.009 ? 'Pago' : 'Pago parcial';
+      const proxima = despesa.parcelas
+        .filter(p => p && !p.cancelada && saldoParcelaRapida(p) > 0.009 && p.vencimento && dataValida(p.vencimento))
+        .sort((a, b) => numeroDataPagamentoRapido(a.vencimento) - numeroDataPagamentoRapido(b.vencimento))[0];
+      despesa.dataVencimento = proxima ? proxima.vencimento : '';
+
+      salvarDados();
+      if (typeof atualizarDashboard === 'function') atualizarDashboard();
+      listarDespesas();
+      if (typeof listarFornecedores === 'function') listarFornecedores();
+      fecharModal('modalPagamentoRapidoDespesa', true);
+      pagamentoRapidoDespesaIndice = null;
+      notificar(quitouParcela ? 'Pagamento registrado e parcela quitada.' : 'Pagamento parcial registrado com sucesso.', 'sucesso');
     }
     // Contato do fornecedor e contrato dentro do lançamento do Orçamento e Despesas.
     // O Orçamento e Despesas é o lugar onde se decide pagar; ter o telefone e o contrato
@@ -15087,8 +15382,8 @@ blocoRsvp +
           <button type="button" class="mobile-menu-item" data-mobile-rota="modalNoiva"><span class="mobile-menu-icone">P</span>Noiva</button>
           <button type="button" class="mobile-menu-item" data-mobile-rota="modalNoivo"><span class="mobile-menu-icone">F</span>Noivo</button>
         </div>
-        <div class="mobile-menu-grupo" id="mobileMenuSecoes" hidden>
-          <span class="mobile-menu-rotulo">Meu casamento</span>
+        <div class="mobile-menu-grupo" id="mobileMenuSecoes">
+          <span class="mobile-menu-rotulo">Funções do casamento</span>
           <div id="mobileMenuSecoesLista"></div>
         </div>
         <div class="mobile-menu-grupo">
@@ -15154,11 +15449,9 @@ blocoRsvp +
     function reconstruirSecoesMenu(){
       const grupo = document.getElementById('mobileMenuSecoes');
       const lista = document.getElementById('mobileMenuSecoesLista');
-      const casamentoVisivel = modalEstaVisivel(document.getElementById('modalMeuCasamento'));
       if (!grupo || !lista) return;
-      grupo.hidden = !casamentoVisivel;
-      if (!casamentoVisivel) { lista.innerHTML = ''; return; }
       const botoes = Array.from(document.querySelectorAll('#modalMeuCasamento .subnav button[data-secao]'));
+      grupo.hidden = botoes.length === 0;
       lista.innerHTML = botoes.map(function(botao){
         const id = botao.dataset.secao;
         const ativo = id === estado.secaoAtual ? ' ativo' : '';
@@ -15181,11 +15474,15 @@ blocoRsvp +
         return;
       }
       if (secao) {
-        if (typeof window.mostrarSecao === 'function') window.mostrarSecao(secao);
+        const casamento = document.getElementById('modalMeuCasamento');
+        if (!modalEstaVisivel(casamento) && typeof window.abrirModal === 'function') {
+          window.abrirModal('modalMeuCasamento');
+        }
         setTimeout(function(){
+          if (typeof window.mostrarSecao === 'function') window.mostrarSecao(secao);
           const alvo = document.getElementById(secao);
           if (alvo) alvo.scrollTop = 0;
-          atualizarAppBarMobile();
+          sincronizarModaisMobile();
         }, 0);
         return;
       }
