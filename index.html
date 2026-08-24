@@ -3481,7 +3481,7 @@
           <option value="">Não</option>
         </select>
         <small style="color:#777; display:block; margin-top:0.25rem;">
-          Se marcar, será criado automaticamente um registro em Padrinhos (lado herdado do convidado titular).
+          Se marcar, aparecerá na aba Padrinhos sem deixar de ser acompanhante do titular (lado herdado do titular).
         </small>
       </div>
       <!-- Parentesco com o noivo(a): aparece se o convidado titular for da categoria Família -->
@@ -7354,33 +7354,88 @@
         ordenados.map(f => `<option value="${f.id}">${f.nome} (${f.categoria})</option>`).join('');
       sel.value = idSelecionado || '';
     }
+
+    function preencherTextoFornecedorContratado(id, valor, sobrescrever) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const atual = String(el.value || '').trim();
+      if (sobrescrever || !atual) el.value = valor === undefined || valor === null ? '' : String(valor);
+    }
+    function preencherMoedaFornecedorContratado(id, valor, sobrescrever) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const atual = moedaParaNumero(el.value) || 0;
+      if (sobrescrever || atual <= 0) preencherCampoMoeda(id, Number(valor) || 0);
+    }
+    function juntarLinhasFornecedorContratado(valorAtual, novasLinhas) {
+      const linhas = String(valorAtual || '').split('\n').map(x => x.trim()).filter(Boolean);
+      (novasLinhas || []).map(x => String(x || '').trim()).filter(Boolean).forEach(linha => {
+        if (!linhas.some(x => normalizarTextoComparacao(x) === normalizarTextoComparacao(linha))) linhas.push(linha);
+      });
+      return linhas.join('\n');
+    }
+    // Transfere para o fornecedor contratado somente os campos equivalentes
+    // já preenchidos no cadastro do fornecedor. Pagamentos e parcelas continuam
+    // exclusivos do módulo financeiro.
+    function transferirFornecedorParaContratado(fornecedor, opcoes) {
+      if (!fornecedor) return;
+      const op = opcoes || {};
+      const sobrescreverBasicos = op.sobrescreverBasicos !== false;
+      const sobrescreverContrato = op.sobrescreverContrato === true;
+      popularSelectFornecedorDespesa(fornecedor.id || '');
+      const selFornecedor = document.getElementById('fornecedorDaDespesa');
+      if (selFornecedor) selFornecedor.value = fornecedor.id || '';
+      const selCategoria = document.getElementById('categoriaDespesa');
+      if (selCategoria && fornecedor.categoria) {
+        const existe = Array.from(selCategoria.options).some(o => o.value === fornecedor.categoria);
+        if (existe) selCategoria.value = fornecedor.categoria;
+      }
+      const descricao = fornecedor.servico
+        ? `${fornecedor.nome || 'Fornecedor'} — ${fornecedor.servico}`
+        : (fornecedor.nome || '');
+      preencherTextoFornecedorContratado('descricaoDespesa', descricao, sobrescreverBasicos);
+      preencherMoedaFornecedorContratado('valorPrevistoDespesa', fornecedor.valorContratado, sobrescreverBasicos);
+      preencherMoedaFornecedorContratado('valorContratadoDespesa', fornecedor.valorContratado, sobrescreverBasicos);
+      preencherMoedaFornecedorContratado('valorContratoDespesa', fornecedor.valorContratado, sobrescreverBasicos);
+      preencherTextoFornecedorContratado('numeroContratoDespesa', fornecedor.contrato || '', sobrescreverContrato);
+      preencherTextoFornecedorContratado('linkContratoDespesa', fornecedor.linkContrato || '', sobrescreverContrato);
+      preencherTextoFornecedorContratado('dataAssinaturaDespesa', fornecedor.dataAssinatura || '', sobrescreverContrato);
+      preencherTextoFornecedorContratado('responsavelAssinaturaDespesa', fornecedor.responsavel || '', sobrescreverContrato);
+      const obs = document.getElementById('obsContratoDespesa');
+      if (obs && fornecedor.observacoes) {
+        obs.value = juntarLinhasFornecedorContratado(obs.value, ['Fornecedor: ' + fornecedor.observacoes]);
+      }
+      const status = document.getElementById('statusDespesa');
+      if (status && (!status.value || status.value === 'Previsto')) status.value = 'Contratado';
+      const aviso = document.getElementById('avisoFornecedorDespesa');
+      if (aviso) { aviso.style.display = 'none'; aviso.innerHTML = ''; }
+      if (typeof atualizarCalculoEntradaDespesa === 'function') atualizarCalculoEntradaDespesa();
+    }
     // Ao vincular um fornecedor à despesa: preenche os dados básicos quando
-    // estiverem vazios. No salvamento, qualquer lançamento anterior deste mesmo
-    // fornecedor será substituído, garantindo uma única ficha financeira.
+    // ele for selecionado. No salvamento, qualquer lançamento anterior deste
+    // mesmo fornecedor será substituído, garantindo uma única ficha financeira.
     function aoVincularFornecedorDespesa() {
       const sel = document.getElementById('fornecedorDaDespesa');
       if (!sel || !sel.value) return;
       const forn = (dados.fornecedores || []).find(f => f.id === sel.value);
       if (!forn) return;
-      const campoDescricao = document.getElementById('descricaoDespesa');
-      if (campoDescricao && !campoDescricao.value.trim()) campoDescricao.value = forn.nome || '';
-      const campoValor = document.getElementById('valorContratadoDespesa');
-      if (campoValor) {
-        const atual = moedaParaNumero(campoValor.value) || 0;
-        if (atual <= 0 && Number(forn.valorContratado) > 0) {
-          campoValor.value = formatarMoeda(Number(forn.valorContratado));
-          // recalcula o resumo de parcelamento, se já estiver no modo "a pagar"
-          if (typeof atualizarCalculoEntradaDespesa === 'function') atualizarCalculoEntradaDespesa();
-        }
-      }
-      // Alinha a categoria da despesa à do fornecedor, se fizer sentido
-      const selCat = document.getElementById('categoriaDespesa');
-      if (selCat && forn.categoria) {
-        const temOpcao = Array.from(selCat.options).some(o => o.value === forn.categoria);
-        if (temOpcao && (!selCat.value || selCat.selectedIndex === 0)) {
-          selCat.value = forn.categoria;
-        }
-      }
+      transferirFornecedorParaContratado(forn, { sobrescreverBasicos:true, sobrescreverContrato:true });
+    }
+
+    function abrirFornecedorComoContratado(indexFornec) {
+      garantirIdsFornecedores();
+      const fornecedor = (dados.fornecedores || [])[indexFornec];
+      if (!fornecedor) return;
+      if (typeof mostrarSecao === 'function') mostrarSecao('secaoOrcamento');
+      const idxExistente = (dados.despesas || []).findIndex(d => d && d.idFornecedor === fornecedor.id);
+      if (idxExistente >= 0) editarDespesa(idxExistente); else abrirFormularioDespesa();
+      transferirFornecedorParaContratado(fornecedor, {
+        sobrescreverBasicos:idxExistente < 0,
+        sobrescreverContrato:idxExistente < 0
+      });
+      notificar(idxExistente >= 0
+        ? 'Fornecedor contratado aberto com os dados já vinculados.'
+        : 'Dados do fornecedor transferidos. Defina apenas a forma de pagamento e salve.');
     }
     function limparFormularioDespesa() {
       despesaEmEdicao = null;
@@ -7628,6 +7683,11 @@
         if (fornecedorVinculado) {
           fornecedorVinculado.valorContratado = valorContratado;
           fornecedorVinculado.categoria = categoria || fornecedorVinculado.categoria;
+          fornecedorVinculado.status = 'Contratado';
+          // Mantém sincronizados os campos contratuais idênticos nos dois módulos.
+          fornecedorVinculado.contrato = contrato.numero || fornecedorVinculado.contrato || '';
+          fornecedorVinculado.linkContrato = contrato.link || fornecedorVinculado.linkContrato || '';
+          fornecedorVinculado.dataAssinatura = contrato.dataAssinatura || fornecedorVinculado.dataAssinatura || '';
           [
             'valorPago', 'percentualEntrada', 'percentualRestante', 'parcelas',
             'parcelamentoMeta', 'modalidadePagamento', 'parcelasCartao',
@@ -9212,6 +9272,12 @@
           d.descricao = fornecedorSalvo.nome || d.descricao;
           d.valorPrevisto = Number(fornecedorSalvo.valorContratado) || 0;
           d.valorContratado = Number(fornecedorSalvo.valorContratado) || 0;
+          d.contrato = {
+            ...(d.contrato || {}),
+            numero: fornecedorSalvo.contrato || (d.contrato || {}).numero || '',
+            link: fornecedorSalvo.linkContrato || (d.contrato || {}).link || '',
+            dataAssinatura: fornecedorSalvo.dataAssinatura || (d.contrato || {}).dataAssinatura || ''
+          };
           // Recalcula apenas o total pago a partir das parcelas existentes,
           // sem alterar a programação financeira definida em Orçamento e Despesas.
           if (Array.isArray(d.parcelas)) {
@@ -9402,6 +9468,12 @@
         btnEditar.className = 'btn-primary btn-pequeno';
         btnEditar.style.marginLeft = '0.5rem';
         btnEditar.onclick = () => editarFornecedor(index);
+        const btnContratar = document.createElement('button');
+        const jaContratado = (dados.despesas || []).some(d => d && f.id && d.idFornecedor === f.id);
+        btnContratar.textContent = jaContratado ? 'Abrir contratado' : 'Contratar';
+        btnContratar.className = 'btn-success btn-pequeno';
+        btnContratar.style.marginLeft = '0.5rem';
+        btnContratar.onclick = () => abrirFornecedorComoContratado(index);
         const btnExcluir = document.createElement('button');
         btnExcluir.textContent = 'Excluir';
         btnExcluir.className = 'btn-danger btn-pequeno';
@@ -9427,6 +9499,7 @@
           }
         };
         div.appendChild(btnEditar);
+        div.appendChild(btnContratar);
         div.appendChild(btnExcluir);
         lista.appendChild(div);
       });
@@ -11583,6 +11656,42 @@ function atualizarValoresBuffet() {
       el.style.display = '';
     }
 
+    function transferirCotacaoParaFornecedorContratado(c) {
+      if (!c) return;
+      const fornecedor = (dados.fornecedores || []).find(f => f && f.id === c.idFornecedor) || null;
+      if (fornecedor) {
+        transferirFornecedorParaContratado(fornecedor, {
+          sobrescreverBasicos:false,
+          sobrescreverContrato:false
+        });
+      }
+      preencherTextoFornecedorContratado('descricaoDespesa', c.descricao || (fornecedor && fornecedor.nome) || '', true);
+      preencherMoedaFornecedorContratado('valorPrevistoDespesa', c.valor, true);
+      preencherMoedaFornecedorContratado('valorContratadoDespesa', c.valor, true);
+      preencherMoedaFornecedorContratado('valorContratoDespesa', c.valor, true);
+      const cat = categoriaFornecedorPorId(c.idFornecedor);
+      const selCat = document.getElementById('categoriaDespesa');
+      if (selCat && cat && Array.from(selCat.options).some(o => o.value === cat)) selCat.value = cat;
+      const condicoesPagamento = [
+        c.formaPagamento ? 'Forma proposta: ' + c.formaPagamento : '',
+        c.condicoes ? 'Condições: ' + c.condicoes : ''
+      ].filter(Boolean).join('\n');
+      preencherTextoFornecedorContratado('condicoesPagamentoContratoDespesa', condicoesPagamento, true);
+      const partes = [];
+      if (c.inclusos) partes.push('Inclusos: ' + c.inclusos);
+      if (c.naoInclusos) partes.push('Não inclusos: ' + c.naoInclusos);
+      if (c.prazoExecucao) partes.push('Prazo: ' + c.prazoExecucao);
+      if (c.observacoes) partes.push('Observações da cotação: ' + c.observacoes);
+      partes.push('Origem: cotação ' + c.id + (c.dataCotacao ? ' de ' + c.dataCotacao : ''));
+      const obs = document.getElementById('obsContratoDespesa');
+      if (obs) obs.value = juntarLinhasFornecedorContratado(obs.value, partes);
+      const status = document.getElementById('statusDespesa');
+      if (status) status.value = 'Contratado';
+      const situacaoContrato = document.getElementById('situacaoContratoDespesa');
+      if (situacaoContrato && !situacaoContrato.value) situacaoContrato.value = 'Aguardando contrato';
+      if (typeof atualizarCalculoEntradaDespesa === 'function') atualizarCalculoEntradaDespesa();
+    }
+
     // Envia a cotação escolhida a Orçamento e Despesas. COPIA os dados; a cotação
     // original permanece intacta para consulta e histórico.
     function enviarCotacaoParaOrcamentador(i) {
@@ -11612,23 +11721,8 @@ function atualizarValoresBuffet() {
       } else if (typeof abrirFormularioDespesa === 'function') {
         abrirFormularioDespesa();
       }
-      const setV = (id, v) => { const e = document.getElementById(id); if (e) e.value = v || ''; };
-      setV('descricaoDespesa', c.descricao);
-      if (typeof preencherCampoMoeda === 'function') preencherCampoMoeda('valorContratadoDespesa', Number(c.valor) || 0);
-      if (typeof popularSelectFornecedorDespesa === 'function') popularSelectFornecedorDespesa(c.idFornecedor || '');
-      const cat = categoriaFornecedorPorId(c.idFornecedor);
-      const selCat = document.getElementById('categoriaDespesa');
-      if (selCat && cat) selCat.value = cat;
-      // Condições negociadas viajam como observação contratual, não como valor.
-      const partes = [];
-      if (c.formaPagamento) partes.push('Forma proposta: ' + c.formaPagamento);
-      if (c.condicoes) partes.push('Condições: ' + c.condicoes);
-      if (c.inclusos) partes.push('Inclusos: ' + c.inclusos);
-      if (c.naoInclusos) partes.push('Não inclusos: ' + c.naoInclusos);
-      if (c.prazoExecucao) partes.push('Prazo: ' + c.prazoExecucao);
-      partes.push('Origem: cotação ' + c.id + (c.dataCotacao ? ' de ' + c.dataCotacao : ''));
-      setV('obsContratoDespesa', partes.join('\n'));
-      notificar('Cotação copiada para Fornecedores contratados. Confira o valor contratado e defina o parcelamento antes de salvar.');
+      transferirCotacaoParaFornecedorContratado(c);
+      notificar('Fornecedor e cotação transferidos. Defina apenas a forma de pagamento e salve.');
     }
 
     // ---------- Fase 3b: utilitários de PIX e contrato ----------
@@ -14071,12 +14165,38 @@ blocoRsvp +
     function sincronizarEspelhosLegadosV4() {
       if (!dados || !dados._pessoasUnificadasV4) return;
       const pessoas = Array.isArray(dados.convidados) ? dados.convidados : [];
+      const padrinhosAnteriores = Array.isArray(dados.padrinhos) ? dados.padrinhos : [];
       dados.listaEspera = pessoas.filter(p => p.statusLista === 'Lista de espera').map(p => ({...p, status:confirmacaoLegadaV4(p.status)}));
-      dados.padrinhos = pessoas.filter(p => p.funcao === 'Padrinho' || p.funcao === 'Madrinha').map(p => ({
-        ...(p._dadosPadrinhoLegado || {}), id:p.id, nome:p.nome, telefone:p.telefone||'', email:p.email||'',
-        lado:p.lado||'Noiva', papel:p.funcao, papelPadrinho:p.funcao, observacoes:p.observacoes||'',
-        entraCom:(p._dadosPadrinhoLegado||{}).entraCom||''
-      }));
+      const padrinhosTitulares = pessoas.filter(p => p.funcao === 'Padrinho' || p.funcao === 'Madrinha').map(p => {
+        const nomeNorm = normalizarNomeV4(p.nome);
+        const anterior = padrinhosAnteriores.find(x => x && normalizarNomeV4(x.nome) === nomeNorm) || {};
+        const legado = p._dadosPadrinhoLegado || {};
+        const entraCom = Object.prototype.hasOwnProperty.call(legado,'entraCom')
+          ? legado.entraCom : (anterior.entraCom || '');
+        return {
+          ...anterior, ...legado, id:p.id, nome:p.nome, telefone:p.telefone||anterior.telefone||'', email:p.email||anterior.email||'',
+          lado:p.lado||anterior.lado||'Noiva', papel:p.funcao, papelPadrinho:p.funcao, observacoes:p.observacoes||anterior.observacoes||'',
+          entraCom
+        };
+      });
+      const padrinhosAcompanhantes = [];
+      pessoas.forEach(titular => {
+        (Array.isArray(titular.acompanhantes) ? titular.acompanhantes : []).forEach(a => {
+          if (!a || !['Padrinho','Madrinha'].includes(a.papelPadrinho) || !String(a.nome || '').trim()) return;
+          const nomeNorm = normalizarNomeV4(a.nome);
+          const anterior = padrinhosAnteriores.find(p => p && normalizarNomeV4(p.nome) === nomeNorm) || {};
+          padrinhosAcompanhantes.push({
+            ...anterior,
+            id:a.id || anterior.id || (typeof novoIdPessoa === 'function' ? novoIdPessoa() : 'p_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7)),
+            nome:String(a.nome).trim(), telefone:a.telefone||anterior.telefone||'', email:a.email||anterior.email||'',
+            lado:titular.lado||anterior.lado||'Noiva', papel:a.papelPadrinho, papelPadrinho:a.papelPadrinho,
+            observacoes:a.observacoes||anterior.observacoes||'',
+            entraCom:Object.prototype.hasOwnProperty.call(a,'entraCom') ? a.entraCom : (anterior.entraCom||''),
+            vinculoTitularId:titular.id||'', vinculoTitularNome:titular.nome||'', origem:'acompanhante'
+          });
+        });
+      });
+      dados.padrinhos = [...padrinhosTitulares, ...padrinhosAcompanhantes];
     }
 
     function aplicarMigracaoV4() {
@@ -14407,37 +14527,38 @@ blocoRsvp +
     };
 
     function consolidarAcompanhantesPadrinhosV4(registro, indiceTitular) {
-      const restantes = [];
-      (registro.acompanhantes || []).forEach(a => {
-        const funcao = a && a.papelPadrinho;
-        if (!['Padrinho','Madrinha'].includes(funcao)) { restantes.push(a); return; }
+      // Padrinho/madrinha continua sendo acompanhante do titular. O papel é
+      // espelhado na aba Padrinhos sem transformar a pessoa em outro titular.
+      registro.acompanhantes = (registro.acompanhantes || []).map(a => {
+        if (!a || !['Padrinho','Madrinha'].includes(a.papelPadrinho)) return a;
         const nome = String(a.nome || '').trim();
-        if (!nome || normalizarNomeV4(nome) === normalizarNomeV4(registro.nome)) {
-          restantes.push(a);
-          return;
-        }
-        const idx = (dados.convidados || []).findIndex((p,i) =>
+        if (!nome || normalizarNomeV4(nome) === normalizarNomeV4(registro.nome)) return a;
+        const base = (dados.convidados || []).find((p,i) =>
           i !== indiceTitular && normalizarNomeV4(p.nome) === normalizarNomeV4(nome)
-        );
-        const base = idx >= 0 ? dados.convidados[idx] : {};
-        const pessoa = garantirCamposEstruturaPessoaV4({
-          ...base,
+        ) || {};
+        return {
+          ...a,
+          id:a.id || base.id || (typeof novoIdPessoa === 'function' ? novoIdPessoa() : 'p_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7)),
           nome,
-          lado: registro.lado || base.lado || 'Noiva',
-          categoria: funcao === 'Madrinha' ? 'Madrinhas' : 'Padrinhos',
-          funcao,
-          tipoPessoa: 'Adulto',
-          statusLista: 'Lista principal',
-          status: normalizarConfirmacaoV4(base.status || registro.status),
-          observacoes: a.observacoes || base.observacoes || '',
-          parentescoNoivo: a.parentescoNoivo || base.parentescoNoivo || null,
-          acompanhantes: Array.isArray(base.acompanhantes) ? base.acompanhantes : []
-        }, 'Lista principal');
-        if (idx >= 0) dados.convidados[idx] = pessoa;
-        else dados.convidados.push(pessoa);
+          telefone:a.telefone||base.telefone||'', email:a.email||base.email||'',
+          observacoes:a.observacoes||base.observacoes||'',
+          parentescoNoivo:a.parentescoNoivo||base.parentescoNoivo||null,
+          papelPadrinho:a.papelPadrinho,
+          vinculoTitularId:registro.id||'', vinculoTitularNome:registro.nome||''
+        };
       });
-      registro.acompanhantes = restantes;
       return registro;
+    }
+
+    function removerTitularesDuplicadosDosAcompanhantesV4(registro) {
+      const nomes = new Set((registro.acompanhantes || [])
+        .filter(a => a && ['Padrinho','Madrinha'].includes(a.papelPadrinho))
+        .map(a => normalizarNomeV4(a.nome)).filter(Boolean));
+      if (!nomes.size) return;
+      dados.convidados = (dados.convidados || []).filter(p => {
+        if (!p || p.id === registro.id) return true;
+        return !(nomes.has(normalizarNomeV4(p.nome)) && ['Padrinho','Madrinha'].includes(p.funcao));
+      });
     }
 
     salvarConvidado = function(){
@@ -14462,6 +14583,9 @@ blocoRsvp +
       if(registro.tipoPessoa==='Criança' && registro.categoria==='Outros') registro.categoria='Crianças';
       consolidarAcompanhantesPadrinhosV4(registro, convidadoEmEdicao);
       if(convidadoEmEdicao!=null) dados.convidados[convidadoEmEdicao]=registro; else dados.convidados.push(registro);
+      // Se uma versão anterior havia promovido esta acompanhante para um
+      // cadastro independente, o novo salvamento elimina a duplicidade.
+      removerTitularesDuplicadosDosAcompanhantesV4(registro);
       dados._pessoasUnificadasV4=true; sincronizarEspelhosLegadosV4(); recalcularBuffetsSalvos(); salvarDados(); atualizarDashboard(); listarConvidados(); listarMesas();
       fecharModal('modalFormConvidado',true); limparFormularioConvidado(); notificar('Cadastro salvo com sucesso.','sucesso');
     };
@@ -14474,7 +14598,11 @@ blocoRsvp +
         if(g==='espera-noiva' && !(p.statusLista==='Lista de espera' && p.lado==='Noiva'))return false;
         if(g==='espera-noivo' && !(p.statusLista==='Lista de espera' && p.lado==='Noivo'))return false;
         if(g==='criancas' && tipoPessoaV4(p)!=='Criança')return false;
-        if(g==='padrinhos' && !(p.statusLista==='Lista principal' && ['Padrinho','Madrinha'].includes(p.funcao)))return false;
+        if(g==='padrinhos') {
+          const titularPadrinho = p.statusLista==='Lista principal' && ['Padrinho','Madrinha'].includes(p.funcao);
+          const temAcompanhantePadrinho = p.statusLista==='Lista principal' && (p.acompanhantes||[]).some(a => a && ['Padrinho','Madrinha'].includes(a.papelPadrinho));
+          if (!(titularPadrinho || temAcompanhantePadrinho)) return false;
+        }
         if(filtroPessoasV4.lado && p.lado!==filtroPessoasV4.lado)return false;
         if(filtroPessoasV4.confirmacao && normalizarConfirmacaoV4(p.status)!==filtroPessoasV4.confirmacao)return false;
         if(filtroPessoasV4.busca){ const txt=[p.nome,p.telefone,p.grupoFamiliar,...(p.acompanhantes||[]).map(a=>a.nome)].join(' ').toLowerCase(); if(!txt.includes(filtroPessoasV4.busca))return false; }
@@ -14853,22 +14981,59 @@ blocoRsvp +
       .v5-acoes{display:flex;gap:6px;padding:0 12px 12px 52px;flex-wrap:wrap}
       .v5-aviso{font-size:.82rem;padding:8px 12px;border-radius:8px;margin:0 0 10px;
         background:#FFF8E1;border:1px solid #E0A800;color:#6E5720}
-      @media (max-width:640px){ .v5-meta,.v5-acomp,.v5-acoes{margin-left:0;padding-left:12px} }`;
+      .v7-formar-par{display:grid;grid-template-columns:minmax(170px,1fr) 28px minmax(170px,1fr) auto;
+        gap:8px;align-items:end;margin-bottom:16px;padding:14px;border:1px solid var(--ui-borda,#E4E5E8);
+        border-radius:10px;background:var(--ui-fundo,#F7F7F8)}
+      .v7-formar-par label{display:block;font-size:.78rem;font-weight:700;margin-bottom:5px;color:var(--ui-texto-2,#6B7078)}
+      .v7-e-par{text-align:center;font-weight:700;padding-bottom:10px;color:var(--ui-marca,#B99647)}
+      .v7-pares{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+      .v7-par{border:1px solid var(--ui-borda,#E4E5E8);border-left:4px solid var(--ui-marca,#B99647);
+        border-radius:10px;background:#fff;padding:12px}
+      .v7-par-nomes{display:flex;align-items:center;justify-content:center;gap:9px;text-align:center;margin-bottom:9px}
+      .v7-par-pessoa{flex:1;min-width:0}.v7-par-pessoa strong{display:block}.v7-par-pessoa small{color:var(--ui-texto-2,#6B7078)}
+      .v7-par-ligacao{font-weight:700;color:var(--ui-marca,#B99647)}
+      @media (max-width:640px){
+        .v5-meta,.v5-acomp,.v5-acoes{margin-left:0;padding-left:12px}
+        .v7-formar-par{grid-template-columns:1fr}.v7-e-par{padding:0}.v7-pares{grid-template-columns:1fr}
+      }`;
       document.head.appendChild(st);
     })();
 
-    // Contagem por lista: o total de pessoas que vão à festa é
-    // titulares + acompanhantes. Contar só titulares subestimava a lista.
+    function pesoBuffetV5(tipo,idade){
+      if(tipo!=='Criança') return 1;
+      const i=Number(idade), r=dados.regrasBuffet||{};
+      if(!Number.isFinite(i)) return 0;
+      const isenta=Number(r.idadeIsentaAte??7), parcial=Number(r.idadeParcialAte??isenta);
+      if(i<=isenta) return 0;
+      if(i<=parcial) return Math.max(0,Math.min(100,Number(r.percentualParcial??50)))/100;
+      return 1;
+    }
+    function formatarQuantidadeV5(v){
+      return new Intl.NumberFormat('pt-BR',{maximumFractionDigits:2}).format(Number(v)||0);
+    }
+    // Contagem por lista: mantém o total de pessoas e calcula, separadamente,
+    // quantas equivalem a pagantes do buffet segundo idade e confirmação.
     function contarGrupoV5(fn){
       const ps=(dados.convidados||[]).filter(fn);
       const acomp=ps.reduce((n,p)=>n+((p.acompanhantes||[]).length),0);
-      return { tit:ps.length, acomp:acomp, total:ps.length+acomp };
+      let pagantes=0;
+      ps.forEach(p=>{
+        if(['Recusado','Cancelado'].includes(normalizarConfirmacaoV4(p.status))) return;
+        pagantes+=pesoBuffetV5(tipoPessoaV4(p),p.idade);
+        (p.acompanhantes||[]).forEach(a=>pagantes+=pesoBuffetV5(a.tipo||'Adulto',a.idade));
+      });
+      return { tit:ps.length, acomp:acomp, total:ps.length+acomp, pagantes:Math.round(pagantes*100)/100 };
     }
     const ehPadrinhoV5 = p => ['Padrinho','Madrinha'].includes(p.funcao);
-    function kpiV5(rot,c){
-      return `<div class="v4-kpi"><span>${rot}</span><strong>${c.total}</strong>
+    const temAcompanhantePadrinhoV5 = p => (p.acompanhantes||[]).some(a => a && ['Padrinho','Madrinha'].includes(a.papelPadrinho));
+    function kpiV5(rot,c,mostrarPagantes){
+      const destaque=c.total;
+      const detalhe=mostrarPagantes
+        ? `${formatarQuantidadeV5(c.pagantes)} pagante(s) no buffet · ${c.tit} titular(es) + ${c.acomp} acompanhante(s)`
+        : `${c.tit} titular(es) + ${c.acomp} acompanhante(s)`;
+      return `<div class="v4-kpi"><span>${rot}</span><strong>${destaque}</strong>
         <small style="display:block;font-size:.72rem;color:var(--ui-texto-2,#6B7078)">
-        ${c.tit} titular(es) + ${c.acomp} acompanhante(s)</small></div>`;
+        ${detalhe}</small></div>`;
     }
 
     // Padrinho/madrinha é PAPEL de quem já está em convidados, não um cadastro
@@ -14889,12 +15054,102 @@ blocoRsvp +
         if(p.statusLista!=='Lista principal') return;
         if(['Recusado','Cancelado'].includes(normalizarConfirmacaoV4(p.status))) return;
         if(ehPadrinhoV5(p)) padrinhos++;
+        padrinhos+=(p.acompanhantes||[]).filter(a=>a&&['Padrinho','Madrinha'].includes(a.papelPadrinho)).length;
         conta(tipoPessoaV4(p),p.idade);
         (p.acompanhantes||[]).forEach(a=>conta(a.tipo||'Adulto',a.idade));
       });
       return { adultos, criancasIsentas, criancasParciais, criancasIntegrais, padrinhos,
+               paresFormados:organizarParesPadrinhosV7().pares.length,
                pagantes: (typeof calcularConvidadosPagantes==='function'?calcularConvidadosPagantes():0) };
     }
+
+    function obterPadrinhosUnicosV7(){
+      sincronizarEspelhosLegadosV4();
+      const mapa=new Map();
+      (dados.padrinhos||[]).forEach(p=>{
+        if(!p||!String(p.nome||'').trim()) return;
+        const chave=normalizarNomeV4(p.nome);
+        const atual=mapa.get(chave);
+        if(!atual){ mapa.set(chave,{...p,nome:String(p.nome).trim()}); return; }
+        mapa.set(chave,{...atual,...p,entraCom:p.entraCom||atual.entraCom||''});
+      });
+      return Array.from(mapa.values());
+    }
+    function organizarParesPadrinhosV7(){
+      const pessoas=obterPadrinhosUnicosV7();
+      const porNome=new Map(pessoas.map(p=>[normalizarNomeV4(p.nome),p]));
+      const usados=new Set(), pares=[];
+      pessoas.forEach(p=>{
+        const chave=normalizarNomeV4(p.nome);
+        if(usados.has(chave)||!String(p.entraCom||'').trim()) return;
+        const par=porNome.get(normalizarNomeV4(p.entraCom));
+        if(!par||par===p||usados.has(normalizarNomeV4(par.nome))) return;
+        usados.add(chave); usados.add(normalizarNomeV4(par.nome));
+        pares.push([p,par]);
+      });
+      return {pessoas,pares,semPar:pessoas.filter(p=>!usados.has(normalizarNomeV4(p.nome)))};
+    }
+    function detalhePadrinhoV7(p){
+      if(p.vinculoTitularNome) return `Acompanhante de ${p.vinculoTitularNome}`;
+      return p.papel||p.papelPadrinho||'Padrinho/Madrinha';
+    }
+    function definirEntraComPadrinhoV7(nome,par){
+      const chave=normalizarNomeV4(nome);
+      (dados.padrinhos||[]).forEach(p=>{ if(p&&normalizarNomeV4(p.nome)===chave) p.entraCom=par||''; });
+      (dados.convidados||[]).forEach(titular=>{
+        if(normalizarNomeV4(titular.nome)===chave){
+          titular.entraCom=par||'';
+          titular._dadosPadrinhoLegado={...(titular._dadosPadrinhoLegado||{}),entraCom:par||''};
+        }
+        (Array.isArray(titular.acompanhantes)?titular.acompanhantes:[]).forEach(a=>{
+          if(a&&normalizarNomeV4(a.nome)===chave) a.entraCom=par||'';
+        });
+      });
+    }
+    function listarParesPadrinhosV7(cont){
+      const org=organizarParesPadrinhosV7();
+      window._paresPadrinhosV7=org.pares.map(([a,b])=>[a.nome,b.nome]);
+      const opcoes='<option value="">Selecione</option>'+org.semPar.map(p=>
+        `<option value="${escV4(p.nome)}">${escV4(p.nome)} — ${escV4(detalhePadrinhoV7(p))}</option>`
+      ).join('');
+      const formulario=org.semPar.length>=2
+        ? `<div class="v7-formar-par">
+            <div><label for="padrinhoParA">Primeira pessoa</label><select id="padrinhoParA">${opcoes}</select></div>
+            <div class="v7-e-par">+</div>
+            <div><label for="padrinhoParB">Segunda pessoa</label><select id="padrinhoParB">${opcoes}</select></div>
+            <button class="btn-success" onclick="formarParPadrinhosV7()">Formar par</button>
+          </div>`
+        : `<p class="v5-aviso">${org.pessoas.length<2?'Cadastre ao menos duas pessoas como padrinho ou madrinha para formar um par.':'Todas as pessoas disponíveis já estão em pares.'}</p>`;
+      const lista=org.pares.length
+        ? `<h4 style="margin:0 0 9px">Pares formados</h4><div class="v7-pares">${org.pares.map(([a,b],i)=>`
+            <div class="v7-par">
+              <div class="v7-par-nomes">
+                <div class="v7-par-pessoa"><strong>${escV4(a.nome)}</strong><small>${escV4(detalhePadrinhoV7(a))}</small></div>
+                <span class="v7-par-ligacao">+</span>
+                <div class="v7-par-pessoa"><strong>${escV4(b.nome)}</strong><small>${escV4(detalhePadrinhoV7(b))}</small></div>
+              </div>
+              <button class="btn-danger btn-pequeno" onclick="desfazerParPadrinhosV7(${i})">Desfazer par</button>
+            </div>`).join('')}</div>`
+        : '<p style="padding:12px 0;color:var(--ui-texto-2,#6B7078)">Nenhum par formado.</p>';
+      cont.innerHTML=`<p style="margin:0 0 10px;color:var(--ui-texto-2,#6B7078)">Organize os pares para a entrada da cerimônia.</p>${formulario}${lista}`;
+    }
+    window.formarParPadrinhosV7=function(){
+      const nomeA=(document.getElementById('padrinhoParA')||{}).value||'';
+      const nomeB=(document.getElementById('padrinhoParB')||{}).value||'';
+      if(!nomeA||!nomeB){ notificar('Selecione as duas pessoas do par.','atencao'); return; }
+      if(normalizarNomeV4(nomeA)===normalizarNomeV4(nomeB)){ notificar('Selecione duas pessoas diferentes.','atencao'); return; }
+      const org=organizarParesPadrinhosV7();
+      const a=org.semPar.find(p=>normalizarNomeV4(p.nome)===normalizarNomeV4(nomeA));
+      const b=org.semPar.find(p=>normalizarNomeV4(p.nome)===normalizarNomeV4(nomeB));
+      if(!a||!b){ notificar('Uma das pessoas já faz parte de outro par.','atencao'); listarConvidados(); return; }
+      definirEntraComPadrinhoV7(a.nome,b.nome); definirEntraComPadrinhoV7(b.nome,a.nome);
+      salvarDados(); listarConvidados(); notificar('Par formado com sucesso.','sucesso');
+    };
+    window.desfazerParPadrinhosV7=function(indice){
+      const par=(window._paresPadrinhosV7||[])[indice]; if(!par) return;
+      definirEntraComPadrinhoV7(par[0],''); definirEntraComPadrinhoV7(par[1],'');
+      salvarDados(); listarConvidados(); notificar('Par desfeito.','sucesso');
+    };
 
     function ehCriancaV6(valor){
       return String(valor||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()==='crianca';
@@ -14975,13 +15230,13 @@ blocoRsvp +
       if(ind){
         const b=resumoBuffetV5();
         ind.innerHTML=
-          kpiV5('Convidados da Noiva', contarGrupoV5(p=>p.statusLista==='Lista principal'&&p.lado==='Noiva'))+
-          kpiV5('Convidados do Noivo', contarGrupoV5(p=>p.statusLista==='Lista principal'&&p.lado==='Noivo'))+
+          kpiV5('Convidados da Noiva', contarGrupoV5(p=>p.statusLista==='Lista principal'&&p.lado==='Noiva'), true)+
+          kpiV5('Convidados do Noivo', contarGrupoV5(p=>p.statusLista==='Lista principal'&&p.lado==='Noivo'), true)+
           kpiV5('Espera da Noiva',     contarGrupoV5(p=>p.statusLista==='Lista de espera'&&p.lado==='Noiva'))+
           kpiV5('Espera do Noivo',     contarGrupoV5(p=>p.statusLista==='Lista de espera'&&p.lado==='Noivo'))+
-          `<div class="v4-kpi"><span>Padrinhos e madrinhas</span><strong>${b.padrinhos}</strong>
+          `<div class="v4-kpi"><span>Pares de padrinhos</span><strong>${b.paresFormados}</strong>
             <small style="display:block;font-size:.72rem;color:var(--ui-texto-2,#6B7078)">
-            já contados como convidados</small></div>`+
+            formados para a cerimônia</small></div>`+
           `<div class="v4-kpi"><span>Buffet (pagantes)</span><strong>${b.pagantes}</strong>
             <small style="display:block;font-size:.72rem;color:var(--ui-texto-2,#6B7078)">
             ${b.adultos} adulto(s) · ${b.criancasIsentas} isenta(s) · ${b.criancasParciais} parcial(is) · ${b.criancasIntegrais} integral(is)</small></div>`;
@@ -14991,6 +15246,10 @@ blocoRsvp +
 
       if(filtroPessoasV4.grupo==='criancas'){
         listarCriancasConvidadosV6(cont);
+        return;
+      }
+      if(filtroPessoasV4.grupo==='padrinhos'){
+        listarParesPadrinhosV7(cont);
         return;
       }
 
@@ -15012,7 +15271,7 @@ blocoRsvp +
           const st=normalizarConfirmacaoV4(p.status);
           const cl=st==='Confirmado'?'ok':(['Recusado','Cancelado'].includes(st)?'erro':'');
           const acs=acompDeV5(p);
-          const classe=p.statusLista==='Lista de espera'?'espera':(ehPadrinhoV5(p)?'padrinho':'');
+          const classe=p.statusLista==='Lista de espera'?'espera':((ehPadrinhoV5(p)||temAcompanhantePadrinhoV5(p))?'padrinho':'');
           const idadeTxt=t=>t&&t.tipo==='Criança'?` · ${Number.isFinite(Number(t.idade))?Number(t.idade)+' ano(s)':'idade não informada'}`:'';
           return `<div class="v5-cartao ${classe}">
             <div class="v5-cab">
@@ -15032,7 +15291,7 @@ blocoRsvp +
               ${acs.map((a,j)=>`<div class="v5-acomp-item">
                   <span class="n">${i+1}.${j+1}</span>
                   <span>${escV4(a.nome||'sem nome')}
-                    <span class="rel">— ${escV4(a.parentesco||'parentesco não informado')} · ${escV4(a.tipo||'Adulto')}${idadeTxt(a)}</span>
+                    <span class="rel">— ${escV4(a.parentesco||'parentesco não informado')} · ${escV4(a.tipo||'Adulto')}${idadeTxt(a)}${a.papelPadrinho?' · '+escV4(a.papelPadrinho):''}</span>
                   </span></div>`).join('')}
             </div>`:''}
             <div class="v5-acoes">
