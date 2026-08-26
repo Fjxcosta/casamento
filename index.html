@@ -365,12 +365,232 @@
       padding-right: 2.5rem !important;
       display: block;
     }
-    /* O próprio campo é um seletor de data nativo; o sistema converte o valor
-       ISO do navegador para DD/MM/AAAA ao salvar. */
-    #dataCasamento {
+    /* Calendário visual compartilhado pelas datas do casamento e da cerimônia. */
+    #dataCasamento,
+    #dataCerimonia {
       width: 100%;
+      min-height: 44px;
       box-sizing: border-box;
       cursor: pointer;
+      padding-right: 2.6rem;
+      background-color: #fff;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%238a6040' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M16 3v4M8 3v4M3 10h18'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.75rem center;
+      background-size: 1.15rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+    }
+    #dataCasamento:hover,
+    #dataCerimonia:hover {
+      border-color: var(--cor-champagne);
+      background-color: #fffdfa;
+    }
+    #dataCasamento:focus,
+    #dataCerimonia:focus {
+      border-color: var(--cor-champagne);
+      box-shadow: 0 0 0 3px rgba(184, 146, 91, 0.16);
+    }
+    .calendario-casamento {
+      position: fixed;
+      display: none;
+      width: 360px;
+      max-width: calc(100vw - 24px);
+      max-height: calc(100vh - 24px);
+      box-sizing: border-box;
+      padding: 0 0 0.75rem;
+      overflow-y: auto;
+      overflow-x: hidden;
+      background: #fff;
+      border: 1px solid rgba(184, 146, 91, 0.42);
+      border-radius: 18px;
+      box-shadow: 0 22px 55px rgba(55, 37, 25, 0.24), 0 4px 14px rgba(55, 37, 25, 0.12);
+      z-index: 30000;
+    }
+    .calendario-casamento.aberto {
+      display: block;
+      animation: calendario-entrada 0.18s ease-out;
+    }
+    @keyframes calendario-entrada {
+      from { opacity: 0; transform: translateY(-5px) scale(0.985); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .calendario-cabecalho {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr) 42px;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 1rem 0.9rem;
+      background: linear-gradient(135deg, #5d382b 0%, #855a40 58%, #a77a55 100%);
+      color: #fff;
+    }
+    .calendario-titulo {
+      min-width: 0;
+      text-align: center;
+    }
+    .calendario-titulo small {
+      display: block;
+      margin-bottom: 0.18rem;
+      color: rgba(255, 255, 255, 0.74);
+      font-size: 0.66rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .calendario-titulo strong {
+      display: block;
+      overflow: hidden;
+      color: #fff;
+      font-family: 'Cinzel', serif;
+      font-size: 0.91rem;
+      letter-spacing: 0.04em;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .calendario-nav {
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      border: 1px solid rgba(255, 255, 255, 0.32);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.13);
+      color: #fff;
+      font-size: 1.35rem;
+      line-height: 1;
+      cursor: pointer;
+      transition: background 0.18s ease, transform 0.18s ease;
+    }
+    .calendario-nav:hover {
+      background: rgba(255, 255, 255, 0.24);
+      transform: translateY(-1px);
+    }
+    .calendario-semana {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 0.3rem;
+      margin: 0.85rem 0.8rem 0;
+    }
+    .calendario-dias {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 0.28rem;
+      margin: 0.45rem 0.8rem 0;
+    }
+    .calendario-semana span {
+      padding: 0.4rem 0.1rem;
+      border-radius: 8px;
+      font-size: 0.66rem;
+      font-weight: 800;
+      letter-spacing: 0.025em;
+      text-align: center;
+      text-transform: uppercase;
+    }
+    .calendario-cor-0 { color: #be123c; }
+    .calendario-cor-1 { color: #c2410c; }
+    .calendario-cor-2 { color: #9a6700; }
+    .calendario-cor-3 { color: #15803d; }
+    .calendario-cor-4 { color: #1d4ed8; }
+    .calendario-cor-5 { color: #6d28d9; }
+    .calendario-cor-6 { color: #be185d; }
+    .calendario-semana .calendario-cor-0 { background: #fff1f2; }
+    .calendario-semana .calendario-cor-1 { background: #fff7ed; }
+    .calendario-semana .calendario-cor-2 { background: #fefce8; }
+    .calendario-semana .calendario-cor-3 { background: #f0fdf4; }
+    .calendario-semana .calendario-cor-4 { background: #eff6ff; }
+    .calendario-semana .calendario-cor-5 { background: #f5f3ff; }
+    .calendario-semana .calendario-cor-6 { background: #fdf2f8; }
+    .calendario-dia {
+      position: relative;
+      aspect-ratio: 1;
+      min-width: 0;
+      min-height: 38px;
+      padding: 0;
+      border: 1px solid #f0ebe5;
+      border-radius: 10px;
+      background: #fff;
+      font-size: 0.84rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+    }
+    .calendario-dia:hover,
+    .calendario-dia:focus-visible {
+      border-color: var(--cor-champagne);
+      background: #fffaf4;
+      box-shadow: 0 5px 12px rgba(91, 57, 40, 0.1);
+      transform: translateY(-1px);
+    }
+    .calendario-dia.outro-mes {
+      background: #faf9f7;
+      opacity: 0.42;
+    }
+    .calendario-dia.hoje {
+      border-color: #c29a62;
+      box-shadow: inset 0 0 0 1px rgba(194, 154, 98, 0.2);
+    }
+    .calendario-dia.hoje::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      bottom: 4px;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: #b58950;
+      transform: translateX(-50%);
+    }
+    .calendario-dia.selecionado {
+      border-color: #704733;
+      background: linear-gradient(135deg, #67402f 0%, #9c6d4c 100%);
+      color: #fff;
+      box-shadow: 0 7px 16px rgba(86, 50, 34, 0.26);
+    }
+    .calendario-dia.selecionado::after {
+      background: #fff;
+    }
+    .calendario-rodape {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin: 0.8rem 0.8rem 0;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--cor-borda-suave);
+    }
+    .calendario-acao {
+      min-width: 78px;
+      padding: 0.58rem 0.8rem;
+      border: 1px solid #e8dfd5;
+      border-radius: 10px;
+      background: #faf8f5;
+      color: var(--cor-primaria);
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+    }
+    .calendario-acao[data-cal-acao="hoje"] {
+      border-color: #a77a55;
+      background: #855a40;
+      color: #fff;
+    }
+    .calendario-acao:hover {
+      box-shadow: 0 4px 10px rgba(83, 50, 34, 0.12);
+      transform: translateY(-1px);
+    }
+    @media (max-width: 420px) {
+      .calendario-casamento { border-radius: 15px; }
+      .calendario-cabecalho { padding: 0.85rem 0.75rem; }
+      .calendario-semana,
+      .calendario-dias,
+      .calendario-rodape { margin-left: 0.65rem; margin-right: 0.65rem; }
+      .calendario-dia { min-height: 36px; font-size: 0.8rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .calendario-casamento.aberto { animation: none; }
+      .calendario-nav,
+      .calendario-dia,
+      .calendario-acao { transition: none; }
     }
     .btn-olho-senha {
       position: absolute;
@@ -1290,6 +1510,128 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <!-- SDK do Supabase (banco de dados na nuvem) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Gerador do QR Code exibido no pagamento via Pix. -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <style id="estilosPixPagamentoRapido">
+    .pix-pagamento-rapido {
+      margin: 0 0 1rem;
+      overflow: hidden;
+      border: 1px solid rgba(0, 151, 169, 0.26);
+      border-radius: 14px;
+      background: linear-gradient(145deg, #f2fffd 0%, #f8fffe 55%, #ffffff 100%);
+      box-shadow: 0 10px 24px rgba(0, 124, 139, 0.08);
+    }
+    .pix-pagamento-rapido[hidden] { display: none !important; }
+    .pix-pagamento-cabecalho {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.75rem 0.9rem;
+      border-bottom: 1px solid rgba(0, 151, 169, 0.16);
+      background: rgba(0, 151, 169, 0.07);
+    }
+    .pix-pagamento-icone {
+      display: grid;
+      flex: 0 0 34px;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border-radius: 10px;
+      background: #0097a9;
+      color: #fff;
+      font-size: 1.1rem;
+      font-weight: 800;
+    }
+    .pix-pagamento-cabecalho strong { display: block; color: #155e68; font-size: 0.9rem; }
+    .pix-pagamento-cabecalho small { display: block; margin-top: 0.12rem; color: #527177; font-size: 0.75rem; }
+    .pix-pagamento-conteudo {
+      display: grid;
+      grid-template-columns: 190px minmax(0, 1fr);
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+    }
+    .pix-pagamento-qr {
+      display: grid;
+      width: 190px;
+      min-height: 190px;
+      box-sizing: border-box;
+      place-items: center;
+      padding: 8px;
+      border: 1px solid #dce9e8;
+      border-radius: 13px;
+      background: #fff;
+      color: #6b7c7f;
+      font-size: 0.76rem;
+      text-align: center;
+      box-shadow: 0 6px 18px rgba(32, 82, 89, 0.08);
+    }
+    .pix-pagamento-qr img,
+    .pix-pagamento-qr canvas {
+      display: block;
+      width: 174px !important;
+      height: 174px !important;
+      max-width: 100%;
+      border-radius: 5px;
+    }
+    .pix-pagamento-dados { min-width: 0; }
+    .pix-pagamento-dados > strong {
+      display: block;
+      margin-bottom: 0.25rem;
+      color: #233c40;
+      font-size: 0.96rem;
+      overflow-wrap: anywhere;
+    }
+    .pix-pagamento-valor { display: block; margin-bottom: 0.65rem; color: #527177; font-size: 0.76rem; }
+    .pix-pagamento-rotulo {
+      display: block;
+      margin-bottom: 0.25rem;
+      color: #527177;
+      font-size: 0.66rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .pix-pagamento-chave {
+      display: block;
+      max-height: 72px;
+      overflow: auto;
+      padding: 0.55rem 0.65rem;
+      border: 1px solid #dce9e8;
+      border-radius: 8px;
+      background: #fff;
+      color: #21393d;
+      font: 600 0.76rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+      overflow-wrap: anywhere;
+    }
+    .pix-pagamento-acoes { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.7rem; }
+    .pix-pagamento-acoes button {
+      min-height: 34px;
+      padding: 0.42rem 0.68rem;
+      border: 1px solid rgba(0, 151, 169, 0.3);
+      border-radius: 8px;
+      background: #fff;
+      color: #006f7c;
+      font-size: 0.72rem;
+      font-weight: 750;
+      cursor: pointer;
+    }
+    .pix-pagamento-acoes button:first-child { border-color: #0097a9; background: #0097a9; color: #fff; }
+    .pix-pagamento-acoes button:hover { filter: brightness(0.97); }
+    .pix-pagamento-status { margin: 0.6rem 0 0; color: #527177; font-size: 0.7rem; line-height: 1.4; }
+    .pix-pagamento-sem-chave {
+      margin: 0;
+      padding: 0.9rem 1rem;
+      color: #7a4e16;
+      background: #fff9eb;
+      font-size: 0.82rem;
+      line-height: 1.45;
+    }
+    @media (max-width: 620px) {
+      .pix-pagamento-conteudo { grid-template-columns: 1fr; justify-items: center; }
+      .pix-pagamento-dados { width: 100%; }
+    }
+  </style>
   <!-- Estilos do monograma e da barra de dados -->
   <style>
     .marca {
@@ -2318,7 +2660,7 @@
         <div class="linha-campo label-acima">
           <div class="form-group" style="flex:1;">
             <label for="dataCasamento">Data do casamento</label>
-            <input type="date" id="dataCasamento" aria-label="Escolher a data do casamento" onclick="if(typeof this.showPicker==='function') this.showPicker()">
+            <input type="text" id="dataCasamento" placeholder="dd/mm/aaaa" inputmode="none" readonly aria-label="Escolher a data do casamento no calendário" aria-haspopup="dialog">
           </div>
           <div class="form-group" style="flex:1;">
             <label for="horaCasamento">Horario principal</label>
@@ -5754,7 +6096,10 @@
     // localFesta/enderecoFesta deixaram de ser digitados: derivam do espaço.
     // `silencioso` = true quando chamada pelo botão único da aba.
     function salvarDadosCasamento(silencioso) {
-      const data = dataIsoParaBr(document.getElementById('dataCasamento').value);
+      const valorDataCasamento = document.getElementById('dataCasamento').value.trim();
+      const data = /^\d{4}-\d{2}-\d{2}$/.test(valorDataCasamento)
+        ? dataIsoParaBr(valorDataCasamento)
+        : valorDataCasamento;
       const hora = document.getElementById('horaCasamento').value;
       const celebrante = document.getElementById('celebrante').value.trim();
       const obsGerais = (document.getElementById('observacoesGerais') || {}).value || '';
@@ -8050,7 +8395,7 @@
           <div class="linha-campo label-acima" style="flex-wrap:wrap;">
             <div class="form-group" style="flex:1;min-width:160px;">
               <label for="valorPagamentoRapido">Valor deste pagamento</label>
-              <input id="valorPagamentoRapido" type="text" inputmode="numeric" placeholder="R$ 0,00" oninput="aplicarMascaraMoeda(this)" onblur="finalizarCampoMoeda(this)">
+              <input id="valorPagamentoRapido" type="text" inputmode="numeric" placeholder="R$ 0,00" oninput="aplicarMascaraMoeda(this); atualizarQrPixPagamentoRapido()" onblur="finalizarCampoMoeda(this); atualizarQrPixPagamentoRapido()">
             </div>
             <div class="form-group" style="flex:1;min-width:150px;">
               <label for="dataPagamentoRapido">Pago em</label>
@@ -8060,7 +8405,7 @@
           <div class="linha-campo label-acima" style="flex-wrap:wrap;">
             <div class="form-group" style="flex:1;min-width:160px;">
               <label for="modalidadePagamentoRapido">Modalidade</label>
-              <select id="modalidadePagamentoRapido"></select>
+              <select id="modalidadePagamentoRapido" onchange="atualizarQrPixPagamentoRapido()"></select>
             </div>
             <div class="form-group" style="flex:1;min-width:160px;">
               <label for="pagadorPagamentoRapido">Pago por</label>
@@ -8069,6 +8414,27 @@
                 <option>Noiva</option><option>Noivo</option><option>Noiva/Noivo</option><option>Terceiros</option>
               </select>
             </div>
+          </div>
+          <div id="blocoPixPagamentoRapido" class="pix-pagamento-rapido" hidden aria-live="polite">
+            <div class="pix-pagamento-cabecalho">
+              <span class="pix-pagamento-icone" aria-hidden="true">◆</span>
+              <div><strong>Pagamento via Pix</strong><small>Escaneie o QR Code com o aplicativo do banco</small></div>
+            </div>
+            <div id="conteudoPixPagamentoRapido" class="pix-pagamento-conteudo">
+              <div id="qrPixPagamentoRapido" class="pix-pagamento-qr" aria-label="QR Code Pix"></div>
+              <div class="pix-pagamento-dados">
+                <strong id="favorecidoPixPagamentoRapido">Fornecedor</strong>
+                <span id="valorPixPagamentoRapido" class="pix-pagamento-valor"></span>
+                <span class="pix-pagamento-rotulo">Chave Pix cadastrada</span>
+                <code id="chavePixPagamentoRapido" class="pix-pagamento-chave"></code>
+                <div class="pix-pagamento-acoes">
+                  <button type="button" onclick="copiarPixPagamentoRapido('chave')">Copiar chave</button>
+                  <button type="button" onclick="copiarPixPagamentoRapido('payload')">Copiar Pix Copia e Cola</button>
+                </div>
+                <p id="statusPixPagamentoRapido" class="pix-pagamento-status"></p>
+              </div>
+            </div>
+            <p id="semChavePixPagamentoRapido" class="pix-pagamento-sem-chave" hidden></p>
           </div>
           <div id="ajudaPagamentoRapido" class="v4-campo-ajuda" style="margin:-0.3rem 0 1rem;"></div>
           <div class="actions">
@@ -8090,10 +8456,151 @@
       preencherCampoMoeda('valorPagamentoRapido', saldo);
       const modalidade = document.getElementById('modalidadePagamentoRapido');
       const pagador = document.getElementById('pagadorPagamentoRapido');
-      if (modalidade) modalidade.value = parcela.modalidade || despesa.modalidadePagamento || '';
+      // Cada pagamento exige uma nova escolha. Não reutiliza a modalidade de
+      // parcelas anteriores nem a última modalidade gravada no fornecedor.
+      if (modalidade) modalidade.value = '';
       if (pagador) pagador.value = parcela.pagador || despesa.pagador || '';
       const ajuda = document.getElementById('ajudaPagamentoRapido');
       if (ajuda) ajuda.textContent = `Saldo desta parcela: ${formatarMoeda(saldo)}. Para pagamento parcial, informe somente o valor recebido agora.`;
+      atualizarQrPixPagamentoRapido();
+    }
+
+    function textoSeguroPixPagamentoRapido(valor, limite, fallback) {
+      const limpo = String(valor || '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^A-Za-z0-9 .\-/]/g, ' ')
+        .replace(/\s+/g, ' ').trim().toUpperCase();
+      return (limpo || fallback || '').slice(0, limite);
+    }
+
+    function campoEmvPixPagamentoRapido(id, valor) {
+      const texto = String(valor === null || valor === undefined ? '' : valor);
+      return id + String(texto.length).padStart(2, '0') + texto;
+    }
+
+    function crc16PixPagamentoRapido(texto) {
+      let crc = 0xFFFF;
+      for (let i = 0; i < texto.length; i++) {
+        crc ^= texto.charCodeAt(i) << 8;
+        for (let bit = 0; bit < 8; bit++) {
+          crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1);
+          crc &= 0xFFFF;
+        }
+      }
+      return crc.toString(16).toUpperCase().padStart(4, '0');
+    }
+
+    function gerarPayloadPixPagamentoRapido(despesa, chave, valor) {
+      const pix = (despesa && despesa.pix) || {};
+      const favorecido = textoSeguroPixPagamentoRapido(pix.favorecido || despesa.descricao, 25, 'FORNECEDOR');
+      const contaPix = campoEmvPixPagamentoRapido('00', 'BR.GOV.BCB.PIX') +
+        campoEmvPixPagamentoRapido('01', chave);
+      let payload = campoEmvPixPagamentoRapido('00', '01') +
+        campoEmvPixPagamentoRapido('26', contaPix) +
+        campoEmvPixPagamentoRapido('52', '0000') +
+        campoEmvPixPagamentoRapido('53', '986');
+      if (valor > 0) payload += campoEmvPixPagamentoRapido('54', valor.toFixed(2));
+      payload += campoEmvPixPagamentoRapido('58', 'BR') +
+        campoEmvPixPagamentoRapido('59', favorecido) +
+        campoEmvPixPagamentoRapido('60', 'BRASIL') +
+        campoEmvPixPagamentoRapido('62', campoEmvPixPagamentoRapido('05', '***')) +
+        '6304';
+      return payload + crc16PixPagamentoRapido(payload);
+    }
+
+    function copiarTextoPixPagamentoRapido(texto, mensagem) {
+      if (!texto) { notificar('Não há informação Pix disponível para copiar.', 'atencao'); return; }
+      const fallback = () => {
+        const area = document.createElement('textarea');
+        area.value = texto;
+        area.style.cssText = 'position:fixed;opacity:0;pointer-events:none;';
+        document.body.appendChild(area);
+        area.select();
+        let copiado = false;
+        try { copiado = document.execCommand('copy'); } catch (e) { copiado = false; }
+        document.body.removeChild(area);
+        notificar(copiado ? mensagem : 'Não foi possível copiar automaticamente.', copiado ? 'sucesso' : 'atencao');
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(texto).then(() => notificar(mensagem, 'sucesso')).catch(fallback);
+      } else fallback();
+    }
+
+    function copiarPixPagamentoRapido(tipo) {
+      const bloco = document.getElementById('blocoPixPagamentoRapido');
+      if (!bloco) return;
+      const copiaPayload = tipo === 'payload';
+      copiarTextoPixPagamentoRapido(
+        copiaPayload ? bloco.dataset.payloadPix : bloco.dataset.chavePix,
+        copiaPayload ? 'Pix Copia e Cola copiado.' : 'Chave Pix copiada.'
+      );
+    }
+
+    function atualizarQrPixPagamentoRapido() {
+      const bloco = document.getElementById('blocoPixPagamentoRapido');
+      const modalidade = document.getElementById('modalidadePagamentoRapido');
+      if (!bloco || !modalidade) return;
+      const ehPix = String(modalidade.value || '').trim().toLowerCase() === 'pix';
+      bloco.hidden = !ehPix;
+      if (!ehPix) return;
+
+      const despesa = dados.despesas[pagamentoRapidoDespesaIndice];
+      const pix = (despesa && despesa.pix) || {};
+      const chave = String(pix.chave || '').trim();
+      const conteudo = document.getElementById('conteudoPixPagamentoRapido');
+      const semChave = document.getElementById('semChavePixPagamentoRapido');
+      const qr = document.getElementById('qrPixPagamentoRapido');
+      bloco.dataset.chavePix = chave;
+
+      if (!chave) {
+        if (conteudo) conteudo.hidden = true;
+        if (semChave) {
+          semChave.hidden = false;
+          semChave.textContent = 'Este fornecedor não possui chave Pix cadastrada. Edite o fornecedor contratado e informe a chave para exibir o QR Code.';
+        }
+        bloco.dataset.payloadPix = '';
+        if (qr) { qr.innerHTML = ''; qr.dataset.payload = ''; }
+        return;
+      }
+
+      if (conteudo) conteudo.hidden = false;
+      if (semChave) semChave.hidden = true;
+      const valor = moedaParaNumero((document.getElementById('valorPagamentoRapido') || {}).value);
+      const payload = gerarPayloadPixPagamentoRapido(despesa, chave, valor);
+      const favorecido = pix.favorecido || despesa.descricao || 'Fornecedor';
+      const favorecidoEl = document.getElementById('favorecidoPixPagamentoRapido');
+      const valorEl = document.getElementById('valorPixPagamentoRapido');
+      const chaveEl = document.getElementById('chavePixPagamentoRapido');
+      const statusEl = document.getElementById('statusPixPagamentoRapido');
+      if (favorecidoEl) favorecidoEl.textContent = favorecido;
+      if (valorEl) valorEl.textContent = valor > 0 ? 'Valor incluído no QR Code: ' + formatarMoeda(valor) : 'QR Code sem valor definido';
+      if (chaveEl) chaveEl.textContent = chave;
+      bloco.dataset.payloadPix = payload;
+
+      if (!qr || qr.dataset.payload === payload) return;
+      qr.dataset.payload = payload;
+      qr.innerHTML = '';
+      if (typeof QRCode !== 'function') {
+        qr.textContent = 'QR Code indisponível. Use o botão “Copiar chave”.';
+        if (statusEl) statusEl.textContent = 'Não foi possível carregar o gerador de QR Code.';
+        return;
+      }
+      try {
+        new QRCode(qr, {
+          text: payload,
+          width: 174,
+          height: 174,
+          colorDark: '#172f33',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+        const imagem = qr.querySelector('img');
+        if (imagem) imagem.alt = 'QR Code para pagamento Pix de ' + favorecido;
+        if (statusEl) statusEl.textContent = 'O QR Code contém a chave e o valor deste pagamento.';
+      } catch (erro) {
+        qr.textContent = 'Não foi possível gerar o QR Code. Copie a chave abaixo.';
+        if (statusEl) statusEl.textContent = 'A chave Pix continua disponível para cópia.';
+      }
     }
 
     function abrirPagamentoRapidoDespesa(index) {
@@ -8138,6 +8645,7 @@
         opcao.textContent = valor || '— Selecione —';
         selModalidade.appendChild(opcao);
       });
+      selModalidade.value = '';
       const hoje = new Date();
       document.getElementById('dataPagamentoRapido').value =
         `${String(hoje.getDate()).padStart(2, '0')}/${String(hoje.getMonth() + 1).padStart(2, '0')}/${hoje.getFullYear()}`;
@@ -8162,7 +8670,12 @@
       if (!(valor > 0)) { notificar('Informe um valor de pagamento maior que zero.', 'atencao'); return; }
       if (valor - saldoAntes > 0.009) { notificar(`O valor informado supera o saldo da parcela (${formatarMoeda(saldoAntes)}).`, 'atencao'); return; }
       if (!dataValida(data)) { notificar('Informe uma data de pagamento válida em dd/mm/aaaa.', 'atencao'); return; }
-      if (!modalidade) { notificar('Selecione a modalidade do pagamento.', 'atencao'); return; }
+      if (!modalidade || /^[-—\s]*selecione/i.test(modalidade)) {
+        notificar('Selecione uma modalidade válida para registrar o pagamento.', 'atencao');
+        const campoModalidade = document.getElementById('modalidadePagamentoRapido');
+        if (campoModalidade) campoModalidade.focus();
+        return;
+      }
       if (!pagador) { notificar('Informe quem realizou o pagamento.', 'atencao'); return; }
 
       const pagoAntes = valorPagoParcelaRapida(parcela);
@@ -10523,7 +11036,7 @@ function atualizarValoresBuffet() {
     // Carrega os dados principais do casamento nos campos da agenda
     function carregarCamposCasamento() {
       const setCampo = (id, valor) => { const el = document.getElementById(id); if (el) el.value = valor || ''; };
-      setCampo('dataCasamento', dataBrParaIso(dados.dataCasamento));
+      setCampo('dataCasamento', dados.dataCasamento);
       setCampo('horaCasamento', dados.horaCasamento);
       setCampo('localCasamento', dados.localCasamento);
       setCampo('enderecoCasamento', dados.enderecoCasamento);
@@ -14303,7 +14816,7 @@ blocoRsvp +
       // Cerimônia com data e horário próprios.
       criarCampoV4('dataCerimonia', `
         <div class="linha-campo label-acima v4-campos-cerimonia" style="flex-wrap:wrap;">
-          <div class="form-group" style="flex:1;min-width:150px"><label for="dataCerimonia">Data da cerimônia</label><input id="dataCerimonia" type="text" placeholder="dd/mm/aaaa" inputmode="numeric" oninput="aplicarMascaraData(this)"></div>
+          <div class="form-group" style="flex:1;min-width:150px"><label for="dataCerimonia">Data da cerimônia</label><input id="dataCerimonia" type="text" placeholder="dd/mm/aaaa" inputmode="none" readonly aria-label="Escolher a data da cerimônia no calendário" aria-haspopup="dialog"></div>
           <div class="form-group" style="flex:1;min-width:150px"><label for="horaCerimonia">Horário da cerimônia</label><input id="horaCerimonia" type="time"></div>
         </div>`, '#secaoDadosCasamento h4:nth-of-type(2)', 'afterend');
       criarCampoV4('idadeIsentaBuffet', `
@@ -15992,6 +16505,174 @@ blocoRsvp +
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', inicializarMobile, {once:true});
     else inicializarMobile();
+  })();
+  </script>
+
+  <script>
+  (function configurarCalendariosDoCasamento(){
+    'use strict';
+
+    const IDS_CALENDARIO = new Set(['dataCasamento', 'dataCerimonia']);
+    const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const DIAS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+    let campoAtivo = null;
+    let mesExibido = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    let dataSelecionada = null;
+
+    const calendario = document.createElement('div');
+    calendario.id = 'calendarioCasamento';
+    calendario.className = 'calendario-casamento';
+    calendario.setAttribute('role', 'dialog');
+    calendario.setAttribute('aria-modal', 'false');
+    calendario.setAttribute('aria-label', 'Selecionar data');
+    calendario.innerHTML =
+      '<div class="calendario-cabecalho">' +
+        '<button type="button" class="calendario-nav" data-cal-nav="-1" aria-label="Mês anterior">‹</button>' +
+        '<div class="calendario-titulo">' +
+          '<small id="calendarioContexto">Selecionar data</small>' +
+          '<strong id="calendarioMesAno" aria-live="polite"></strong>' +
+        '</div>' +
+        '<button type="button" class="calendario-nav" data-cal-nav="1" aria-label="Próximo mês">›</button>' +
+      '</div>' +
+      '<div class="calendario-semana" aria-hidden="true">' +
+        DIAS.map(function(dia, indice){ return '<span class="calendario-cor-' + indice + '">' + dia + '</span>'; }).join('') +
+      '</div>' +
+      '<div class="calendario-dias" id="calendarioGrade" role="grid"></div>' +
+      '<div class="calendario-rodape">' +
+        '<button type="button" class="calendario-acao" data-cal-acao="limpar">Limpar</button>' +
+        '<button type="button" class="calendario-acao" data-cal-acao="hoje">Hoje</button>' +
+      '</div>';
+    document.body.appendChild(calendario);
+
+    function doisDigitos(numero){ return String(numero).padStart(2, '0'); }
+    function formatarData(data){
+      return doisDigitos(data.getDate()) + '/' + doisDigitos(data.getMonth() + 1) + '/' + data.getFullYear();
+    }
+    function lerData(valor){
+      const resultado = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(valor || '').trim());
+      if (!resultado) return null;
+      const data = new Date(Number(resultado[3]), Number(resultado[2]) - 1, Number(resultado[1]));
+      return data.getFullYear() === Number(resultado[3]) &&
+        data.getMonth() === Number(resultado[2]) - 1 &&
+        data.getDate() === Number(resultado[1]) ? data : null;
+    }
+    function mesmaData(a, b){
+      return !!a && !!b && a.getFullYear() === b.getFullYear() &&
+        a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    }
+    function posicionarCalendario(){
+      if (!campoAtivo || !calendario.classList.contains('aberto')) return;
+      const margem = 12;
+      const intervalo = 7;
+      const retangulo = campoAtivo.getBoundingClientRect();
+      const largura = Math.min(360, window.innerWidth - margem * 2);
+      calendario.style.width = largura + 'px';
+      let esquerda = retangulo.left;
+      esquerda = Math.max(margem, Math.min(esquerda, window.innerWidth - largura - margem));
+      calendario.style.left = esquerda + 'px';
+      const altura = calendario.offsetHeight;
+      let topo = retangulo.bottom + intervalo;
+      if (retangulo.bottom + intervalo + altura > window.innerHeight - margem && retangulo.top - altura - intervalo >= margem) {
+        topo = retangulo.top - altura - intervalo;
+      }
+      topo = Math.max(margem, Math.min(topo, window.innerHeight - altura - margem));
+      calendario.style.top = topo + 'px';
+    }
+    function renderizarCalendario(){
+      document.getElementById('calendarioContexto').textContent = campoAtivo && campoAtivo.id === 'dataCerimonia'
+        ? 'Data da cerimônia'
+        : 'Data do casamento';
+      document.getElementById('calendarioMesAno').textContent = MESES[mesExibido.getMonth()] + ' ' + mesExibido.getFullYear();
+      const grade = document.getElementById('calendarioGrade');
+      const primeiro = new Date(mesExibido.getFullYear(), mesExibido.getMonth(), 1);
+      const inicio = new Date(primeiro.getFullYear(), primeiro.getMonth(), 1 - primeiro.getDay());
+      const hoje = new Date();
+      let html = '';
+      for (let indice = 0; indice < 42; indice++) {
+        const data = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + indice);
+        const fora = data.getMonth() !== mesExibido.getMonth();
+        const selecionado = mesmaData(data, dataSelecionada);
+        const atual = mesmaData(data, hoje);
+        const valor = formatarData(data);
+        const classes = ['calendario-dia', 'calendario-cor-' + data.getDay()];
+        if (fora) classes.push('outro-mes');
+        if (atual) classes.push('hoje');
+        if (selecionado) classes.push('selecionado');
+        const rotulo = data.toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
+        html += '<button type="button" role="gridcell" class="' + classes.join(' ') + '" data-cal-data="' + valor + '" aria-label="' + rotulo + '"' + (atual ? ' aria-current="date"' : '') + (selecionado ? ' aria-selected="true"' : '') + '>' + data.getDate() + '</button>';
+      }
+      grade.innerHTML = html;
+      requestAnimationFrame(posicionarCalendario);
+    }
+    function abrirCalendario(campo){
+      if (!campo || !IDS_CALENDARIO.has(campo.id)) return;
+      if (campoAtivo && campoAtivo !== campo) campoAtivo.setAttribute('aria-expanded', 'false');
+      campoAtivo = campo;
+      dataSelecionada = lerData(campo.value);
+      const base = dataSelecionada || new Date();
+      mesExibido = new Date(base.getFullYear(), base.getMonth(), 1);
+      campoAtivo.setAttribute('aria-controls', calendario.id);
+      campoAtivo.setAttribute('aria-expanded', 'true');
+      calendario.classList.add('aberto');
+      renderizarCalendario();
+      posicionarCalendario();
+    }
+    function fecharCalendario(devolverFoco){
+      const anterior = campoAtivo;
+      if (anterior) anterior.setAttribute('aria-expanded', 'false');
+      calendario.classList.remove('aberto');
+      campoAtivo = null;
+      if (devolverFoco && anterior) anterior.focus();
+    }
+    function definirData(data){
+      if (!campoAtivo) return;
+      campoAtivo.value = data ? formatarData(data) : '';
+      campoAtivo.dispatchEvent(new Event('input', {bubbles:true}));
+      campoAtivo.dispatchEvent(new Event('change', {bubbles:true}));
+      fecharCalendario(true);
+    }
+
+    calendario.addEventListener('click', function(evento){
+      const botaoData = evento.target.closest('[data-cal-data]');
+      if (botaoData) {
+        definirData(lerData(botaoData.getAttribute('data-cal-data')));
+        return;
+      }
+      const navegacao = evento.target.closest('[data-cal-nav]');
+      if (navegacao) {
+        mesExibido = new Date(mesExibido.getFullYear(), mesExibido.getMonth() + Number(navegacao.getAttribute('data-cal-nav')), 1);
+        renderizarCalendario();
+        return;
+      }
+      const acao = evento.target.closest('[data-cal-acao]');
+      if (!acao) return;
+      if (acao.getAttribute('data-cal-acao') === 'limpar') definirData(null);
+      else definirData(new Date());
+    });
+
+    document.addEventListener('click', function(evento){
+      const campo = evento.target.closest && evento.target.closest('#dataCasamento, #dataCerimonia');
+      if (campo) {
+        evento.preventDefault();
+        abrirCalendario(campo);
+        return;
+      }
+      if (!calendario.contains(evento.target)) fecharCalendario(false);
+    });
+    document.addEventListener('keydown', function(evento){
+      if (evento.key === 'Escape' && calendario.classList.contains('aberto')) {
+        evento.preventDefault();
+        fecharCalendario(true);
+        return;
+      }
+      if (!IDS_CALENDARIO.has((evento.target || {}).id)) return;
+      if (evento.key === 'Enter' || evento.key === ' ' || evento.key === 'ArrowDown') {
+        evento.preventDefault();
+        abrirCalendario(evento.target);
+      }
+    });
+    document.addEventListener('scroll', posicionarCalendario, true);
+    window.addEventListener('resize', posicionarCalendario);
   })();
   </script>
 
