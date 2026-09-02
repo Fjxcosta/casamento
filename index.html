@@ -2216,6 +2216,45 @@
     }
   </style>
 
+
+  <style id="estilosRelatoriosPagamentos">
+    #modalNoiva > .modal-content, #modalNoivo > .modal-content { max-width:1080px; }
+    .pessoa-abas { display:flex; gap:8px; margin:0 0 20px; flex-wrap:wrap; }
+    .pessoa-abas button { min-height:42px; }
+    .pessoa-abas button[aria-pressed="true"] { background:var(--ui-marca,#9c7d36); color:#fff; }
+    .pessoa-dados { max-width:680px; margin:0 auto; }
+    .pessoa-dados[hidden], .pessoa-pagamentos[hidden] { display:none !important; }
+    .pagamentos-cabecalho { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+    .pagamentos-cabecalho h3 { margin:0 0 6px; }
+    .pagamentos-acoes { display:flex; gap:8px; flex-wrap:wrap; }
+    .pagamentos-resumo { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:18px 0; }
+    .pagamentos-resumo > div { border:1px solid var(--ui-borda,#ddd); padding:14px; border-radius:10px; }
+    .pagamentos-resumo > div:first-child { background:var(--ui-marca-sub,#f8f3e6); }
+    .pagamentos-resumo small, .pagamentos-resumo strong { display:block; }
+    .pagamentos-resumo strong { margin-top:6px; font-size:1.25rem; font-variant-numeric:tabular-nums; }
+    .pagamentos-nota { color:var(--ui-texto-2,#666); font-size:.88rem; line-height:1.5; margin:8px 0 14px; }
+    .pagamentos-tabela-wrap { width:100%; overflow-x:auto; border:1px solid var(--ui-borda,#ddd); border-radius:8px; margin:12px 0; }
+    .pagamentos-tabela { width:100%; min-width:740px; border-collapse:collapse; font-size:.88rem; margin:0; }
+    .pagamentos-tabela th, .pagamentos-tabela td { padding:11px 10px; text-align:left; vertical-align:top; border-bottom:1px solid var(--ui-borda,#e5e5e5); }
+    .pagamentos-tabela th { background:var(--ui-marca-sub,#f8f3e6); white-space:nowrap; }
+    .pagamentos-tabela td:nth-child(2) { min-width:190px; max-width:280px; overflow-wrap:anywhere; }
+    .pagamentos-tabela td small { display:block; margin-top:3px; color:var(--ui-texto-2,#666); }
+    .pagamentos-tabela .pagamentos-valor { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+    .pagamentos-tabela tfoot td { font-weight:700; background:var(--ui-marca-sub,#f8f3e6); border-bottom:0; }
+    .pagamentos-vazio { padding:24px 12px; color:var(--ui-texto-2,#666); border:1px dashed var(--ui-borda,#ddd); border-radius:8px; }
+    .pagamentos-outros { margin-top:22px; border-top:1px solid var(--ui-borda,#ddd); padding-top:14px; }
+    .pagamentos-outros summary { cursor:pointer; font-weight:600; line-height:1.5; }
+    .pagamentos-atalhos { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+    @media(max-width:600px) {
+      .pagamentos-resumo { grid-template-columns:1fr; gap:8px; }
+      .pagamentos-resumo > div { padding:11px 13px; }
+      .pagamentos-resumo strong { font-size:1.1rem; }
+      .pagamentos-acoes { width:100%; }
+      .pagamentos-acoes button { flex:1 1 120px; }
+      .pagamentos-tabela-wrap { -webkit-overflow-scrolling:touch; }
+    }
+  </style>
+
 </head>
 <body>
   <!-- Tela de senha (bloqueia o sistema até a senha correta ser digitada) -->
@@ -2600,8 +2639,12 @@
         </div>
       </div>
       <p id="graficoPagadoresVazio" class="grafico-vazio" style="display:none;">
-        Informe "Pago por" nas despesas lançadas (com valor pago) para visualizar quanto cada um já pagou.
+        Registre o valor pago e o responsável em cada parcela para visualizar quanto cada um já pagou.
       </p>
+      <div class="pagamentos-atalhos">
+        <button type="button" class="btn-secondary btn-pequeno" onclick="abrirRelatorioPagamentos('Noiva')">Pagamentos da noiva</button>
+        <button type="button" class="btn-secondary btn-pequeno" onclick="abrirRelatorioPagamentos('Noivo')">Pagamentos do noivo</button>
+      </div>
     </div>
   </section>
 
@@ -4125,6 +4168,14 @@
     <div class="modal-content">
       <button class="close-btn" onclick="fecharModal('modalNoiva')">&times;</button>
       <h2>Noiva</h2>
+      <div class="pessoa-abas" aria-label="Seções de noiva">
+        <button type="button" id="abaPagamentosNoiva" class="btn-secondary" aria-pressed="true" aria-controls="painelPagamentosNoiva" onclick="selecionarAbaPessoa('Noiva', 'pagamentos')">Pagamentos</button>
+        <button type="button" id="abaDadosNoiva" class="btn-secondary" aria-pressed="false" aria-controls="painelDadosNoiva" onclick="selecionarAbaPessoa('Noiva', 'dados')">Dados pessoais</button>
+      </div>
+      <div id="painelPagamentosNoiva" class="pessoa-pagamentos" aria-labelledby="abaPagamentosNoiva">
+        <div id="relatorioPagamentosNoiva"></div>
+      </div>
+      <div id="painelDadosNoiva" class="pessoa-dados" aria-labelledby="abaDadosNoiva" hidden>
       <h3>Dados pessoais</h3>
       <div class="form-group">
         <label for="nomeNoiva">Nome completo</label>
@@ -4162,6 +4213,7 @@
       <div class="actions">
         <button class="btn-success" onclick="salvarNoiva()">Salvar</button>
       </div>
+      </div>
     </div>
   </div>
 
@@ -4170,6 +4222,14 @@
     <div class="modal-content">
       <button class="close-btn" onclick="fecharModal('modalNoivo')">&times;</button>
       <h2>Noivo</h2>
+      <div class="pessoa-abas" aria-label="Seções de noivo">
+        <button type="button" id="abaPagamentosNoivo" class="btn-secondary" aria-pressed="true" aria-controls="painelPagamentosNoivo" onclick="selecionarAbaPessoa('Noivo', 'pagamentos')">Pagamentos</button>
+        <button type="button" id="abaDadosNoivo" class="btn-secondary" aria-pressed="false" aria-controls="painelDadosNoivo" onclick="selecionarAbaPessoa('Noivo', 'dados')">Dados pessoais</button>
+      </div>
+      <div id="painelPagamentosNoivo" class="pessoa-pagamentos" aria-labelledby="abaPagamentosNoivo">
+        <div id="relatorioPagamentosNoivo"></div>
+      </div>
+      <div id="painelDadosNoivo" class="pessoa-dados" aria-labelledby="abaDadosNoivo" hidden>
       <h3>Dados pessoais</h3>
       <div class="form-group">
         <label for="nomeNoivo">Nome completo</label>
@@ -4206,6 +4266,7 @@
       </div>
       <div class="actions">
         <button class="btn-success" onclick="salvarNoivo()">Salvar</button>
+      </div>
       </div>
     </div>
   </div>
@@ -4398,8 +4459,8 @@
       el.style.display = 'flex';
       // Carrega os dados salvos nos campos do modal correspondente
       if (id === 'modalMeuCasamento') carregarCamposCasamento();
-      if (id === 'modalNoiva') carregarCamposNoiva();
-      if (id === 'modalNoivo') carregarCamposNoivo();
+      if (id === 'modalNoiva') { carregarCamposNoiva(); selecionarAbaPessoa('Noiva', 'pagamentos'); }
+      if (id === 'modalNoivo') { carregarCamposNoivo(); selecionarAbaPessoa('Noivo', 'pagamentos'); }
       // Retrato dos campos APÓS o carregamento, para comparação ao fechar.
       snapshotModal[id] = tirarSnapshot(id);
     }
@@ -5472,6 +5533,7 @@
     }
     // ===== Dashboard =====
     function atualizarDashboard() {
+      atualizarRelatoriosPagamentosAbertos();
       // Convidados: total inclui titulares + todos os acompanhantes (cada
       // acompanhante é uma pessoa que vai ao evento).
       let totalPessoas = 0;
@@ -5697,27 +5759,210 @@
       desenharGraficoPagadores();
     }
 
-    // ===== Gráfico: quanto cada um (Noiva × Noivo) já pagou =====
-    // FONTE ÚNICA: Orçamento e Despesas (despesas, campo "valor pago" + "Pago por").
-    // As parcelas dos fornecedores NÃO entram aqui de propósito: como o casal
-    // lança o pagamento nos dois lugares (parcela do fornecedor E despesa),
-    // somar ambos duplicaria o valor. 'Noiva/Noivo' divide meio a meio.
-    // Pagamentos sem "Pago por" caem em 'Não informado' — de propósito, para
-    // o casal enxergar o que falta atribuir.
+
+    // ===== Relatórios e gráfico de pagamentos: a mesma fonte e o mesmo rateio =====
+    // Somente despesas. Parcelas dos fornecedores são espelhos e não são somadas.
     let chartPagadoresInst = null;
-    function calcularPagamentosPorPagador() {
-      const soma = { 'Noiva': 0, 'Noivo': 0, 'Não informado': 0 };
-      function lancar(pagador, valor) {
-        if (!valor || valor <= 0) return;
-        if (pagador === 'Noiva' || pagador === 'Noivo') soma[pagador] += valor;
-        else if (pagador === 'Noiva/Noivo') { soma['Noiva'] += valor / 2; soma['Noivo'] += valor / 2; }
-        else soma['Não informado'] += valor;
+    function centavosPagamento(valor) {
+      const n = Number(valor);
+      return Number.isFinite(n) && n > 0 ? Math.round((n + Number.EPSILON) * 100) : 0;
+    }
+    function escaparRelatorioPagamento(valor) {
+      return String(valor == null ? '' : valor).replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function coletarPagamentosDetalhados() {
+      const linhas = [];
+      const fornecedores = new Map((dados.fornecedores || []).filter(Boolean).map(f => [String(f.id), f]));
+      function adicionar(d, indice, parcela, indiceParcela, centavos, pagador) {
+        if (centavos <= 0) return;
+        const f = d.idFornecedor != null ? fornecedores.get(String(d.idFornecedor)) : null;
+        const data = String(parcela ? (parcela.pagamento || '') : (d.dataPagamento || d.pagamento || '')).trim();
+        const identificacao = String(pagador || '').trim();
+        const base = {
+          indiceDespesa: indice, indiceParcela: indiceParcela, codigo: d.codigo || '',
+          fornecedor: f && f.nome ? f.nome : 'Sem fornecedor vinculado',
+          descricao: d.descricao || 'Despesa sem descrição', categoria: d.categoria || (f && f.categoria) || '',
+          parcela: parcela ? (parcela.rotulo || (parcela.entrada ? 'Entrada' : (indiceParcela + 1) + 'ª parcela')) : 'Pagamento registrado',
+          data: dataValida(data) ? data : '',
+          modalidade: (parcela && parcela.modalidade) || d.modalidadePagamento || 'Não informada',
+          pagadorOriginal: identificacao || 'Não informado',
+          totalPagamentoCentavos: centavos,
+          parcial: !!parcela && centavos < centavosPagamento(parcela.valor),
+          compartilhado: identificacao === 'Noiva/Noivo'
+        };
+        if (base.compartilhado) {
+          // Mantém os centavos: a segunda parte é o restante exato do pagamento.
+          const parteNoiva = Math.round(centavos / 2);
+          if (parteNoiva) linhas.push({...base, pagador: 'Noiva', valorCentavos: parteNoiva});
+          if (centavos - parteNoiva) linhas.push({...base, pagador: 'Noivo', valorCentavos: centavos - parteNoiva});
+        } else {
+          linhas.push({...base, pagador: ['Noiva', 'Noivo'].includes(identificacao) ? identificacao : 'Não informado', valorCentavos: centavos});
+        }
       }
-      (dados.despesas || []).forEach(d => {
-        lancar(d.pagador || '', Number(d.valorPago) || 0);
+      (dados.despesas || []).forEach((d, indice) => {
+        if (!d) return;
+        if (Array.isArray(d.parcelas) && d.parcelas.length) {
+          d.parcelas.forEach((p, i) => {
+            if (!p || p.cancelada) return;
+            // Valor parcial informado prevalece; só usa o valor previsto se houver pagamento datado.
+            const centavos = centavosPagamento(p.valorPago) ||
+              (p.pagamento && dataValida(p.pagamento) ? centavosPagamento(p.valor) : 0);
+            // O pagador da despesa pode ser apenas o da primeira parcela.
+            // Só recupera o campo legado para uma parcela única sem o campo próprio.
+            const pagador = Object.prototype.hasOwnProperty.call(p, 'pagador') ? p.pagador :
+              (d.parcelas.length === 1 ? d.pagador : '');
+            adicionar(d, indice, p, i, centavos, pagador);
+          });
+        } else {
+          adicionar(d, indice, null, null, centavosPagamento(d.valorPago), d.pagador);
+        }
       });
+      const ordemData = v => v ? v.split('/').reverse().join('') : '';
+      return linhas.sort((a, b) => ordemData(b.data).localeCompare(ordemData(a.data)) ||
+        String(a.fornecedor).localeCompare(String(b.fornecedor), 'pt-BR') ||
+        a.indiceDespesa - b.indiceDespesa || (a.indiceParcela || 0) - (b.indiceParcela || 0));
+    }
+    function calcularPagamentosPorPagador() {
+      const soma = {'Noiva': 0, 'Noivo': 0, 'Não informado': 0};
+      coletarPagamentosDetalhados().forEach(l => { soma[l.pagador] += l.valorCentavos; });
+      Object.keys(soma).forEach(p => { soma[p] /= 100; });
       return soma;
     }
+    function obterRelatorioPagamentos(pessoa) {
+      const todas = coletarPagamentosDetalhados();
+      const linhas = todas.filter(l => l.pagador === pessoa);
+      const totalCentavos = linhas.reduce((s, l) => s + l.valorCentavos, 0);
+      const compartilhadoCentavos = linhas.filter(l => l.compartilhado).reduce((s, l) => s + l.valorCentavos, 0);
+      return {linhas, totalCentavos, compartilhadoCentavos, individualCentavos: totalCentavos - compartilhadoCentavos,
+        outros: todas.filter(l => l.pagador === 'Não informado')};
+    }
+    function tabelaRelatorioPagamentos(linhas, pessoa) {
+      const esc = escaparRelatorioPagamento;
+      const outros = pessoa === 'Outros';
+      const tituloValor = outros ? 'Valor pago' : ('Pago pel' + (pessoa === 'Noiva' ? 'a noiva' : 'o noivo'));
+      const total = linhas.reduce((s, l) => s + l.valorCentavos, 0);
+      const corpo = linhas.map(l => {
+        const divisao = outros ? esc(l.pagadorOriginal) :
+          (l.compartilhado ? 'Meio a meio<small>Total do pagamento: ' + formatarMoeda(l.totalPagamentoCentavos / 100) + '</small>' : 'Individual');
+        return '<tr><td>' + esc(l.data || 'Não informada') + '</td><td><strong>' + esc(l.fornecedor) +
+          '</strong><small>' + esc(l.descricao) + '</small><small>' + esc([l.codigo, l.categoria].filter(Boolean).join(' · ')) +
+          '</small></td><td>' + esc(l.parcela) + (l.parcial ? '<small>Pagamento parcial</small>' : '') +
+          '</td><td>' + esc(l.modalidade) + '</td><td>' + divisao +
+          '</td><td class="pagamentos-valor">' + formatarMoeda(l.valorCentavos / 100) + '</td></tr>';
+      }).join('');
+      return '<div class="pagamentos-tabela-wrap" tabindex="0" role="region" aria-label="Detalhamento dos pagamentos">' +
+        '<table class="pagamentos-tabela"><thead><tr><th scope="col">Pago em</th><th scope="col">Fornecedor / despesa</th>' +
+        '<th scope="col">Parcela</th><th scope="col">Forma de pagamento</th><th scope="col">' +
+        (outros ? 'Pago por' : 'Divisão') + '</th><th scope="col" class="pagamentos-valor">' + tituloValor +
+        '</th></tr></thead><tbody>' + corpo + '</tbody><tfoot><tr><td colspan="5">TOTAL</td>' +
+        '<td class="pagamentos-valor">' + formatarMoeda(total / 100) + '</td></tr></tfoot></table></div>';
+    }
+    function conteudoRelatorioPagamentos(pessoa, relatorio) {
+      const r = relatorio || obterRelatorioPagamentos(pessoa);
+      const artigo = pessoa === 'Noiva' ? 'da noiva' : 'do noivo';
+      let html = '<div class="pagamentos-resumo">' +
+        '<div><small>Total pago ' + (pessoa === 'Noiva' ? 'pela noiva' : 'pelo noivo') + '</small><strong>' + formatarMoeda(r.totalCentavos / 100) + '</strong></div>' +
+        '<div><small>Pagamentos individuais</small><strong>' + formatarMoeda(r.individualCentavos / 100) + '</strong></div>' +
+        '<div><small>Parte ' + artigo + ' nos pagamentos divididos</small><strong>' + formatarMoeda(r.compartilhadoCentavos / 100) + '</strong></div></div>';
+      html += '<p class="pagamentos-nota">' + r.linhas.length + ' registro(s). O total corresponde ao gráfico “Quem já pagou”. ' +
+        'Nos pagamentos meio a meio, aparece apenas a parte ' + artigo + '.</p>';
+      html += r.linhas.length ? tabelaRelatorioPagamentos(r.linhas, pessoa) :
+        '<p class="pagamentos-vazio">Nenhum pagamento atribuído ' + (pessoa === 'Noiva' ? 'à noiva' : 'ao noivo') +
+        '. Confira o responsável de cada parcela em Financeiro → Fornecedores contratados.</p>';
+      if (r.linhas.some(l => l.compartilhado && l.totalPagamentoCentavos % 2)) {
+        html += '<p class="pagamentos-nota">No rateio de um valor com centavos ímpares, o centavo de arredondamento fica com a noiva.</p>';
+      }
+      if (r.linhas.some(l => !l.data)) {
+        html += '<p class="pagamentos-nota">“Não informada” indica um valor pago registrado sem data de pagamento válida.</p>';
+      }
+      return html;
+    }
+    function renderizarRelatorioPagamentos(pessoa) {
+      const cont = document.getElementById('relatorioPagamentos' + pessoa);
+      if (!cont) return;
+      const r = obterRelatorioPagamentos(pessoa);
+      const abertos = !!(cont.querySelector('details') || {}).open;
+      const artigo = pessoa === 'Noiva' ? 'da noiva' : 'do noivo';
+      let html = '<div class="pagamentos-cabecalho"><h3>Pagamentos ' + artigo + '</h3><div class="pagamentos-acoes">' +
+        '<button type="button" class="btn-secondary" onclick="exportarCsvPagamentos(\'' + pessoa + '\')">Exportar CSV</button>' +
+        '<button type="button" class="btn-secondary" onclick="imprimirRelatorioPagamentos(\'' + pessoa + '\')">Imprimir / PDF</button></div></div>' +
+        conteudoRelatorioPagamentos(pessoa, r);
+      if (r.outros.length) {
+        const totalOutros = r.outros.reduce((s, l) => s + l.valorCentavos, 0);
+        html += '<details class="pagamentos-outros"' + (abertos ? ' open' : '') + '><summary>Outros pagadores / não informado: ' +
+          formatarMoeda(totalOutros / 100) + ' (' + r.outros.length + ' registro(s))</summary>' +
+          '<p class="pagamentos-nota">Estes valores ficam separados do total ' + artigo +
+          '. Para identificar um pagamento, confira o responsável da parcela em Financeiro → Fornecedores contratados.</p>' +
+          tabelaRelatorioPagamentos(r.outros, 'Outros') + '</details>';
+      }
+      cont.innerHTML = html;
+    }
+    function selecionarAbaPessoa(pessoa, aba) {
+      if (!['Noiva', 'Noivo'].includes(pessoa)) return;
+      const pagamentos = aba !== 'dados';
+      document.getElementById('painelPagamentos' + pessoa).hidden = !pagamentos;
+      document.getElementById('painelDados' + pessoa).hidden = pagamentos;
+      document.getElementById('abaPagamentos' + pessoa).setAttribute('aria-pressed', String(pagamentos));
+      document.getElementById('abaDados' + pessoa).setAttribute('aria-pressed', String(!pagamentos));
+      if (pagamentos) renderizarRelatorioPagamentos(pessoa);
+    }
+    function abrirRelatorioPagamentos(pessoa) {
+      if (['Noiva', 'Noivo'].includes(pessoa)) abrirModal('modal' + pessoa);
+    }
+    function atualizarRelatoriosPagamentosAbertos() {
+      ['Noiva', 'Noivo'].forEach(pessoa => {
+        const modal = document.getElementById('modal' + pessoa);
+        if (modal && modal.style.display && modal.style.display !== 'none') renderizarRelatorioPagamentos(pessoa);
+      });
+    }
+    function exportarCsvPagamentos(pessoa) {
+      const r = obterRelatorioPagamentos(pessoa);
+      const moeda = centavos => (centavos / 100).toFixed(2).replace('.', ',');
+      const linhas = [['Pago por', 'Pago em', 'Código', 'Fornecedor', 'Despesa', 'Categoria', 'Parcela',
+        'Forma de pagamento', 'Divisão', 'Total do pagamento (R$)', 'Parte ' + pessoa + ' (R$)', 'Situação']];
+      r.linhas.forEach(l => linhas.push([pessoa, l.data || 'Não informada', l.codigo, l.fornecedor, l.descricao,
+        l.categoria, l.parcela, l.modalidade, l.compartilhado ? 'Meio a meio' : 'Individual',
+        moeda(l.totalPagamentoCentavos), moeda(l.valorCentavos), l.parcial ? 'Pagamento parcial' : 'Pagamento registrado']));
+      linhas.push(['TOTAL', '', '', '', '', '', '', '', '', '', moeda(r.totalCentavos), '']);
+      const esc = valor => {
+        let texto = String(valor == null ? '' : valor);
+        if (/^[\s]*[=+\-@]/.test(texto)) texto = "'" + texto;
+        return '"' + texto.replace(/"/g, '""') + '"';
+      };
+      const blob = new Blob(['\uFEFF' + linhas.map(l => l.map(esc).join(';')).join('\r\n')], {type:'text/csv;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'pagamentos-' + pessoa.toLowerCase() + '.csv';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    }
+    function imprimirRelatorioPagamentos(pessoa) {
+      const janela = window.open('', '_blank');
+      if (!janela) { notificar('Permita a abertura da janela para imprimir o relatório.'); return; }
+      const r = obterRelatorioPagamentos(pessoa);
+      const nome = ((dados[pessoa.toLowerCase()] || {}).nome || '').trim();
+      const titulo = 'Pagamentos ' + (pessoa === 'Noiva' ? 'da noiva' : 'do noivo');
+      const esc = escaparRelatorioPagamento;
+      janela.document.open();
+      janela.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>' + esc(titulo) +
+        '</title><style>' + document.getElementById('estilosRelatoriosPagamentos').textContent +
+        '@page{size:A4 landscape;margin:12mm}body{font:12px Arial,sans-serif;color:#222;padding:18px}' +
+        'h1{font-size:22px;margin-bottom:6px}.pagamentos-tabela-wrap{overflow:visible;border:0}' +
+        '.pagamentos-tabela{min-width:0;font-size:11px}thead{display:table-header-group}' +
+        '.pagamentos-resumo{grid-template-columns:repeat(3,minmax(0,1fr))!important}' +
+        '.pagamentos-tabela th{white-space:normal}.pagamentos-tabela tr{break-inside:avoid}' +
+        '.pagamentos-tabela tfoot{display:table-row-group}.pagamentos-resumo>div{break-inside:avoid}' +
+        '.pagamentos-tabela th,.pagamentos-tabela td{padding:8px}button{padding:10px;cursor:pointer}' +
+        '@media print{.imprimir-acao{display:none}body{padding:0}}</style></head><body>' +
+        '<button class="imprimir-acao" onclick="window.print()">Imprimir / Salvar como PDF</button><h1>' + esc(titulo) +
+        '</h1>' + (nome ? '<p>' + esc(nome) + '</p>' : '') + '<p>Emitido em ' +
+        esc(new Date().toLocaleString('pt-BR')) + '</p>' + conteudoRelatorioPagamentos(pessoa, r) +
+        '</body></html>');
+      janela.document.close();
+      janela.focus();
+    }
+
     function desenharGraficoPagadores() {
       const canvas = document.getElementById('graficoPagadores');
       const vazio = document.getElementById('graficoPagadoresVazio');
@@ -5737,7 +5982,7 @@
         const valores = [soma['Noiva'], soma['Noivo']];
         const cores = ['#C99AA5', '#4A78B5']; // rosé (Noiva) × azul (Noivo)
         if (soma['Não informado'] > 0) {
-          labels.push('Não informado');
+          labels.push('Outros / não informado');
           valores.push(soma['Não informado']);
           cores.push('#BDB4A5');
         }
