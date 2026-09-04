@@ -2222,8 +2222,49 @@
     .pessoa-abas { display:flex; gap:8px; margin:0 0 20px; flex-wrap:wrap; }
     .pessoa-abas button { min-height:42px; }
     .pessoa-abas button[aria-pressed="true"] { background:var(--ui-marca,#9c7d36); color:#fff; }
-    .pessoa-dados { max-width:680px; margin:0 auto; }
+    .pessoa-dados { max-width:900px; margin:0 auto; }
     .pessoa-dados[hidden], .pessoa-pagamentos[hidden] { display:none !important; }
+    .pessoa-dados-cabecalho {
+      margin-bottom:14px;
+    }
+    .pessoa-dados-cabecalho h3 {
+      margin:0 0 5px;
+    }
+    .pessoa-dados-cabecalho p {
+      margin:0;
+      color:var(--ui-texto-2,#666);
+      font-size:.88rem;
+      line-height:1.45;
+    }
+    .pessoa-dados-secao {
+      margin-bottom:14px;
+      padding:18px;
+      border:1px solid var(--ui-borda,#ddd);
+      border-radius:12px;
+      background:#fff;
+      box-shadow:var(--ui-sombra,0 1px 2px rgba(20,20,25,.05));
+    }
+    .pessoa-dados-secao h4 {
+      margin:0 0 14px;
+      padding-bottom:8px;
+      border-bottom:1px solid var(--ui-borda,#ddd);
+      color:var(--ui-texto,#1F2126);
+      font:700 .82rem/1.3 'Inter',sans-serif;
+      letter-spacing:.06em;
+    }
+    .pessoa-dados-grid {
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:14px 16px;
+    }
+    .pessoa-dados-grid .form-group { margin:0; min-width:0; }
+    .pessoa-dados-grid .campo-largo { grid-column:1 / -1; }
+    .pessoa-dados-acoes {
+      display:flex;
+      justify-content:flex-end;
+      margin-top:4px;
+    }
+    .pessoa-dados-acoes button { min-width:180px; }
     .pagamentos-cabecalho { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
     .pagamentos-cabecalho h3 { margin:0 0 6px; }
     .pagamentos-acoes { display:flex; gap:8px; flex-wrap:wrap; }
@@ -2244,8 +2285,18 @@
     .pagamentos-vazio { padding:24px 12px; color:var(--ui-texto-2,#666); border:1px dashed var(--ui-borda,#ddd); border-radius:8px; }
     .pagamentos-outros { margin-top:22px; border-top:1px solid var(--ui-borda,#ddd); padding-top:14px; }
     .pagamentos-outros summary { cursor:pointer; font-weight:600; line-height:1.5; }
-    .pagamentos-atalhos { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+    .pagamentos-atalhos {
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:8px;
+      margin-top:12px;
+    }
+    .pagamentos-atalhos button { width:100%; min-width:0; }
     @media(max-width:600px) {
+      .pessoa-dados-secao { padding:14px; }
+      .pessoa-dados-grid { grid-template-columns:1fr; gap:11px; }
+      .pessoa-dados-grid .campo-largo { grid-column:auto; }
+      .pessoa-dados-acoes button { width:100%; }
       .pagamentos-resumo { grid-template-columns:1fr; gap:8px; }
       .pagamentos-resumo > div { padding:11px 13px; }
       .pagamentos-resumo strong { font-size:1.1rem; }
@@ -2486,7 +2537,7 @@
         <div class="publico-total">
           <strong id="cardPagantesBuffet">0</strong>
           <span>Pagantes (buffet)</span>
-          <small id="textoRegraBuffetCard">crianças até 7 anos não pagam</small>
+          <small id="textoRegraBuffetCard">A cobrança infantil segue a regra configurada nos dados do casamento.</small>
         </div>
       </div>
       <div class="publico-divisoes">
@@ -3093,8 +3144,8 @@
           <span>Filtrar:</span>
           <select id="filtroPagamentoCriancas" onchange="listarCriancas()">
             <option value="">Todas</option>
-            <option value="paga" id="opcaoPagantes">Só pagantes (8+ anos)</option>
-            <option value="nao-paga" id="opcaoNaoPagantes">Só não pagantes (até 7 anos)</option>
+            <option value="paga" id="opcaoPagantes">Com cobrança</option>
+            <option value="nao-paga" id="opcaoNaoPagantes">Isentos</option>
             <option value="sem-idade">Sem idade informada</option>
           </select>
         </div>
@@ -3868,7 +3919,7 @@
       <div class="form-group" id="grupoIdadeAcompanhante" style="display:none;">
         <label for="idadeAcompanhante">Idade da criança</label>
         <input type="number" id="idadeAcompanhante" min="0" max="17" placeholder="Em anos">
-        <small style="color:#777; display:block; margin-top:0.25rem;">Até 7 anos: não paga buffet. A partir de 8: paga inteiro.</small>
+        <small id="textoRegraBuffetAcompanhante" style="color:#777; display:block; margin-top:0.25rem;">A cobrança segue a regra infantil configurada nos dados do casamento.</small>
       </div>
       <div class="form-group">
         <label for="observacoesAcompanhante">Observações / restrições alimentares</label>
@@ -3991,7 +4042,7 @@
         <div class="form-group" id="grupoIdadeConvidado" style="display:none;">
           <label for="idadeConvidado">Idade da criança</label>
           <input type="number" id="idadeConvidado" min="0" max="17" placeholder="Em anos">
-          <small style="color:#777; display:block; margin-top:0.25rem;">Até 7 anos: não paga buffet. A partir de 8 anos: paga valor inteiro.</small>
+          <small id="textoRegraBuffetConvidado" style="color:#777; display:block; margin-top:0.25rem;">A cobrança segue a regra infantil configurada nos dados do casamento.</small>
         </div>
         <div class="form-group">
           <label>Acompanhantes</label>
@@ -4176,43 +4227,55 @@
         <div id="relatorioPagamentosNoiva"></div>
       </div>
       <div id="painelDadosNoiva" class="pessoa-dados" aria-labelledby="abaDadosNoiva" hidden>
-      <h3>Dados pessoais</h3>
-      <div class="form-group">
-        <label for="nomeNoiva">Nome completo</label>
-        <input type="text" id="nomeNoiva">
-      </div>
-      <div class="form-group">
-        <label for="telefoneNoiva">Telefone</label>
-        <input type="tel" id="telefoneNoiva" placeholder="(DDD) 99999-9999" oninput="aplicarMascaraTelefone(this)">
-      </div>
-      <div class="form-group">
-        <label for="emailNoiva">E-mail</label>
-        <input type="email" id="emailNoiva">
-      </div>
-      <div class="form-group">
-        <label for="nascimentoNoiva">Data de nascimento (dd/mm/aaaa)</label>
-        <input type="text" id="nascimentoNoiva" placeholder="dd/mm/aaaa" inputmode="numeric" oninput="aplicarMascaraData(this)">
-      </div>
-      <h3>Vestido</h3>
-      <div class="form-group">
-        <label for="modeloVestido">Modelo do vestido</label>
-        <input type="text" id="modeloVestido">
-      </div>
-      <div class="form-group">
-        <label for="fornecedorVestido">Loja/Fornecedor</label>
-        <input type="text" id="fornecedorVestido">
-      </div>
-      <div class="form-group">
-        <label for="valorVestido">Valor</label>
-        <input type="text" id="valorVestido" placeholder="R$ 0,00" inputmode="numeric" oninput="aplicarMascaraMoeda(this)" onblur="finalizarCampoMoeda(this)">
-      </div>
-      <div class="form-group">
-        <label for="dataProvaVestido">Data da prova (dd/mm/aaaa)</label>
-        <input type="text" id="dataProvaVestido" placeholder="dd/mm/aaaa" inputmode="numeric" oninput="aplicarMascaraData(this)">
-      </div>
-      <div class="actions">
-        <button class="btn-success" onclick="salvarNoiva()">Salvar</button>
-      </div>
+        <div class="pessoa-dados-cabecalho">
+          <h3>Dados da noiva</h3>
+          <p>Informações pessoais e acompanhamento do vestido.</p>
+        </div>
+        <section class="pessoa-dados-secao">
+          <h4>Contato e identificação</h4>
+          <div class="pessoa-dados-grid">
+            <div class="form-group campo-largo">
+              <label for="nomeNoiva">Nome completo</label>
+              <input type="text" id="nomeNoiva">
+            </div>
+            <div class="form-group">
+              <label for="telefoneNoiva">Telefone</label>
+              <input type="tel" id="telefoneNoiva" placeholder="(DDD) 99999-9999" oninput="aplicarMascaraTelefone(this)">
+            </div>
+            <div class="form-group">
+              <label for="emailNoiva">E-mail</label>
+              <input type="email" id="emailNoiva">
+            </div>
+            <div class="form-group">
+              <label for="nascimentoNoiva">Data de nascimento</label>
+              <input type="text" id="nascimentoNoiva" placeholder="dd/mm/aaaa" inputmode="numeric" oninput="aplicarMascaraData(this)">
+            </div>
+          </div>
+        </section>
+        <section class="pessoa-dados-secao">
+          <h4>Vestido</h4>
+          <div class="pessoa-dados-grid">
+            <div class="form-group">
+              <label for="modeloVestido">Modelo do vestido</label>
+              <input type="text" id="modeloVestido">
+            </div>
+            <div class="form-group">
+              <label for="fornecedorVestido">Loja ou fornecedor</label>
+              <input type="text" id="fornecedorVestido">
+            </div>
+            <div class="form-group">
+              <label for="valorVestido">Valor</label>
+              <input type="text" id="valorVestido" placeholder="R$ 0,00" inputmode="numeric" oninput="aplicarMascaraMoeda(this)" onblur="finalizarCampoMoeda(this)">
+            </div>
+            <div class="form-group">
+              <label for="dataProvaVestido">Data da prova</label>
+              <input type="text" id="dataProvaVestido" placeholder="dd/mm/aaaa" inputmode="numeric" oninput="aplicarMascaraData(this)">
+            </div>
+          </div>
+        </section>
+        <div class="pessoa-dados-acoes">
+          <button class="btn-success" onclick="salvarNoiva()">Salvar dados da noiva</button>
+        </div>
       </div>
     </div>
   </div>
@@ -4230,43 +4293,55 @@
         <div id="relatorioPagamentosNoivo"></div>
       </div>
       <div id="painelDadosNoivo" class="pessoa-dados" aria-labelledby="abaDadosNoivo" hidden>
-      <h3>Dados pessoais</h3>
-      <div class="form-group">
-        <label for="nomeNoivo">Nome completo</label>
-        <input type="text" id="nomeNoivo">
-      </div>
-      <div class="form-group">
-        <label for="telefoneNoivo">Telefone</label>
-        <input type="tel" id="telefoneNoivo" placeholder="(DDD) 99999-9999" oninput="aplicarMascaraTelefone(this)">
-      </div>
-      <div class="form-group">
-        <label for="emailNoivo">E-mail</label>
-        <input type="email" id="emailNoivo">
-      </div>
-      <div class="form-group">
-        <label for="nascimentoNoivo">Data de nascimento (dd/mm/aaaa)</label>
-        <input type="text" id="nascimentoNoivo" placeholder="dd/mm/aaaa" inputmode="numeric" oninput="aplicarMascaraData(this)">
-      </div>
-      <h3>Traje</h3>
-      <div class="form-group">
-        <label for="tipoTraje">Tipo de traje</label>
-        <input type="text" id="tipoTraje">
-      </div>
-      <div class="form-group">
-        <label for="fornecedorTraje">Loja/Fornecedor</label>
-        <input type="text" id="fornecedorTraje">
-      </div>
-      <div class="form-group">
-        <label for="valorTraje">Valor</label>
-        <input type="text" id="valorTraje" placeholder="R$ 0,00" inputmode="numeric" oninput="aplicarMascaraMoeda(this)" onblur="finalizarCampoMoeda(this)">
-      </div>
-      <div class="form-group">
-        <label for="dataProvaTraje">Data da prova (dd/mm/aaaa)</label>
-        <input type="text" id="dataProvaTraje" placeholder="dd/mm/aaaa" inputmode="numeric" oninput="aplicarMascaraData(this)">
-      </div>
-      <div class="actions">
-        <button class="btn-success" onclick="salvarNoivo()">Salvar</button>
-      </div>
+        <div class="pessoa-dados-cabecalho">
+          <h3>Dados do noivo</h3>
+          <p>Informações pessoais e acompanhamento do traje.</p>
+        </div>
+        <section class="pessoa-dados-secao">
+          <h4>Contato e identificação</h4>
+          <div class="pessoa-dados-grid">
+            <div class="form-group campo-largo">
+              <label for="nomeNoivo">Nome completo</label>
+              <input type="text" id="nomeNoivo">
+            </div>
+            <div class="form-group">
+              <label for="telefoneNoivo">Telefone</label>
+              <input type="tel" id="telefoneNoivo" placeholder="(DDD) 99999-9999" oninput="aplicarMascaraTelefone(this)">
+            </div>
+            <div class="form-group">
+              <label for="emailNoivo">E-mail</label>
+              <input type="email" id="emailNoivo">
+            </div>
+            <div class="form-group">
+              <label for="nascimentoNoivo">Data de nascimento</label>
+              <input type="text" id="nascimentoNoivo" placeholder="dd/mm/aaaa" inputmode="numeric" oninput="aplicarMascaraData(this)">
+            </div>
+          </div>
+        </section>
+        <section class="pessoa-dados-secao">
+          <h4>Traje</h4>
+          <div class="pessoa-dados-grid">
+            <div class="form-group">
+              <label for="tipoTraje">Tipo de traje</label>
+              <input type="text" id="tipoTraje">
+            </div>
+            <div class="form-group">
+              <label for="fornecedorTraje">Loja ou fornecedor</label>
+              <input type="text" id="fornecedorTraje">
+            </div>
+            <div class="form-group">
+              <label for="valorTraje">Valor</label>
+              <input type="text" id="valorTraje" placeholder="R$ 0,00" inputmode="numeric" oninput="aplicarMascaraMoeda(this)" onblur="finalizarCampoMoeda(this)">
+            </div>
+            <div class="form-group">
+              <label for="dataProvaTraje">Data da prova</label>
+              <input type="text" id="dataProvaTraje" placeholder="dd/mm/aaaa" inputmode="numeric" oninput="aplicarMascaraData(this)">
+            </div>
+          </div>
+        </section>
+        <div class="pessoa-dados-acoes">
+          <button class="btn-success" onclick="salvarNoivo()">Salvar dados do noivo</button>
+        </div>
       </div>
     </div>
   </div>
@@ -4644,6 +4719,42 @@
     CONFIG_SISTEMA.convidados.textoNaoPagante =
       `crianças até ${CONFIG_SISTEMA.convidados.idadeMinimaPagante - 1} anos não pagam`;
 
+    // Fonte única para qualquer cálculo ou texto de cobrança infantil.
+    // O limite integral configurado pelo usuário tem precedência sobre o padrão.
+    function obterRegrasBuffetConfiguradas() {
+      const r = (typeof dados !== 'undefined' && dados.regrasBuffet) ? dados.regrasBuffet : {};
+      const isentaPadrao = CONFIG_SISTEMA.convidados.idadeMinimaPagante - 1;
+      const isenta = Math.max(0, Number(r.idadeIsentaAte ?? isentaPadrao));
+      const integralInformada = Number(r.idadeIntegralApartir);
+      const integral = Number.isFinite(integralInformada) && integralInformada > isenta
+        ? integralInformada
+        : Math.max(isenta + 1, Number(r.idadeParcialAte ?? isenta) + 1);
+      const parcial = Math.min(
+        integral - 1,
+        Math.max(isenta, Number(r.idadeParcialAte ?? (integral - 1)))
+      );
+      const percentual = Math.max(0, Math.min(100, Number(r.percentualParcial ?? 50)));
+      return { isenta, parcial, integral, percentual };
+    }
+    function pesoBuffetConfigurado(tipo, idade) {
+      if (tipo !== 'Criança') return 1;
+      const i = Number(idade);
+      if (!Number.isFinite(i)) return 0;
+      const r = obterRegrasBuffetConfiguradas();
+      if (i <= r.isenta) return 0;
+      if (i >= r.integral) return 1;
+      return r.percentual / 100;
+    }
+    function rotuloBuffetConfigurado(tipo, idade) {
+      if (tipo !== 'Criança') return 'pagamento integral';
+      const i = Number(idade);
+      if (!Number.isFinite(i)) return 'idade não informada';
+      const peso = pesoBuffetConfigurado(tipo, i);
+      if (peso <= 0) return 'não paga buffet';
+      if (peso >= 1) return 'pagamento integral';
+      return `paga ${obterRegrasBuffetConfiguradas().percentual}%`;
+    }
+
     // ----- Configuração da nuvem (Supabase) -----
     // Credenciais "públicas" — seguras para ficar no HTML.
     // A segurança real do sistema é a senha em CONFIG_SISTEMA.seguranca.
@@ -4660,6 +4771,9 @@
     // Fila/debounce para não enviar requests demais quando salvar dispara em
     // rajada (ex: digitar num input que chama salvarDados a cada tecla).
     let _timerSalvarNuvem = null;
+    let _versaoSalvamentoSolicitada = 0;
+    let _salvamentoEmAndamento = false;
+    let _notificacoesAposSalvar = [];
     // Inicializa o cliente Supabase quando o SDK estiver carregado
     function inicializarSupabase() {
       if (typeof supabase === 'undefined' || !supabase.createClient) {
@@ -5202,13 +5316,24 @@
       // Salva na nuvem com debounce (espera 500ms sem novas chamadas para
       // evitar enviar 10 requests quando o usuário digita rápido em um input).
       if (_timerSalvarNuvem) clearTimeout(_timerSalvarNuvem);
+      _versaoSalvamentoSolicitada += 1;
+      const versaoDestaGravacao = _versaoSalvamentoSolicitada;
+      _salvamentoEmAndamento = true;
       setIndicadorSync('salvando', 'Salvando...');
-      _timerSalvarNuvem = setTimeout(salvarNaNuvemAgora, 500);
+      _timerSalvarNuvem = setTimeout(() => salvarNaNuvemAgora(versaoDestaGravacao), 500);
     }
 
-    async function salvarNaNuvemAgora() {
+    async function salvarNaNuvemAgora(versaoDestaGravacao) {
+      const versaoAlvo = Number.isFinite(Number(versaoDestaGravacao))
+        ? Number(versaoDestaGravacao)
+        : _versaoSalvamentoSolicitada;
+      _timerSalvarNuvem = null;
       if (!supabaseClient || !nuvemRowId) {
         setIndicadorSync('erro', 'Sem conexão');
+        if (versaoAlvo === _versaoSalvamentoSolicitada) {
+          finalizarNotificacoesDeSalvamento(false);
+          notificar('Não foi possível salvar na nuvem. Verifique a conexão e tente novamente.', 'erro');
+        }
         return false;
       }
       try {
@@ -5218,12 +5343,19 @@
           .eq('id', nuvemRowId);
         if (error) throw error;
         ultimaSync = new Date();
-        setIndicadorSync('ok', 'Sincronizado');
+        if (versaoAlvo === _versaoSalvamentoSolicitada) {
+          setIndicadorSync('ok', 'Sincronizado');
+          finalizarNotificacoesDeSalvamento(true);
+        }
         fazerBackupAutomatico(); // fire-and-forget: 1x por dia, nunca bloqueia o save
         return true;
       } catch (e) {
         console.error('Erro ao salvar na nuvem:', e);
-        setIndicadorSync('erro', 'Erro ao salvar');
+        if (versaoAlvo === _versaoSalvamentoSolicitada) {
+          setIndicadorSync('erro', 'Erro ao salvar');
+          finalizarNotificacoesDeSalvamento(false);
+          notificar('Não foi possível salvar na nuvem. Nenhuma confirmação de sucesso foi emitida. Tente novamente.', 'erro');
+        }
         return false;
       }
     }
@@ -6685,7 +6817,7 @@
         linha.style.cssText = 'display:flex; align-items:center; gap:0.5rem; padding:0.25rem 0; border-bottom:1px solid #eee;';
         const idadeTxt = a.tipo === 'Criança' && a.idade !== undefined && a.idade !== null
           ? ` (${a.idade} anos)` : '';
-        const corPagamento = (a.tipo === 'Criança' && (Number(a.idade) || 0) < CONFIG_SISTEMA.convidados.idadeMinimaPagante) ? '#888' : '#222';
+        const corPagamento = (a.tipo === 'Criança' && pesoBuffetConfigurado('Criança', a.idade) === 0) ? '#888' : '#222';
         linha.innerHTML = `<div style="flex:1; color:${corPagamento};">
             <strong>${a.nome}</strong> — ${a.parentesco || 'sem parentesco'} | ${a.tipo}${idadeTxt}
           </div>`;
@@ -7397,10 +7529,11 @@
         // Mostra idade e indicador de pagante para crianças
         let infoCrianca = '';
         if (c.categoria === 'Crianças' && c.idade !== undefined && c.idade !== null) {
-          const paga = Number(c.idade) >= CONFIG_SISTEMA.convidados.idadeMinimaPagante;
+          const paga = pesoBuffetConfigurado('Criança', c.idade) > 0;
+          const rotuloBuffet = rotuloBuffetConfigurado('Criança', c.idade);
           infoCrianca = ` — ${c.idade} anos ` +
-            (paga ? '<span class="etiqueta-venc proxima">paga buffet</span>'
-                  : '<span class="etiqueta-venc pago">não paga buffet</span>');
+            (paga ? `<span class="etiqueta-venc proxima">${rotuloBuffet}</span>`
+                  : `<span class="etiqueta-venc pago">${rotuloBuffet}</span>`);
         }
         // Contagem de acompanhantes (estrutura nova: array; antiga: número)
         const qtdAcomp = Array.isArray(c.acompanhantes) ? c.acompanhantes.length
@@ -9323,14 +9456,14 @@
       const resumo = document.getElementById('resumoCriancas');
       if (!cont) return;
       const todas = coletarTodasAsCriancas();
-      const pagantes = todas.filter(c => Number(c.idade) >= CONFIG_SISTEMA.convidados.idadeMinimaPagante).length;
-      const naoPagantes = todas.filter(c => c.idade !== undefined && c.idade !== null && Number(c.idade) < CONFIG_SISTEMA.convidados.idadeMinimaPagante).length;
+      const pagantes = todas.filter(c => pesoBuffetConfigurado('Criança', c.idade) > 0).length;
+      const naoPagantes = todas.filter(c => c.idade !== undefined && c.idade !== null && pesoBuffetConfigurado('Criança', c.idade) === 0).length;
       const semIdade = todas.filter(c => c.idade === undefined || c.idade === null).length;
       if (resumo) {
         if (todas.length === 0) {
           resumo.textContent = 'Nenhuma criança cadastrada ainda.';
         } else {
-          resumo.textContent = `Total: ${todas.length} criança(s) — ${pagantes} paga(m) buffet, ${naoPagantes} não paga(m), ${semIdade} sem idade.`;
+          resumo.textContent = `Total: ${todas.length} criança(s) — ${pagantes} com cobrança, ${naoPagantes} isenta(s), ${semIdade} sem idade.`;
         }
       }
       cont.innerHTML = '';
@@ -9340,10 +9473,10 @@
       // Aplica filtro primeiro
       const filtradas = todas.filter(c => {
         const idade = (c.idade === undefined || c.idade === null) ? null : Number(c.idade);
-        const paga = idade !== null && idade >= CONFIG_SISTEMA.convidados.idadeMinimaPagante;
+        const paga = idade !== null && pesoBuffetConfigurado('Criança', idade) > 0;
         const semIdadeC = idade === null;
         if (filtro === 'paga' && !paga) return false;
-        if (filtro === 'nao-paga' && !(idade !== null && idade < CONFIG_SISTEMA.convidados.idadeMinimaPagante)) return false;
+        if (filtro === 'nao-paga' && !(idade !== null && pesoBuffetConfigurado('Criança', idade) === 0)) return false;
         if (filtro === 'sem-idade' && !semIdadeC) return false;
         return true;
       });
@@ -9365,7 +9498,7 @@
       function renderBloco(criancas) {
         criancas.forEach((c, idx) => {
           const idade = (c.idade === undefined || c.idade === null) ? null : Number(c.idade);
-          const paga = idade !== null && idade >= CONFIG_SISTEMA.convidados.idadeMinimaPagante;
+          const paga = idade !== null && pesoBuffetConfigurado('Criança', idade) > 0;
           const semIdadeC = idade === null;
           const div = document.createElement('div');
           div.className = 'item-lista';
@@ -9375,7 +9508,7 @@
           const etiqueta = semIdadeC
             ? '<span class="etiqueta-venc sem-data">sem idade</span>'
             : (paga
-                ? '<span class="etiqueta-venc proxima">paga buffet</span>'
+                ? `<span class="etiqueta-venc proxima">${rotuloBuffetConfigurado('Criança', idade)}</span>`
                 : '<span class="etiqueta-venc pago">não paga buffet</span>');
           const idadeTxt = semIdadeC ? '?' : `${idade} ano(s)`;
           let obsHtml = '';
@@ -10299,22 +10432,16 @@
         lista.appendChild(p);
       }
     }
-// Calcula o número de convidados pagantes para o cálculo do Buffet.
-// REGRA: idade mínima pagante vem de CONFIG_SISTEMA.convidados. Sem idade NÃO
-// são contadas (mais seguro errar para menos do que cobrar a mais por engano).
+// Calcula o equivalente de convidados pagantes para o cálculo do Buffet.
+// A regra configurada pode gerar pesos 0 (isento), parcial ou 1 (integral).
+// Crianças sem idade não são contadas.
 // Adultos (qualquer categoria diferente de "Crianças") pagam normalmente,
 // somando seus acompanhantes.
 function calcularConvidadosPagantes() {
   let total = 0;
-  // Função auxiliar: dado um "ser" (convidado ou acompanhante), retorna se paga buffet.
-  // Regras: criança paga a partir de CONFIG_SISTEMA.convidados.idadeMinimaPagante; adulto paga.
-  // Criança sem idade informada NÃO paga (lado seguro — errar para menos).
+  // Retorna o peso financeiro da pessoa no buffet.
   function pagaBuffet(tipo, idade) {
-    if (tipo === 'Criança') {
-      const i = Number(idade);
-      return !isNaN(i) && i >= CONFIG_SISTEMA.convidados.idadeMinimaPagante;
-    }
-    return true;
+    return pesoBuffetConfigurado(tipo, idade);
   }
   if (Array.isArray(dados.convidados)) {
     dados.convidados.forEach(c => {
@@ -10324,11 +10451,11 @@ function calcularConvidadosPagantes() {
       if (c.status === 'Não vai') return;
       // Conta o convidado titular
       const tipoTitular = (c.categoria === 'Crianças') ? 'Criança' : 'Adulto';
-      if (pagaBuffet(tipoTitular, c.idade)) total += 1;
+      total += pagaBuffet(tipoTitular, c.idade);
       // Conta acompanhantes (estrutura nova: array; antiga: número)
       if (Array.isArray(c.acompanhantes)) {
         c.acompanhantes.forEach(a => {
-          if (pagaBuffet(a.tipo || 'Adulto', a.idade)) total += 1;
+          total += pagaBuffet(a.tipo || 'Adulto', a.idade);
         });
       } else if (typeof c.acompanhantes === 'number') {
         // Compat retroativa: assume adultos (paga inteiro)
@@ -11954,10 +12081,27 @@ function atualizarValoresBuffet() {
 
     const ROTULO_NOTIF = { sucesso: 'Sucesso', erro: 'Erro', atencao: 'Atenção', info: 'Informação' };
 
+    function finalizarNotificacoesDeSalvamento(sucesso) {
+      const pendentes = _notificacoesAposSalvar.splice(0);
+      _salvamentoEmAndamento = false;
+      if (!sucesso || !pendentes.length) return;
+      const unicas = pendentes.filter((item, indice, lista) =>
+        lista.findIndex(outro => outro.texto === item.texto && outro.tipo === item.tipo) === indice
+      );
+      unicas.slice(-3).forEach(item => notificar(item.texto, item.tipo));
+    }
+
     function notificar(mensagem, tipo) {
       const texto = String(mensagem === undefined || mensagem === null ? '' : mensagem);
       if (!texto.trim()) return;
       const t = tipo || classificarNotificacao(texto);
+      // Uma mensagem de sucesso relacionada a uma alteração só aparece depois
+      // que a gravação mais recente for confirmada pela nuvem. Em caso de erro,
+      // as mensagens pendentes são descartadas e o erro real é exibido.
+      if (t === 'sucesso' && _salvamentoEmAndamento) {
+        _notificacoesAposSalvar.push({ texto, tipo: t });
+        return;
+      }
       const area = document.getElementById('areaNotificacoes');
       if (!area) { console.warn('[notificar]', t, texto); return; }
 
@@ -13426,7 +13570,7 @@ blocoRsvp +
               detalhes.push(c.parentescoNoivo.grau + ' ' + dq);
             }
             if (c.categoria === 'Crianças' && c.idade !== undefined && c.idade !== null) {
-              detalhes.push(c.idade + ' anos (' + (Number(c.idade) >= CONFIG_SISTEMA.convidados.idadeMinimaPagante ? 'paga buffet' : 'não paga') + ')');
+              detalhes.push(c.idade + ' anos (' + rotuloBuffetConfigurado('Criança', c.idade) + ')');
             }
             if (c.observacoes && String(c.observacoes).trim()) detalhes.push('Obs: ' + c.observacoes);
             linhaTabela(
@@ -13932,10 +14076,11 @@ blocoRsvp +
         }
         let infoCrianca = '';
         if (c.categoria === 'Crianças' && c.idade !== undefined && c.idade !== null) {
-          const paga = Number(c.idade) >= CONFIG_SISTEMA.convidados.idadeMinimaPagante;
+          const paga = pesoBuffetConfigurado('Criança', c.idade) > 0;
+          const rotuloBuffet = rotuloBuffetConfigurado('Criança', c.idade);
           infoCrianca = ` — ${c.idade} anos ` +
-            (paga ? '<span class="etiqueta-venc proxima">paga buffet</span>'
-                  : '<span class="etiqueta-venc pago">não paga buffet</span>');
+            (paga ? `<span class="etiqueta-venc proxima">${rotuloBuffet}</span>`
+                  : `<span class="etiqueta-venc pago">${rotuloBuffet}</span>`);
         }
         let infoParentTit = '';
         if (c.categoria === 'Família' && c.parentescoNoivo && c.parentescoNoivo.grau) {
@@ -14747,16 +14892,15 @@ blocoRsvp +
       // Carrega o monograma embutido no cabeçalho
       const imgMonograma = document.getElementById('monogramaHeader');
       if (imgMonograma) imgMonograma.src = MONOGRAMA_BASE64;
-      // Textos derivados da regra de idade do buffet (CONFIG_SISTEMA) — assim,
-      // mudar a idade mínima pagante atualiza todos os avisos automaticamente.
-      const idadeMin = CONFIG_SISTEMA.convidados.idadeMinimaPagante;
+      // A regra detalhada é preenchida pela camada integrada após os dados
+      // configuráveis do casamento serem carregados.
       const elRegraCard = document.getElementById('textoRegraBuffetCard');
       if (elRegraCard) elRegraCard.textContent =
-        `inclui os noivos e filhos do casal · ${CONFIG_SISTEMA.convidados.textoNaoPagante}`;
+        'A cobrança infantil segue a regra configurada nos dados do casamento.';
       const elOpNao = document.getElementById('opcaoNaoPagantes');
-      if (elOpNao) elOpNao.textContent = `Só não pagantes (até ${idadeMin - 1} anos)`;
+      if (elOpNao) elOpNao.textContent = 'Isentos';
       const elOpSim = document.getElementById('opcaoPagantes');
-      if (elOpSim) elOpSim.textContent = `Só pagantes (${idadeMin}+ anos)`;
+      if (elOpSim) elOpSim.textContent = 'Com cobrança';
       // Preenche os selects de categorias/status/modalidades a partir do CONFIG
       preencherSelectsDoConfig();
       // Garante id estável em todos os fornecedores (necessário para o vínculo
@@ -14924,6 +15068,31 @@ blocoRsvp +
     }
     function tipoPessoaV4(p) {
       return p.tipoPessoa || (p.categoria === 'Crianças' ? 'Criança' : 'Adulto');
+    }
+    function regrasBuffetAtuaisV4() {
+      return obterRegrasBuffetConfiguradas();
+    }
+    function pesoBuffetFaixaV4(tipo, idade) {
+      return pesoBuffetConfigurado(tipo, idade);
+    }
+    function atualizarTextoRegraBuffetV4() {
+      const r = regrasBuffetAtuaisV4();
+      const partes = [`crianças até ${r.isenta} anos não pagam`];
+      if (r.integral > r.isenta + 1) {
+        partes.push(`de ${r.isenta + 1} a ${r.integral - 1} anos pagam ${r.percentual}%`);
+      }
+      partes.push(`pagamento integral a partir de ${r.integral} anos`);
+      const resumo = partes.join(' · ');
+      const el = document.getElementById('textoRegraBuffetCard');
+      if (el) el.textContent = resumo;
+      ['textoRegraBuffetAcompanhante','textoRegraBuffetConvidado'].forEach(id => {
+        const ajuda = document.getElementById(id);
+        if (ajuda) ajuda.textContent = resumo.charAt(0).toUpperCase() + resumo.slice(1) + '.';
+      });
+      const opcaoComCobranca = document.getElementById('opcaoPagantes');
+      if (opcaoComCobranca) opcaoComCobranca.textContent = `Com cobrança (${r.isenta + 1}+ anos)`;
+      const opcaoIsentos = document.getElementById('opcaoNaoPagantes');
+      if (opcaoIsentos) opcaoIsentos.textContent = `Isentos (até ${r.isenta} anos)`;
     }
     function atualizarIdadeNascimentoV4() {
       const nasc = valorElV4('dataNascimentoConvidado');
@@ -15425,13 +15594,11 @@ blocoRsvp +
     window.excluirPessoaV4=function(index){ const p=dados.convidados[index]; if(!p)return; if(!confirm(`Excluir o cadastro de "${p.nome}"?`))return; dados.convidados.splice(index,1); sincronizarEspelhosLegadosV4(); recalcularBuffetsSalvos(); salvarDados(); atualizarDashboard(); listarConvidados(); listarMesas(); };
 
     calcularConvidadosPagantes = function(){
-      const r=dados.regrasBuffet||{idadeIsentaAte:7,idadeParcialAte:7,percentualParcial:50,idadeIntegralApartir:8};
-      const peso=(tipo,idade)=>{ if(tipo!=='Criança')return 1; const i=Number(idade); if(!Number.isFinite(i))return 0; if(i<=Number(r.idadeIsentaAte||0))return 0; if(i<=Number(r.idadeParcialAte||0))return Math.max(0,Math.min(100,Number(r.percentualParcial)||0))/100; return 1; };
       let total=0;
       (dados.convidados||[]).forEach(p=>{
         if(p.statusLista!=='Lista principal'||['Recusado','Cancelado'].includes(normalizarConfirmacaoV4(p.status)))return;
-        total+=peso(tipoPessoaV4(p),p.idade);
-        (p.acompanhantes||[]).forEach(a=>total+=peso(a.tipo||'Adulto',a.idade));
+        total+=pesoBuffetFaixaV4(tipoPessoaV4(p),p.idade);
+        (p.acompanhantes||[]).forEach(a=>total+=pesoBuffetFaixaV4(a.tipo||'Adulto',a.idade));
       });
       total+=(Number(dados.buffetNoivos)||0)+(Number(dados.buffetFilhos)||0);
       return Math.round(total*100)/100;
@@ -15443,6 +15610,7 @@ blocoRsvp +
       carregarCasamentoBaseV4.apply(this,arguments); const c=dados.cerimonia||{}, r=dados.regrasBuffet||{};
       setElV4('dataCerimonia',c.data||dados.dataCasamento||''); setElV4('horaCerimonia',c.hora||dados.horaCasamento||'');
       setElV4('idadeIsentaBuffet',r.idadeIsentaAte??7); setElV4('idadeParcialBuffet',r.idadeParcialAte??7); setElV4('percentualParcialBuffet',r.percentualParcial??50); setElV4('idadeIntegralBuffet',r.idadeIntegralApartir??8);
+      atualizarTextoRegraBuffetV4();
     };
     const salvarCerimoniaBaseV4=salvarCerimonia;
     salvarCerimonia=function(silencioso){
@@ -15452,9 +15620,13 @@ blocoRsvp +
     const salvarDadosCasamentoBaseV4=salvarDadosCasamento;
     salvarDadosCasamento=function(silencioso){
       if(salvarDadosCasamentoBaseV4(true)!==true)return false;
-      const isenta=Math.max(0,Number(valorElV4('idadeIsentaBuffet'))||0), parcial=Math.max(isenta,Number(valorElV4('idadeParcialBuffet'))||isenta), integral=Math.max(parcial+1,Number(valorElV4('idadeIntegralBuffet'))||parcial+1);
+      const isenta=Math.max(0,Number(valorElV4('idadeIsentaBuffet'))||0);
+      const parcial=Math.max(0,Number(valorElV4('idadeParcialBuffet'))||0);
+      const integral=Math.max(0,Number(valorElV4('idadeIntegralBuffet'))||0);
+      if(parcial<isenta){notificar('A idade de pagamento parcial não pode ser menor que a idade de isenção.','atencao');return false;}
+      if(integral!==parcial+1){notificar('O pagamento integral deve começar no ano seguinte ao limite do pagamento parcial.','atencao');return false;}
       dados.regrasBuffet={idadeIsentaAte:isenta,idadeParcialAte:parcial,percentualParcial:Math.max(0,Math.min(100,Number(valorElV4('percentualParcialBuffet'))||0)),idadeIntegralApartir:integral};
-      recalcularBuffetsSalvos(); if(silencioso)return true; salvarDados();return true;
+      atualizarTextoRegraBuffetV4(); recalcularBuffetsSalvos(); if(silencioso)return true; salvarDados();return true;
     };
 
     // Agenda: acrescenta filtro de situação sem alterar o modelo existente.
@@ -15529,9 +15701,9 @@ blocoRsvp +
       cont.innerHTML=arr.map((p,i)=>`<div class="item-lista" data-ap-parcela="${i}">
         <div class="linha-campo label-acima" style="flex-wrap:wrap">
           <div class="form-group" style="flex:1;min-width:120px"><label>Parcela</label><input data-campo="rotulo" value="${escV4(p.rotulo||((i===0&&p.entrada)?'Entrada':(i+1)+'ª parcela'))}"></div>
-          <div class="form-group" style="flex:1;min-width:125px"><label>Valor previsto</label><input data-campo="valor" value="${p.valor?formatarMoeda(p.valor):''}" oninput="aplicarMascaraMoeda(this)" onblur="finalizarCampoMoeda(this);apRedistribuirAoEditar(${i})"></div>
+          <div class="form-group" style="flex:1;min-width:125px"><label>Valor previsto</label><input data-campo="valor" value="${p.valor?formatarMoeda(p.valor):''}" oninput="aplicarMascaraMoeda(this)" onblur="finalizarCampoMoeda(this);apAoEditarValorParcela(${i})"></div>
           <div class="form-group" style="flex:1;min-width:125px"><label>Valor pago</label><input data-campo="valorPago" value="${p.valorPago?formatarMoeda(p.valorPago):''}" oninput="aplicarMascaraMoeda(this)" onblur="finalizarCampoMoeda(this);atualizarResumoParcelasApagar()"></div>
-          <div class="form-group" style="flex:1;min-width:120px"><label>Vencimento</label><input data-campo="vencimento" value="${escV4(p.vencimento||'')}" placeholder="dd/mm/aaaa" oninput="aplicarMascaraData(this)" onblur="apAoAlterarVencimento(${i})"></div>
+          <div class="form-group" style="flex:1;min-width:120px"><label>Vencimento</label><input data-campo="vencimento" value="${escV4(p.vencimento||'')}" placeholder="dd/mm/aaaa" oninput="aplicarMascaraData(this)" onblur="apAoEditarVencimento(${i})"></div>
           <div class="form-group" style="flex:1;min-width:120px"><label>Pago em</label><input data-campo="pagamento" value="${escV4(p.pagamento||'')}" placeholder="dd/mm/aaaa" oninput="aplicarMascaraData(this)"></div>
         </div>
         <div class="linha-campo label-acima" style="flex-wrap:wrap">
@@ -15789,15 +15961,7 @@ blocoRsvp +
       document.head.appendChild(st);
     })();
 
-    function pesoBuffetV5(tipo,idade){
-      if(tipo!=='Criança') return 1;
-      const i=Number(idade), r=dados.regrasBuffet||{};
-      if(!Number.isFinite(i)) return 0;
-      const isenta=Number(r.idadeIsentaAte??7), parcial=Number(r.idadeParcialAte??isenta);
-      if(i<=isenta) return 0;
-      if(i<=parcial) return Math.max(0,Math.min(100,Number(r.percentualParcial??50)))/100;
-      return 1;
-    }
+    function pesoBuffetV5(tipo,idade){ return pesoBuffetFaixaV4(tipo,idade); }
     function formatarQuantidadeV5(v){
       return new Intl.NumberFormat('pt-BR',{maximumFractionDigits:2}).format(Number(v)||0);
     }
@@ -15830,14 +15994,14 @@ blocoRsvp +
     // extra. Por isso a aba "Padrinhos" é um filtro e nada é somado ao buffet
     // por causa dela — o buffet lê apenas dados.convidados, uma vez por pessoa.
     function resumoBuffetV5(){
-      const r=dados.regrasBuffet||{idadeIsentaAte:7,idadeParcialAte:7,percentualParcial:50};
+      const r=regrasBuffetAtuaisV4();
       let adultos=0, criancasIsentas=0, criancasParciais=0, criancasIntegrais=0, padrinhos=0;
       const conta=(tipo,idade)=>{
         if(tipo!=='Criança'){ adultos++; return; }
         const i=Number(idade);
         if(!Number.isFinite(i)){ criancasIsentas++; return; }
-        if(i<=Number(r.idadeIsentaAte||0)){ criancasIsentas++; return; }
-        if(i<=Number(r.idadeParcialAte||0)){ criancasParciais++; return; }
+        if(i<=r.isenta){ criancasIsentas++; return; }
+        if(i<r.integral){ criancasParciais++; return; }
         criancasIntegrais++;
       };
       (dados.convidados||[]).forEach(p=>{
@@ -15967,11 +16131,9 @@ blocoRsvp +
     function classificacaoBuffetCriancaV6(idade){
       const informada=idade!==''&&idade!==null&&idade!==undefined&&Number.isFinite(Number(idade));
       if(!informada) return {rotulo:'Idade não informada',classe:'',idadeTexto:'idade não informada'};
-      const i=Number(idade), r=dados.regrasBuffet||{};
-      const isenta=Number(r.idadeIsentaAte??7), parcial=Number(r.idadeParcialAte??isenta);
-      const percentual=Math.max(0,Math.min(100,Number(r.percentualParcial??50)));
-      if(i<=isenta) return {rotulo:'Não paga buffet',classe:'ok',idadeTexto:i+' ano(s)'};
-      if(i<=parcial) return {rotulo:'Paga '+percentual+'%',classe:'',idadeTexto:i+' ano(s)'};
+      const i=Number(idade), r=regrasBuffetAtuaisV4();
+      if(i<=r.isenta) return {rotulo:'Não paga buffet',classe:'ok',idadeTexto:i+' ano(s)'};
+      if(i<r.integral) return {rotulo:'Paga '+r.percentual+'%',classe:'',idadeTexto:i+' ano(s)'};
       return {rotulo:'Pagamento integral',classe:'',idadeTexto:i+' ano(s)'};
     }
     function listarCriancasConvidadosV6(cont){
@@ -16106,7 +16268,7 @@ blocoRsvp +
     window.equalizarAlturaGraficosV5=equalizarAlturaGraficosV5;
     if(typeof atualizarDashboard==='function'){
       const dashBaseV5=atualizarDashboard;
-      atualizarDashboard=function(){ const r=dashBaseV5.apply(this,arguments); setTimeout(equalizarAlturaGraficosV5,0); return r; };
+      atualizarDashboard=function(){ const r=dashBaseV5.apply(this,arguments); atualizarTextoRegraBuffetV4(); setTimeout(equalizarAlturaGraficosV5,0); return r; };
     }
 
     function inicializarInterfaceV4(){
