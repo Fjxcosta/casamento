@@ -2306,6 +2306,12 @@
     }
   </style>
 
+<style id="avisosFornecedoresClicaveis">
+    button.aviso-fornecedor-link { cursor:pointer; font:inherit; color:inherit; text-align:left; }
+    .alertas-vencimento button.aviso-fornecedor-link { display:inline; background:transparent; border:0; padding:3px 2px; margin:0; text-decoration:underline; }
+    button.aviso-fornecedor-link:hover { text-decoration:underline; }
+    button.aviso-fornecedor-link:focus-visible { outline:2px solid currentColor; outline-offset:3px; }
+  </style>
 </head>
 <body>
   <!-- Tela de senha (bloqueia o sistema até a senha correta ser digitada) -->
@@ -2368,6 +2374,7 @@
         <button class="btn-danger" onclick="abrirModalLimparDados()" style="margin-top:0.5rem;">Limpar dados</button>
       </div>
     </div>
+    <span id="contadorSessao" role="timer" hidden style="position:fixed;bottom:12px;right:12px;z-index:99990;background:#fff;padding:8px 12px;border:1px solid #c6b6a4;border-radius:8px;font-size:13px;color:#563e2c;box-shadow:0 2px 8px #0002;">Sessão encerra em: <strong id="tempoSessao">05:00</strong></span>
     <button class="btn-secondary" onclick="sairDoSistema()" title="Encerrar a sessão e voltar à tela de senha" style="margin-left:0.5rem;">Sair</button>
   </div>
 
@@ -2702,7 +2709,7 @@
   <!-- Modal Meu Casamento -->
   <div class="modal" id="modalMeuCasamento" aria-hidden="true">
     <div class="modal-content">
-      <button class="close-btn" aria-label="Fechar" onclick="fecharModal('modalMeuCasamento')">&times;</button>
+      <button class="close-btn" aria-label="Fechar" onclick="fecharSistemaPeloX()">&times;</button>
       <h2>Meu Casamento</h2>
       <!-- Navegação interna -->
       <div class="subnav">
@@ -4469,10 +4476,21 @@
     //   'vencida'     — a data já passou e não está paga
     //   'proxima'     — vence nos próximos 7 dias
     //   'em-dia'      — vence depois de 7 dias
+    function proximoVencimentoFinanceiroV6(d){
+      const saldo = calcularTotalDevidoDespesaRapida(d) - calcularTotalPagoDespesaRapida(d);
+      if (saldo <= 0.009 || /cancel/i.test(String(d.status || ''))) return '';
+      const candidatas=(Array.isArray(d.parcelas)?d.parcelas:[]).filter(p=>p&&!p.cancelada&&saldoParcelaRapida(p)>0.009&&p.vencimento&&dataValida(p.vencimento)).sort((a,b)=>numeroDataPagamentoRapido(a.vencimento)-numeroDataPagamentoRapido(b.vencimento));
+      return candidatas.length ? candidatas[0].vencimento : (dataValida(d.dataVencimento || '') ? d.dataVencimento : '');
+    }
+
     function situacaoVencimento(despesa) {
-      if (despesa.status === 'Pago') {
+      if (/cancel/i.test(String(despesa.status || ''))) return {tipo:'sem-data', rotulo:'Cancelada', dias:null};
+      const devido = calcularTotalDevidoDespesaRapida(despesa);
+      const pago = calcularTotalPagoDespesaRapida(despesa);
+      if (devido > 0 && devido - pago <= 0.009) {
         return { tipo: 'pago', rotulo: 'Pago', dias: null };
       }
+      despesa = {...despesa, dataVencimento: proximoVencimentoFinanceiroV6(despesa)};
       if (!despesa.dataVencimento || !dataValida(despesa.dataVencimento)) {
         return { tipo: 'sem-data', rotulo: 'Sem vencimento', dias: null };
       }
@@ -5042,6 +5060,19 @@
     let _heartbeatTimer = null;
     let _inatividadeTimer = null;
     let _logoutEmAndamento = false;
+    let _sessaoAtiva = false;
+    let _contadorSessaoTimer = null;
+    let _prazoSessao = 0;
+    const EVENTOS_ATIVIDADE = ['mousemove','mousedown','keydown','touchstart','scroll','click','wheel'];
+    function atualizarContadorSessao() {
+      const caixa = document.getElementById('contadorSessao');
+      const tempo = document.getElementById('tempoSessao');
+      if (caixa) caixa.hidden = !_sessaoAtiva;
+      if (!_sessaoAtiva) return;
+      const restante = Math.max(0, Math.ceil((_prazoSessao - Date.now()) / 1000));
+      if (tempo) tempo.textContent = String(Math.floor(restante / 60)).padStart(2, '0') + ':' + String(restante % 60).padStart(2, '0');
+      if (!restante) forcarLogout(CONFIG_SISTEMA.textos.sessaoExpirada);
+    }
 
     function gerarToken() {
       return Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
@@ -5114,7 +5145,7 @@
           forcarLogout('Sua sessão foi encerrada porque outro acesso foi aberto.');
           return;
         }
-        escreverLock(lockRowId, meuToken, Date.now());
+        if (_sessaoAtiva && !_logoutEmAndamento) await escreverLock(lockRowId, meuToken, Date.now());
       }, HEARTBEAT_MS);
     }
     function pararHeartbeat() {
@@ -5128,7 +5159,7 @@
       try {
         const atual = await lerLock();
         if (atual && atual.token === meuToken) {
-          await escreverLock(lockRowId, null, 0);
+          await supabaseClient.from('dados_casamento').update({Dados:{_tipo:LOCK_TIPO,token:null,ts:0}}).eq('id',atual.id).eq('Dados->>token',meuToken);
         }
       } catch (e) { /* o TTL limpa sozinho se isto falhar */ }
     }
@@ -5136,9 +5167,9 @@
     // Liberação no fechamento da aba/janela: usa fetch keepalive porque o
     // cliente Supabase normal pode não terminar durante o "unload".
     function liberarLockBeacon() {
-      if (!lockRowId) return;
+      if (!lockRowId || !meuToken) return;
       try {
-        const url = SUPABASE_URL + '/rest/v1/dados_casamento?id=eq.' + encodeURIComponent(lockRowId);
+        const url = SUPABASE_URL + '/rest/v1/dados_casamento?id=eq.' + encodeURIComponent(lockRowId) + '&Dados->>token=eq.' + encodeURIComponent(meuToken);
         fetch(url, {
           method: 'PATCH',
           keepalive: true,
@@ -5149,13 +5180,16 @@
             'Prefer': 'return=minimal'
           },
           body: JSON.stringify({ "Dados": { _tipo: LOCK_TIPO, token: null, ts: 0 } })
-        });
+        }).catch(() => {});
       } catch (e) { /* o TTL cobre se falhar */ }
     }
 
     // Inatividade: 5 min sem interação -> logout automático.
     function resetarInatividade() {
-      if (_logoutEmAndamento) return;
+      if (_logoutEmAndamento || !_sessaoAtiva) return;
+      if (_prazoSessao && Date.now() >= _prazoSessao) { atualizarContadorSessao(); return; }
+      _prazoSessao = Date.now() + INATIVIDADE_MS;
+      atualizarContadorSessao();
       renovarCarimboSessao();   // cada atividade renova o carimbo da sessão (localStorage)
       if (_inatividadeTimer) clearTimeout(_inatividadeTimer);
       _inatividadeTimer = setTimeout(() => {
@@ -5163,13 +5197,30 @@
       }, INATIVIDADE_MS);
     }
     function iniciarMonitorInatividade() {
-      ['mousemove','mousedown','keydown','touchstart','scroll','click','wheel'].forEach(ev =>
-        document.addEventListener(ev, resetarInatividade, { passive: true }));
+      pararMonitorInatividade();
+      _sessaoAtiva = true;
+      _prazoSessao = 0;
+      EVENTOS_ATIVIDADE.forEach(ev => document.addEventListener(ev, resetarInatividade, {passive:true}));
       resetarInatividade();
+      _contadorSessaoTimer = setInterval(atualizarContadorSessao, 1000);
     }
     function pararMonitorInatividade() {
+      _sessaoAtiva = false;
+      EVENTOS_ATIVIDADE.forEach(ev => document.removeEventListener(ev, resetarInatividade));
       if (_inatividadeTimer) { clearTimeout(_inatividadeTimer); _inatividadeTimer = null; }
+      if (_contadorSessaoTimer) { clearInterval(_contadorSessaoTimer); _contadorSessaoTimer = null; }
+      atualizarContadorSessao();
     }
+    window.addEventListener('pagehide', () => {
+      if (!_sessaoAtiva) return;
+      pararMonitorInatividade();
+      pararHeartbeat();
+      liberarLockBeacon();
+      limparSessao();
+    });
+    window.addEventListener('pageshow', event => {
+      if (event.persisted) forcarLogout('Faça login novamente para continuar.');
+    });
 
     // Desloga: para timers, libera o cadeado e volta para a tela de senha.
     function forcarLogout(mensagem) {
@@ -5190,6 +5241,11 @@
 
     // Logout intencional, acionado pelo botão "Sair". Pede confirmação para
     // evitar saída acidental e então encerra a sessão.
+    function fecharSistemaPeloX() {
+      fecharModal('modalMeuCasamento');
+      const modal = document.getElementById('modalMeuCasamento');
+      if (!modal || modal.style.display === 'none') forcarLogout('');
+    }
     function sairDoSistema() {
       if (confirm('Deseja sair do sistema? Você precisará informar a senha para entrar novamente.')) {
         forcarLogout('');
@@ -8302,7 +8358,7 @@
       }
       abrirModalDespesaV7('Editar fornecedor contratado');
     }
-    function salvarDespesa() {
+    function salvarDespesa(extrasFinanceiros = {}) {
       const categoria = document.getElementById('categoriaDespesa').value;
       const descricao = document.getElementById('descricaoDespesa').value.trim();
       const valorContratado = moedaParaNumero(document.getElementById('valorContratadoDespesa').value);
@@ -8338,7 +8394,8 @@
           if (!confirm(`Pagamento à vista incompleto (falta ${faltando.join(', ')}). Se ainda não pagou, fica como previsão pelo vencimento.\n\nSalvar mesmo assim?`)) return;
         }
         // Representa o à vista como uma única "parcela" (mantém o motor unificado)
-        parcelas = [{ rotulo: 'À vista', valor: valor, vencimento: vencimento, pagamento: pagoEm, modalidade: modalidadePagamento, pagador: pagador }];
+        const parcelaAnterior = despesaEmEdicao !== null && dados.despesas[despesaEmEdicao] && dados.despesas[despesaEmEdicao].formaPagamento === 'avista' ? (dados.despesas[despesaEmEdicao].parcelas || [])[0] || {} : {};
+        parcelas = [{ ...parcelaAnterior, valorPago: (pagoEm && dataValida(pagoEm)) ? valor : 0, rotulo: 'À vista', valor: valor, vencimento: vencimento, pagamento: pagoEm, modalidade: modalidadePagamento, pagador: pagador }];
         valorPagoFinal = (pagoEm && dataValida(pagoEm)) ? valor : 0;
       } else if (forma === 'apagar') {
         // ===== A PAGAR / PARCELADO =====
@@ -8353,13 +8410,13 @@
         if (valorContratado > 0 && Math.abs(somaParc - valorContratado) >= 0.01) {
           if (!confirm(`As parcelas somam ${formatarMoeda(somaParc)}, diferente do valor contratado ${formatarMoeda(valorContratado)}.\n\nSalvar assim mesmo?`)) return;
         }
-        valorPagoFinal = parcelas.filter(p => p.pagamento && dataValida(p.pagamento)).reduce((s, p) => s + (Number(p.valor) || 0), 0);
+        valorPagoFinal = Math.round(parcelas.reduce((s, p) => s + valorPagoParcelaRapida(p), 0) * 100) / 100;
         // modalidade/pagador "do lançamento" = da 1ª parcela (compat. com telas antigas)
         modalidadePagamento = parcelas[0].modalidade || '';
         pagador = parcelas[0].pagador || '';
         // Vencimento representativo = o da PRÓXIMA parcela ainda NÃO paga
         // (ignora parcelas já quitadas, como a entrada). Se todas pagas, vazio.
-        const proximaNaoPaga = parcelas.find(p => p.vencimento && !(p.pagamento && dataValida(p.pagamento)));
+        const proximaNaoPaga = parcelas.filter(p => !p.cancelada && p.vencimento && saldoParcelaRapida(p) > 0.009).sort((a,b) => numeroDataPagamentoRapido(a.vencimento) - numeroDataPagamentoRapido(b.vencimento))[0];
         dataVencimento = proximaNaoPaga ? proximaNaoPaga.vencimento : '';
       } else {
         notificar('Escolha a forma de pagamento: Pago à vista ou A pagar.');
@@ -8400,6 +8457,12 @@
       }
 
       const registro = { categoria, descricao, valorPrevisto, valorContratado, valorPago: valorPagoFinal, pagador, dataVencimento, status, prioridade, idFornecedor, modalidadePagamento, formaPagamento: forma, parcelas, pix, contrato };
+
+      const devido = calcularTotalDevidoDespesaRapida(registro);
+      if (!/cancel/i.test(status)) registro.status = devido > 0 && devido - valorPagoFinal <= 0.009 ? 'Pago' : valorPagoFinal > 0 ? 'Pago parcial' : (status === 'Pago' || status === 'Pago parcial' ? 'Pendente' : status);
+      registro.dataVencimento = proximoVencimentoFinanceiroV6(registro);
+      registro.contrato = {...registro.contrato, ...(extrasFinanceiros.contrato || {})};
+      if (Array.isArray(extrasFinanceiros.comprovantes)) registro.comprovantes = extrasFinanceiros.comprovantes.map(x => ({...x}));
 
       // ===== REGRA: UM ÚNICO LANÇAMENTO FINANCEIRO POR FORNECEDOR =====
       // Ao salvar uma despesa vinculada, ela substitui o lançamento anterior
@@ -8528,16 +8591,29 @@
           : `Nada vencido ou a vencer nos próximos ${CONFIG_SISTEMA.dashboard.diasAvisoVencimento} dias.`;
       } else {
         caixaAlerta.className = 'alertas-vencimento';
-        let txt = '';
-        if (vencidas.length > 0) {
-          txt += `${vencidas.length} despesa(s) VENCIDA(S): ` +
-            vencidas.map(d => d.descricao).join(', ') + '. ';
-        }
-        if (proximas.length > 0) {
-          txt += `${proximas.length} despesa(s) vencendo em até ${CONFIG_SISTEMA.dashboard.diasAvisoVencimento} dias: ` +
-            proximas.map(d => d.descricao).join(', ') + '.';
-        }
-        caixaAlerta.textContent = txt;
+        const adicionarAvisos = (despesas, titulo) => {
+          if (!despesas.length) return;
+          const grupo = document.createElement('div');
+          const cabecalho = document.createElement('strong');
+          cabecalho.textContent = titulo + ': ';
+          grupo.appendChild(cabecalho);
+          despesas.forEach((despesa, posicao) => {
+            if (posicao) grupo.appendChild(document.createTextNode(' · '));
+            const botao = document.createElement('button');
+            botao.type = 'button';
+            botao.className = 'aviso-fornecedor-link';
+            botao.textContent = `${despesa.descricao || 'Fornecedor'} — ${situacaoVencimento(despesa).rotulo}`;
+            botao.title = 'Abrir fornecedor contratado';
+            botao.onclick = () => {
+              const indice = dados.despesas.indexOf(despesa);
+              if (indice >= 0) editarDespesa(indice);
+            };
+            grupo.appendChild(botao);
+          });
+          caixaAlerta.appendChild(grupo);
+        };
+        adicionarAvisos(vencidas, `${vencidas.length} despesa(s) vencida(s)`);
+        adicionarAvisos(proximas, `${proximas.length} despesa(s) vencendo em até ${CONFIG_SISTEMA.dashboard.diasAvisoVencimento} dias`);
       }
       lista.appendChild(caixaAlerta);
 
@@ -8597,7 +8673,7 @@
         else if (parcial) div.classList.add('pagamento-parcial');
         // Etiqueta de vencimento. Quando já está quitada, NÃO repete "Pago"
         // aqui (o selo "✓ Pago" abaixo já indica). Evita o "Pago" duplicado.
-        const etiqueta = quitada ? '' : `<span class="etiqueta-venc ${sit.tipo}">${sit.rotulo}</span>`;
+        const etiqueta = quitada ? '' : `<button type="button" class="etiqueta-venc aviso-fornecedor-link ${sit.tipo}" data-abrir-fornecedor title="Abrir fornecedor contratado">${sit.rotulo}</button>`;
         let selo = '';
         if (quitada) selo = ' <span class="etiqueta-venc pago">✓ Pago</span>';
         else if (parcial) selo = ' <span class="etiqueta-venc parcial-azul">Pagamento parcial</span>';
@@ -8610,6 +8686,11 @@
           (mostraStatus ? ` | Status: ${d.status}` : '') + ` | Prioridade: ${d.prioridade}` +
           (d.dataVencimento ? ` | Vencimento: ${d.dataVencimento}` : '') +
           blocoFornecedorContratoDespesa(d);
+        const avisoFornecedor = div.querySelector('[data-abrir-fornecedor]');
+        if (avisoFornecedor) avisoFornecedor.onclick = () => {
+          const indiceAtual = dados.despesas.indexOf(d);
+          if (indiceAtual >= 0) editarDespesa(indiceAtual);
+        };
         const btnEditar = document.createElement('button');
         btnEditar.textContent = 'Editar';
         btnEditar.className = 'btn-primary btn-pequeno';
@@ -15675,17 +15756,10 @@ blocoRsvp +
     };
     const salvarDespesaBaseV4=salvarDespesa;
     salvarDespesa=function(){
-      const ed=despesaEmEdicao;
-      const extrasContrato={valor:moedaParaNumero(valorElV4('valorContratoDespesa')),condicoesPagamento:valorElV4('condicoesPagamentoContratoDespesa')};
-      const extrasComprovantes=comprovantesTemporariosV4.map(x=>({...x}));
-      const antes=(dados.despesas||[]).length;
-      salvarDespesaBaseV4.apply(this,arguments);
-      if(typeof modalDespesaAbertoV7==='function' ? modalDespesaAbertoV7()
-         : (document.getElementById('formDespesa') && document.getElementById('formDespesa').style.display !== 'none')) return;
-      const idx=ed!=null?ed:((dados.despesas||[]).length>antes?(dados.despesas||[]).length-1:-1),d=idx>=0?dados.despesas[idx]:null;if(!d)return;
-      d.contrato={...(d.contrato||{}),...extrasContrato};d.comprovantes=extrasComprovantes;
-      if(Array.isArray(d.parcelas)) d.valorPago=Math.round(d.parcelas.filter(p=>!p.cancelada).reduce((n,p)=>n+(Number(p.valorPago)||((p.pagamento&&dataValida(p.pagamento))?Number(p.valor)||0:0)),0)*100)/100;
-      salvarDados();listarDespesas();
+      return salvarDespesaBaseV4.call(this, {
+        contrato: {valor: moedaParaNumero(valorElV4('valorContratoDespesa')), condicoesPagamento: valorElV4('condicoesPagamentoContratoDespesa')},
+        comprovantes: comprovantesTemporariosV4.map(x => ({...x}))
+      });
     };
 
     // Atualiza o resumo das parcelas usando a estrutura atualmente exibida.
@@ -15698,6 +15772,7 @@ blocoRsvp +
     // Parcelas: pagamento parcial, cancelamento e lembrete individual.
     renderizarParcelasApagar=function(lista){
       const cont=document.getElementById('apListaParcelas');if(!cont)return; const arr=Array.isArray(lista)?lista:[];
+      cont._parcelasOriginais = arr.map(p => ({...p}));
       cont.innerHTML=arr.map((p,i)=>`<div class="item-lista" data-ap-parcela="${i}">
         <div class="linha-campo label-acima" style="flex-wrap:wrap">
           <div class="form-group" style="flex:1;min-width:120px"><label>Parcela</label><input data-campo="rotulo" value="${escV4(p.rotulo||((i===0&&p.entrada)?'Entrada':(i+1)+'ª parcela'))}"></div>
@@ -15720,45 +15795,28 @@ blocoRsvp +
     function situacaoParcelaV4(p){ if(p.cancelada)return'Cancelada';const pago=Number(p.valorPago)||((p.pagamento&&dataValida(p.pagamento))?Number(p.valor)||0:0),valor=Number(p.valor)||0;if(pago>=valor&&valor>0)return'Paga';if(pago>0)return'Parcialmente paga';if(p.vencimento&&dataValida(p.vencimento)){const [d,m,a]=p.vencimento.split('/').map(Number),dt=new Date(a,m-1,d);dt.setHours(23,59,59,999);if(dt<new Date())return'Vencida';}return p.fixada?'Alterada manualmente':'Automática';}
     situacaoParcela=function(p){return situacaoParcelaV4(p);};
     lerParcelasApagarDoForm=function(){
-      return Array.from(document.querySelectorAll('#apListaParcelas [data-ap-parcela]')).map((row,i)=>{const get=n=>row.querySelector(`[data-campo="${n}"]`);const val=n=>get(n)?get(n).value:'';return{
+      return Array.from(document.querySelectorAll('#apListaParcelas [data-ap-parcela]')).map((row,i)=>{const get=n=>row.querySelector(`[data-campo="${n}"]`);const val=n=>get(n)?get(n).value:'';const original=(document.getElementById('apListaParcelas')._parcelasOriginais||[])[i]||{};return{...original,
         rotulo:val('rotulo')||((i+1)+'ª parcela'),valor:moedaParaNumero(val('valor')),valorPago:moedaParaNumero(val('valorPago')),vencimento:val('vencimento'),pagamento:val('pagamento'),modalidade:val('modalidade'),pagador:val('pagador'),
-        fixada:true,cancelada:!!(get('cancelada')&&get('cancelada').checked),lembrete:{ativo:val('lembreteAtivo')==='true',antecedencia:Math.max(0,Number(val('lembreteAntecedencia'))||10),destinatario:val('lembreteDestinatario')||'Ambos'}
+        fixada:!!original.fixada,cancelada:!!(get('cancelada')&&get('cancelada').checked),lembrete:{ativo:val('lembreteAtivo')==='true',antecedencia:Math.max(0,Number(val('lembreteAntecedencia'))||10),destinatario:val('lembreteDestinatario')||'Ambos'}
       };});
     };
 
     // CSV adicionais.
     function baixarCsvV4(nome,cab,linhas){const esc=v=>'"'+String(v??'').replace(/"/g,'""')+'"';const txt='\uFEFF'+[cab,...linhas].map(r=>r.map(esc).join(';')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/csv;charset=utf-8'}));a.download=nome;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
     window.exportarCsvConvidadosV4=function(){baixarCsvV4('convidados-unificados.csv',['Nome','Telefone','Lado','Grupo familiar','Categoria','Função','Tipo','Situação na lista','Confirmação','Acompanhantes','Mesa','Restrições'],(dados.convidados||[]).map(p=>[p.nome,p.telefone,p.lado,p.grupoFamiliar,p.categoria,p.funcao,tipoPessoaV4(p),p.statusLista,normalizarConfirmacaoV4(p.status),(p.acompanhantes||[]).map(a=>a.nome).join(', '),p.mesa,p.restricoesAlimentares]));};
-    window.exportarCsvOrcamentadorV4=function(){baixarCsvV4('orcamentador-casamento.csv',['Fornecedor/Descrição','Categoria','Contratado','Pago','Saldo','Próximo vencimento','Situação','Contrato'],(dados.despesas||[]).map(d=>{const pago=Array.isArray(d.parcelas)?d.parcelas.filter(p=>!p.cancelada).reduce((n,p)=>n+(Number(p.valorPago)||((p.pagamento&&dataValida(p.pagamento))?Number(p.valor)||0:0)),0):Number(d.valorPago)||0;const prox=(d.parcelas||[]).filter(p=>!p.cancelada&&!p.pagamento&&p.vencimento).sort((a,b)=>a.vencimento.localeCompare(b.vencimento))[0];return[d.descricao,d.categoria,d.valorContratado,pago,Math.max(0,(Number(d.valorContratado)||0)-pago),prox?prox.vencimento:'',d.status,(d.contrato||{}).numero||''];}));};
+    window.exportarCsvOrcamentadorV4=function(){baixarCsvV4('orcamentador-casamento.csv',['Fornecedor/Descrição','Categoria','Contratado','Pago','Saldo','Próximo vencimento','Situação','Contrato'],(dados.despesas||[]).map((d,i)=>{const r=linhaFinanceiraV6(d,i);return[r.descricao,r.categoria,r.contratado,r.pago,r.saldo,r.proximo,r.situacao,r.contrato];}));};
 
     function valorPagoFinanceiroV6(d){
-      if(!d) return 0;
-      if(Array.isArray(d.parcelas)&&d.parcelas.length){
-        return d.parcelas.filter(p=>p&&!p.cancelada).reduce((total,p)=>{
-          const informado=Number(p.valorPago)||0;
-          if(informado>0) return total+informado;
-          return total+((p.pagamento&&dataValida(p.pagamento))?(Number(p.valor)||0):0);
-        },0);
-      }
-      return Number(d.valorPago)||0;
+      return calcularTotalPagoDespesaRapida(d);
     }
     function numeroDataFinanceiroV6(v){
       if(!v||!dataValida(v)) return Infinity;
       const [dia,mes,ano]=v.split('/').map(Number);
       return new Date(ano,mes-1,dia).getTime();
     }
-    function proximoVencimentoFinanceiroV6(d){
-      const candidatas=(Array.isArray(d.parcelas)?d.parcelas:[]).filter(p=>{
-        if(!p||p.cancelada||!p.vencimento||!dataValida(p.vencimento)) return false;
-        const valor=Number(p.valor)||0, pago=Number(p.valorPago)||0;
-        return !(p.pagamento&&dataValida(p.pagamento)) && !(valor>0&&pago>=valor-.01);
-      }).sort((a,b)=>numeroDataFinanceiroV6(a.vencimento)-numeroDataFinanceiroV6(b.vencimento));
-      if(candidatas.length) return candidatas[0].vencimento;
-      const saldo=Math.max(0,(Number(d.valorContratado)||0)-valorPagoFinanceiroV6(d));
-      return saldo>.01&&d.dataVencimento&&dataValida(d.dataVencimento)?d.dataVencimento:'';
-    }
+
     function linhaFinanceiraV6(d,index){
-      const contratado=Number(d.valorContratado)||0;
+      const contratado=calcularTotalDevidoDespesaRapida(d);
       const pago=valorPagoFinanceiroV6(d);
       const saldo=Math.max(0,contratado-pago);
       const proximo=proximoVencimentoFinanceiroV6(d);
