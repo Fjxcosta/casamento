@@ -2307,7 +2307,26 @@
   </style>
 
 <style id="avisosFornecedoresClicaveis">
-    button.aviso-fornecedor-link { cursor:pointer; font:inherit; color:inherit; text-align:left; }
+    button.aviso-fornecedor-link { cursor:pointer; text-align:left; }
+    button.aviso-fornecedor-link:not(.etiqueta-venc) { font:inherit; color:inherit; }
+    button.etiqueta-venc.aviso-fornecedor-link {
+      display:inline-block;
+      width:auto;
+      min-width:0;
+      min-height:0;
+      margin:0 0 0 0.3rem;
+      padding:0.18rem 0.55rem;
+      border:0;
+      border-radius:2px;
+      font-family:'Cinzel',serif;
+      font-size:0.62rem;
+      font-weight:500;
+      line-height:1.4;
+      letter-spacing:0.08em;
+      white-space:nowrap;
+      vertical-align:middle;
+      box-shadow:none;
+    }
     .alertas-vencimento button.aviso-fornecedor-link { display:inline; background:transparent; border:0; padding:3px 2px; margin:0; text-decoration:underline; }
     button.aviso-fornecedor-link:hover { text-decoration:underline; }
     button.aviso-fornecedor-link:focus-visible { outline:2px solid currentColor; outline-offset:3px; }
@@ -3264,6 +3283,8 @@
             <div class="form-group" style="flex:1;">
               <label for="horarioCronograma">Horário</label>
               <input type="time" id="horarioCronograma">
+              <label for="diaCronograma">Dia da atividade</label>
+              <select id="diaCronograma"><option value="auto">Automático: antes das 06h, dia seguinte</option><option value="0">Dia do casamento</option><option value="1">Dia seguinte</option></select>
             </div>
             <div class="form-group" style="flex:2;">
               <label for="atividadeCronograma" class="obrigatorio">Atividade</label>
@@ -4354,6 +4375,9 @@
   </div>
 
   <script>
+    function textoHtmlSeguro(valor) {
+      return String(valor ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
     // Utilitários para formatação de data e moeda
     function formatarMoeda(valor) {
       const numero = Number(valor) || 0;
@@ -4364,8 +4388,15 @@
     // Modo "reais inteiros": "R$ 1.600,00" -> 1600 ; "1600" -> 1600 ;
     // "1.600" -> 1600 ; "1600,90" -> 1600.9
     function moedaParaNumero(texto) {
+      if (typeof texto === 'number') return Number.isFinite(texto) ? texto : 0;
       if (texto === null || texto === undefined) return 0;
-      let s = String(texto).replace(/[^\d,]/g, ''); // mantém apenas dígitos e vírgula
+      const original = String(texto).trim();
+      if (!original.includes(',') && !/R\$/i.test(original) && !/^-?\d{1,3}(\.\d{3})+$/.test(original)) {
+        const direto = Number(original);
+        if (Number.isFinite(direto)) return direto;
+      }
+      const sinal = original.includes('-') ? -1 : 1;
+      let s = original.replace(/[^\d,]/g, ''); // mantém apenas dígitos e vírgula
       if (s === '') return 0;
       // se houver mais de uma vírgula, considera só a última como decimal
       const partes = s.split(',');
@@ -4373,7 +4404,7 @@
       let decimal = partes.length ? partes.join('') : '';
       let numeroStr = inteira + (decimal !== '' ? '.' + decimal : '');
       const n = Number(numeroStr);
-      return isNaN(n) ? 0 : n;
+      return Number.isFinite(n) ? sinal * n : 0;
     }
     // Aplica máscara de moeda BRL a um campo enquanto o usuário digita.
     // Modo "reais inteiros": digitar "1600" exibe "R$ 1.600"; ao sair do
@@ -4450,7 +4481,7 @@
     function dataValida(texto) {
       if (!/^\d{2}\/\d{2}\/\d{4}$/.test(texto)) return false;
       const [dia, mes, ano] = texto.split('/').map(Number);
-      if (mes < 1 || mes > 12) return false;
+      if (ano < 100 || mes < 1 || mes > 12) return false;
       const ultimoDia = new Date(ano, mes, 0).getDate();
       if (dia < 1 || dia > ultimoDia) return false;
       return true;
@@ -4534,9 +4565,10 @@
       campos.forEach(c => {
         // ignora o input de arquivo (importar JSON)
         if (c.type === 'file') return;
-        valores.push((c.id || c.name || '') + '=' + (c.value || ''));
+        const valor = /^(checkbox|radio)$/.test(c.type) ? c.checked : c.value;
+        valores.push([c.id || c.name || '', valor]);
       });
-      return valores.join('|');
+      return JSON.stringify(valores);
     }
     function abrirModal(id) {
       const el = document.getElementById(id);
@@ -4791,6 +4823,13 @@
     let _timerSalvarNuvem = null;
     let _versaoSalvamentoSolicitada = 0;
     let _salvamentoEmAndamento = false;
+    let _haAlteracoesNaoSincronizadas = false;
+    let _filaSalvamentoNuvem = Promise.resolve();
+    window.addEventListener('beforeunload', evento => {
+      if (!_haAlteracoesNaoSincronizadas) return;
+      evento.preventDefault();
+      evento.returnValue = '';
+    });
     let _notificacoesAposSalvar = [];
     // Inicializa o cliente Supabase quando o SDK estiver carregado
     function inicializarSupabase() {
@@ -4859,6 +4898,28 @@
       }
     };
 
+    const DADOS_PADRAO = JSON.parse(JSON.stringify(dados));
+    function aplicarDadosCarregados(origem) {
+      if (!origem || typeof origem !== 'object' || Array.isArray(origem) || origem._tipo) {
+        throw new Error('Conteúdo inválido para os dados do casamento.');
+      }
+      const novo = JSON.parse(JSON.stringify(DADOS_PADRAO));
+      Object.keys(origem).forEach(k => {
+        if (!['__proto__', 'prototype', 'constructor'].includes(k)) novo[k] = origem[k];
+      });
+      ['compromissos','convidados','mesas','despesas','fornecedores','padrinhos','cronograma','listaEspera','categoriasFornecedor','cotacoes'].forEach(k => {
+        if (!Array.isArray(novo[k])) throw new Error('Lista inválida: ' + k);
+        if (k !== 'categoriasFornecedor' && novo[k].some(item => !item || typeof item !== 'object' || Array.isArray(item))) {
+          throw new Error('Registro inválido na lista: ' + k);
+        }
+      });
+      ['espaco','site','noiva','noivo','metasCategorias','cerimonia','_migracaoAvisos','_planoUnificacao','notificacoes'].forEach(k => {
+        if (!novo[k] || typeof novo[k] !== 'object' || Array.isArray(novo[k])) novo[k] = {};
+      });
+      Object.keys(dados).forEach(k => delete dados[k]);
+      Object.assign(dados, novo);
+    }
+
     // ----- Indicador de sincronização -----
     function setIndicadorSync(estado, texto) {
       // estado: 'ok' | 'salvando' | 'erro' | 'oculto'
@@ -4894,7 +4955,7 @@
         const { data, error } = await supabaseClient
           .from('dados_casamento')
           .select('id, "Dados"')
-          .order('id', { ascending: true });
+          .is('Dados->>_tipo', null).order('id', { ascending: true }).limit(1);
         if (error) throw error;
         // A linha PRINCIPAL é a que NÃO tem `_tipo` em Dados. Linhas com
         // `_tipo` são auxiliares (cadeado de sessão, backups automáticos) e
@@ -4909,11 +4970,7 @@
         const dadosNuvem = principal.Dados || {};
         // Copia campo por campo para o objeto `dados` em memória (sem trocar
         // a referência — outras partes do código guardam o objeto).
-        Object.keys(dados).forEach(k => {
-          if (dadosNuvem[k] !== undefined) {
-            dados[k] = dadosNuvem[k];
-          }
-        });
+        aplicarDadosCarregados(dadosNuvem);
         // Garante arrays/objetos onde precisa
         ['compromissos','convidados','mesas','despesas','fornecedores',
          'padrinhos','cronograma','listaEspera','categoriasFornecedor'].forEach(k => {
@@ -4966,6 +5023,7 @@
     // Botão "Recarregar" (no indicador de sync) — re-baixa os dados e
     // re-renderiza as telas que importam.
     async function recarregarDaNuvem() {
+      if (_haAlteracoesNaoSincronizadas && !await salvarNaNuvemAgora()) return;
       const ok = await carregarDaNuvem();
       if (!ok) return;
       // Re-renderiza tudo
@@ -5083,7 +5141,7 @@
       try {
         const { data, error } = await supabaseClient
           .from('dados_casamento')
-          .select('id,"Dados"');
+          .select('id,"Dados"').eq('Dados->>_tipo', LOCK_TIPO).order('id', {ascending:true}).limit(1);
         if (error) throw error;
         const linha = (data || []).find(r => r.Dados && r.Dados._tipo === LOCK_TIPO);
         if (!linha) return null;
@@ -5216,7 +5274,7 @@
       pararMonitorInatividade();
       pararHeartbeat();
       liberarLockBeacon();
-      limparSessao();
+      // O carimbo de atividade continua válido após F5, até a expiração.
     });
     window.addEventListener('pageshow', event => {
       if (event.persisted) forcarLogout('Faça login novamente para continuar.');
@@ -5230,6 +5288,11 @@
       pararHeartbeat();
       liberarLock();          // assíncrono, melhor-esforço
       limparSessao();
+      document.querySelectorAll('.modal').forEach(modal => {
+        modal.style.display = 'none';
+        modal.classList.remove('modal-empilhado', 'mobile-modal-pausado');
+      });
+      snapshotModal = {};
       const tela = document.getElementById('telaSenha');
       if (tela) tela.style.display = 'flex';
       const inp = document.getElementById('inputSenhaSistema');
@@ -5242,9 +5305,8 @@
     // Logout intencional, acionado pelo botão "Sair". Pede confirmação para
     // evitar saída acidental e então encerra a sessão.
     function fecharSistemaPeloX() {
+      // Fecha apenas o menu; a sessão continua ativa no dashboard.
       fecharModal('modalMeuCasamento');
-      const modal = document.getElementById('modalMeuCasamento');
-      if (!modal || modal.style.display === 'none') forcarLogout('');
     }
     function sairDoSistema() {
       if (confirm('Deseja sair do sistema? Você precisará informar a senha para entrar novamente.')) {
@@ -5313,17 +5375,19 @@
         console.warn('Sessão única indisponível — entrando sem bloqueio compartilhado.');
       }
       _logoutEmAndamento = false;
-      if (tela) tela.style.display = 'none';
       setIndicadorSync('salvando', 'Carregando...');
+      const carregou = await carregarDaNuvem();
+      if (!carregou) {
+        await liberarLock();
+        limparSessao();
+        if (tela) tela.style.display = 'flex';
+        if (erro) { erro.textContent = 'Não foi possível carregar os dados. Verifique a conexão e tente novamente.'; erro.style.display = 'block'; }
+        return;
+      }
+      if (typeof inicializar === 'function') inicializar();
+      if (tela) tela.style.display = 'none';
       iniciarHeartbeat();
       iniciarMonitorInatividade();
-      carregarDaNuvem().then(ok => {
-        if (ok) {
-          if (typeof inicializar === 'function') inicializar();
-        } else {
-          notificar('Não foi possível carregar os dados. Recarregue a página.');
-        }
-      });
     }
 
     // Atualiza automaticamente o código sequencial de todos os lançamentos.
@@ -5358,20 +5422,12 @@
     function salvarDados() {
       // Todo lançamento recebe/atualiza o código antes de recalcular a interface.
       atualizarCodigosLancamentos();
-      // Atualiza o snapshot de TODOS os modais abertos para que salvar nunca
-      // dispare o falso aviso de "alterações não salvas".
-      if (typeof snapshotModal !== 'undefined') {
-        Object.keys(snapshotModal).forEach(id => {
-          const m = document.getElementById(id);
-          if (m && m.style.display && m.style.display !== 'none') {
-            snapshotModal[id] = tirarSnapshot(id);
-          }
-        });
-      }
+      normalizarMesas();
       atualizarDashboard();
       // Salva na nuvem com debounce (espera 500ms sem novas chamadas para
       // evitar enviar 10 requests quando o usuário digita rápido em um input).
       if (_timerSalvarNuvem) clearTimeout(_timerSalvarNuvem);
+      _haAlteracoesNaoSincronizadas = true;
       _versaoSalvamentoSolicitada += 1;
       const versaoDestaGravacao = _versaoSalvamentoSolicitada;
       _salvamentoEmAndamento = true;
@@ -5379,11 +5435,21 @@
       _timerSalvarNuvem = setTimeout(() => salvarNaNuvemAgora(versaoDestaGravacao), 500);
     }
 
-    async function salvarNaNuvemAgora(versaoDestaGravacao) {
+    function salvarNaNuvemAgora(versaoDestaGravacao) {
+      if (_timerSalvarNuvem) clearTimeout(_timerSalvarNuvem);
+      _timerSalvarNuvem = null;
+      const versao = versaoDestaGravacao == null ? _versaoSalvamentoSolicitada : versaoDestaGravacao;
+      const conteudo = JSON.parse(JSON.stringify(dados));
+      // Serializa as gravações para uma resposta antiga não substituir a mais recente.
+      const tarefa = _filaSalvamentoNuvem.then(() => executarSalvamentoNuvem(versao, conteudo));
+      _filaSalvamentoNuvem = tarefa.catch(() => false);
+      return tarefa;
+    }
+
+    async function executarSalvamentoNuvem(versaoDestaGravacao, conteudo) {
       const versaoAlvo = Number.isFinite(Number(versaoDestaGravacao))
         ? Number(versaoDestaGravacao)
         : _versaoSalvamentoSolicitada;
-      _timerSalvarNuvem = null;
       if (!supabaseClient || !nuvemRowId) {
         setIndicadorSync('erro', 'Sem conexão');
         if (versaoAlvo === _versaoSalvamentoSolicitada) {
@@ -5395,11 +5461,12 @@
       try {
         const { error } = await supabaseClient
           .from('dados_casamento')
-          .update({ "Dados": dados })
+          .update({ "Dados": conteudo })
           .eq('id', nuvemRowId);
         if (error) throw error;
         ultimaSync = new Date();
         if (versaoAlvo === _versaoSalvamentoSolicitada) {
+          _haAlteracoesNaoSincronizadas = false;
           setIndicadorSync('ok', 'Sincronizado');
           finalizarNotificacoesDeSalvamento(true);
         }
@@ -5508,7 +5575,9 @@
       setIndicadorSync('salvando', 'Restaurando...');
       try {
         // 1. Instantâneo de segurança do estado ATUAL (restauração reversível)
-        await fazerBackupAutomatico(true, 'pré-restauração');
+        if (!await fazerBackupAutomatico(true, 'pré-restauração')) {
+          throw new Error('O backup de segurança não foi confirmado. Os dados atuais foram preservados.');
+        }
         // 2. Busca o conteúdo do backup escolhido
         const { data, error } = await supabaseClient
           .from('dados_casamento').select('id, "Dados"').eq('id', rowId);
@@ -5516,7 +5585,7 @@
         const cont = data && data[0] && data[0].Dados && data[0].Dados.conteudo;
         if (!cont) throw new Error('Backup sem conteúdo.');
         // 3. Aplica campo a campo (sem trocar a referência de `dados`)
-        Object.keys(dados).forEach(k => { if (cont[k] !== undefined) dados[k] = cont[k]; });
+        aplicarDadosCarregados(cont);
         ['compromissos','convidados','mesas','despesas','fornecedores',
          'padrinhos','cronograma','listaEspera','categoriasFornecedor'].forEach(k => {
           if (!Array.isArray(dados[k])) dados[k] = [];
@@ -5528,6 +5597,7 @@
         // 3b. Um backup antigo pode ter estrutura antiga: reaplica a migração.
         // Versão síncrona — o backup de segurança já foi feito no passo 1.
         if (typeof aplicarMigracaoEstrutura === 'function') aplicarMigracaoEstrutura();
+        if (typeof aplicarMigracaoV4 === 'function') aplicarMigracaoV4();
         // 4. Grava na linha principal e recarrega a interface
         const ok = await salvarNaNuvemAgora();
         if (!ok) throw new Error('Falha ao gravar os dados restaurados.');
@@ -5571,8 +5641,9 @@
     // Sem horário, assume o começo do dia — assim a contagem nunca "pula"
     // para negativo antes da data marcada.
     function momentoCasamentoV7() {
-      if (!dados.dataCasamento || !dataValida(dados.dataCasamento)) return null;
-      const [dia, mes, ano] = dados.dataCasamento.split('/').map(Number);
+      const dataEvento = (dados.cerimonia || {}).data || dados.dataCasamento;
+      if (!dataValida(dataEvento)) return null;
+      const [dia, mes, ano] = dataEvento.split('/').map(Number);
       const hora = String(((dados.cerimonia || {}).hora) || dados.horaCasamento || '').trim();
       let h = 0, m = 0;
       const bate = /^(\d{1,2}):(\d{2})$/.exec(hora);
@@ -5708,14 +5779,15 @@
 
     function atualizarContadorDias() {
       const elemento = document.getElementById('contadorDias');
-      if (!dados.dataCasamento) {
+      const dataEvento = (dados.cerimonia || {}).data || dados.dataCasamento;
+      if (!dataEvento) {
         if (elemento) elemento.textContent = 'Data do casamento não definida';
         atualizarContagemRegressiva();
         return;
       }
       // O cabeçalho exibe apenas a data, evitando repetir os dias do card.
       const hora = String(((dados.cerimonia || {}).hora) || dados.horaCasamento || '').trim();
-      const mensagem = dataPorExtenso(dados.dataCasamento) + (hora ? ' · ' + hora : '');
+      const mensagem = dataPorExtenso(dataEvento) + (hora ? ' · ' + hora : '');
       if (elemento) elemento.textContent = mensagem;
       iniciarContagemRegressiva();
     }
@@ -5741,7 +5813,7 @@
         // Conta o titular
         totalPessoas += 1;
         if (c.status === 'Confirmado') confirmados += 1;
-        if (c.categoria === 'Crianças') criancas += 1; else adultos += 1;
+        if (c.tipoPessoa === 'Criança' || (!c.tipoPessoa && c.categoria === 'Crianças')) criancas += 1; else adultos += 1;
         // Conta os acompanhantes (compat retroativa: pode ser número antigo)
         if (Array.isArray(c.acompanhantes)) {
           c.acompanhantes.forEach(a => {
@@ -5797,8 +5869,8 @@
       let totalContratado = 0;
       let totalPago = 0;
       dados.despesas.forEach(d => {
-        totalContratado += Number(d.valorContratado);
-        totalPago += Number(d.valorPago);
+        totalContratado += calcularTotalDevidoDespesaRapida(d);
+        totalPago += calcularTotalPagoDespesaRapida(d);
       });
       const totalPendente = totalContratado - totalPago;
       document.getElementById('cardTotalContratado').textContent = formatarMoeda(totalContratado);
@@ -5922,6 +5994,7 @@
       const altura = Math.max(220, (Number(quantidade) || 0) * (alturaLinha || 34) + 34);
       inner.style.height = altura + 'px';
     }
+    let assinaturaGraficosV8 = null;
     function atualizarGraficosDashboard() {
       // Proteção: se a biblioteca Chart não carregou (CDN bloqueado, offline),
       // mostra mensagem amigável em vez de quebrar o sistema inteiro.
@@ -5941,6 +6014,13 @@
         if (vPag) { vPag.style.display = 'block'; vPag.textContent = 'Biblioteca de gráficos indisponível (verifique sua conexão).'; }
         return;
       }
+      const assinatura = JSON.stringify({
+        fornecedores:dados.fornecedores.map(f=>[f.id,f.nome,f.categoria,f.valorContratado]),
+        despesas:dados.despesas.map(d=>[d.idFornecedor,d.descricao,d.categoria,d.status,d.valorPrevisto,calcularTotalDevidoDespesaRapida(d),calcularTotalPagoDespesaRapida(d),d.pagador,d.parcelas?.map(p=>[p.valor,p.valorPago,p.cancelada,p.pagador,p.pagamento])]),
+        limites:estadoGraficosCompactos
+      });
+      if (assinatura === assinaturaGraficosV8) return;
+      assinaturaGraficosV8 = assinatura;
       desenharGraficoFornecedores();
       if (typeof desenharGraficoSituacaoFornecedor === 'function') desenharGraficoSituacaoFornecedor();
       desenharGraficoDespesas();
@@ -5994,14 +6074,16 @@
           d.parcelas.forEach((p, i) => {
             if (!p || p.cancelada) return;
             // Valor parcial informado prevalece; só usa o valor previsto se houver pagamento datado.
-            const centavos = centavosPagamento(p.valorPago) ||
-              (p.pagamento && dataValida(p.pagamento) ? centavosPagamento(p.valor) : 0);
+            const centavos = centavosPagamento(valorPagoParcelaRapida(p));
             // O pagador da despesa pode ser apenas o da primeira parcela.
             // Só recupera o campo legado para uma parcela única sem o campo próprio.
             const pagador = Object.prototype.hasOwnProperty.call(p, 'pagador') ? p.pagador :
               (d.parcelas.length === 1 ? d.pagador : '');
             adicionar(d, indice, p, i, centavos, pagador);
           });
+          const detalhado = d.parcelas.reduce((n,p)=>n+centavosPagamento(valorPagoParcelaRapida(p)),0);
+          const residual = centavosPagamento(calcularTotalPagoDespesaRapida(d))-detalhado;
+          if (residual>0) adicionar(d,indice,null,null,residual,d.pagador);
         } else {
           adicionar(d, indice, null, null, centavosPagamento(d.valorPago), d.pagador);
         }
@@ -6219,18 +6301,10 @@
         if (d.status === 'Cancelado') return;
         const f = d.idFornecedor ? forn.get(d.idFornecedor) : null;
         const nome = f ? f.nome : (d.descricao || 'Sem fornecedor');
-        const contratado = Number(d.valorContratado) || 0;
+        const contratado = calcularTotalDevidoDespesaRapida(d) || 0;
         // Pago = soma das parcelas efetivamente quitadas (inclui a entrada).
         // Parcelas canceladas não entram.
-        let pago = 0;
-        if (Array.isArray(d.parcelas) && d.parcelas.length) {
-          d.parcelas.forEach(pc => {
-            if (!pc || pc.cancelada) return;
-            if (pc.pagamento && dataValida(pc.pagamento)) pago += Number(pc.valor) || 0;
-          });
-        } else {
-          pago = Number(d.valorPago) || 0;
-        }
+        const pago = calcularTotalPagoDespesaRapida(d);
         linhas.push({
           indice: idx, nome,
           categoria: d.categoria || (f ? f.categoria : '') || 'Outros',
@@ -6478,8 +6552,8 @@
         let prev = 0, contr = 0, pago = 0;
         despesas.forEach(d => {
           prev += Number(d.valorPrevisto) || 0;
-          contr += Number(d.valorContratado) || 0;
-          pago += Number(d.valorPago) || 0;
+          contr += calcularTotalDevidoDespesaRapida(d) || 0;
+          pago += calcularTotalPagoDespesaRapida(d) || 0;
         });
         if (chartDespesasInst) { chartDespesasInst.destroy(); chartDespesasInst = null; }
         if (prev + contr + pago === 0) {
@@ -6554,7 +6628,6 @@
       if (typeof recalcularBuffetsSalvos === 'function') recalcularBuffetsSalvos();
       if (silencioso) return true;
       salvarDados();
-      if (typeof atualizarDashboard === 'function') atualizarDashboard();
       notificar('Dados do casamento salvos com sucesso');
       return true;
     }
@@ -6985,7 +7058,8 @@
           return;
         }
       }
-      const registro = { nome, parentesco, tipo };
+      const anterior = acompanhanteEditandoIndex !== null ? acompanhantesAtuais[acompanhanteEditandoIndex] || {} : {};
+      const registro = {...anterior, id:anterior.id || novoIdPessoa(), nome, parentesco, tipo, idade};
       if (idade !== null) registro.idade = idade;
       const obsAcVal = (document.getElementById('observacoesAcompanhante') || {}).value || '';
       if (obsAcVal.trim()) registro.observacoes = obsAcVal.trim();
@@ -7653,27 +7727,81 @@
     // ===== Mesas =====
     // Garante que toda mesa tenha a estrutura nova (formato + assentos).
     // Migra mesas criadas em versões anteriores sem perder dados.
-    function normalizarMesas() {
-      dados.mesas.forEach(m => {
-        if (!m.formato) m.formato = 'redonda';
-        const capacidade = Number(m.capacidade) || 1;
-        if (!Array.isArray(m.assentos)) {
-          // versão antiga: tinha 'convidados' como lista simples
-          m.assentos = new Array(capacidade).fill(null);
-          if (Array.isArray(m.convidados)) {
-            m.convidados.forEach((nome, i) => {
-              if (i < capacidade) m.assentos[i] = nome;
-            });
-          }
-        }
-        // ajusta o tamanho do array de assentos à capacidade atual
-        if (m.assentos.length < capacidade) {
-          while (m.assentos.length < capacidade) m.assentos.push(null);
-        } else if (m.assentos.length > capacidade) {
-          m.assentos = m.assentos.slice(0, capacidade);
-        }
-        delete m.convidados; // remove o campo antigo
+    function participantesMesas() {
+      const pessoas = [];
+      (dados.convidados || []).forEach((titular, idx) => {
+        if (!titular.id) titular.id = novoIdPessoa();
+        const elegivel = titular.statusLista !== 'Lista de espera' && !['Recusado','Cancelado','Não vai'].includes(titular.status);
+        pessoas.push({p:titular, id:titular.id, nome:titular.nome, idx, elegivel});
+        (Array.isArray(titular.acompanhantes) ? titular.acompanhantes : []).forEach(ac => {
+          if (!ac.id) ac.id = novoIdPessoa();
+          pessoas.push({p:ac, id:ac.id, nome:ac.nome, idx, elegivel, titular:titular.nome});
+        });
       });
+      return pessoas;
+    }
+    function normalizarMesas() {
+      const pessoas = participantesMesas(), porId = new Map(pessoas.map(x => [x.id,x]));
+      const usados = new Set();
+      dados.mesas.forEach(m => {
+        if (!m.id) m.id = novoIdPessoa();
+        if (!m.formato) m.formato = 'redonda';
+        if (!Array.isArray(m.assentos)) m.assentos = Array.isArray(m.convidados) ? [...m.convidados] : [];
+        m.capacidade = Math.max(1, Math.trunc(Number(m.capacidade) || 1), m.assentos.length);
+        while (m.assentos.length < m.capacidade) m.assentos.push(null);
+        if (!Array.isArray(m.assentosPessoaIds)) m.assentosPessoaIds = [];
+        m.assentos.forEach((nome,i) => {
+          let id = m.assentosPessoaIds[i];
+          if (!id && nome) {
+            const candidatos = pessoas.filter(x => x.nome === nome);
+            if (candidatos.length === 1) id = candidatos[0].id;
+          }
+          if (id) {
+            const pessoa = porId.get(id);
+            if (!pessoa || !pessoa.elegivel || usados.has(id)) { m.assentos[i] = null; id = null; }
+            else { m.assentos[i] = pessoa.nome; usados.add(id); }
+          }
+          m.assentosPessoaIds[i] = id || null;
+        });
+        delete m.convidados;
+      });
+      if (!dados._mesasSincronizadasV8) {
+        pessoas.forEach(x => {
+          if (!x.elegivel || usados.has(x.id) || !x.p.mesa) return;
+          const mesas = dados.mesas.filter(m => m.nome === x.p.mesa || m.id === x.p.mesa);
+          const mesa = mesas.length === 1 ? mesas[0] : null;
+          const vaga = mesa ? mesa.assentos.indexOf(null) : -1;
+          if (vaga >= 0) { mesa.assentos[vaga] = x.nome; mesa.assentosPessoaIds[vaga] = x.id; usados.add(x.id); }
+          else x.p.mesaPendente = x.p.mesa; // preserva a indicação antiga para revisão
+        });
+        dados._mesasSincronizadasV8 = true;
+      }
+      pessoas.forEach(x => { x.p.mesa = ''; x.p.mesaId = ''; });
+      dados.mesas.forEach(m => m.assentosPessoaIds.forEach(id => {
+        const x = porId.get(id); if (x) { x.p.mesa = m.nome; x.p.mesaId = m.id; delete x.p.mesaPendente; }
+      }));
+    }
+    function validarMesaPessoa(pessoa, mesaId) {
+      if (!mesaId) return true;
+      if (pessoa.statusLista === 'Lista de espera' || ['Recusado','Cancelado','Não vai'].includes(pessoa.status)) {
+        notificar('Pessoas em espera, recusadas ou canceladas devem ficar sem mesa.'); return false;
+      }
+      const mesa = dados.mesas.find(m => m.id === mesaId);
+      if (!mesa) { notificar('A mesa selecionada não existe mais.'); return false; }
+      if (!mesa.assentos.includes(null) && !mesa.assentosPessoaIds.includes(pessoa.id)) {
+        notificar('A mesa selecionada não possui lugares disponíveis.'); return false;
+      }
+      return true;
+    }
+    function atribuirMesaPessoa(pessoa, mesaId) {
+      dados.mesas.forEach(m => m.assentosPessoaIds.forEach((id,i) => {
+        if (id === pessoa.id) { m.assentosPessoaIds[i] = null; m.assentos[i] = null; }
+      }));
+      if (mesaId) {
+        const mesa = dados.mesas.find(m => m.id === mesaId), vaga = mesa.assentos.indexOf(null);
+        mesa.assentos[vaga] = pessoa.nome; mesa.assentosPessoaIds[vaga] = pessoa.id;
+      }
+      normalizarMesas();
     }
     function abrirFormularioMesa() {
       document.getElementById('formMesa').style.display = 'block';
@@ -7698,8 +7826,8 @@
         notificar('Informe o nome ou número da mesa');
         return;
       }
-      if (!capacidade || capacidade <= 0) {
-        notificar('A quantidade de lugares deve ser maior que zero');
+      if (!Number.isInteger(capacidade) || capacidade <= 0) {
+        notificar('Informe uma quantidade inteira de lugares entre 1 e 30');
         return;
       }
       if (capacidade > 30) {
@@ -7711,7 +7839,9 @@
       if (ehMesaNoivos) {
         dados.mesas.forEach(m => { if (m) m.ehMesaNoivos = false; });
       }
+      if (dados.mesas.some(m => normalizarTextoComparacao(m.nome) === normalizarTextoComparacao(nome))) { notificar('Já existe uma mesa com esse nome.'); return; }
       dados.mesas.push({
+        id:novoIdPessoa(),
         nome,
         formato,
         capacidade,
@@ -7745,7 +7875,7 @@
         }
         const nomeFormato = { redonda: 'Redonda', quadrada: 'Quadrada', retangular: 'Retangular' }[m.formato] || 'Redonda';
         const tagNoivos = m.ehMesaNoivos ? ' <span class="etiqueta-venc proxima" style="background:var(--cor-primaria); color:#fff;">♥ Mesa dos noivos</span>' : '';
-        div.innerHTML = `<strong>${m.nome}</strong>${tagNoivos} (${nomeFormato}) - Lugares: ${m.capacidade} | ` +
+        div.innerHTML = `<strong>${textoHtmlSeguro(m.nome)}</strong>${tagNoivos} (${nomeFormato}) - Lugares: ${m.capacidade} | ` +
           `Ocupados: ${ocupados} | Disponíveis: ${m.capacidade - ocupados}`;
         const btnExcluir = document.createElement('button');
         btnExcluir.textContent = 'Excluir';
@@ -7765,13 +7895,9 @@
     }
     // Retorna a lista de convidados ainda não alocados em nenhuma mesa.
     function convidadosSemMesa() {
-      const alocados = new Set();
-      dados.mesas.forEach(m => {
-        m.assentos.forEach(a => { if (a !== null) alocados.add(a); });
-      });
-      return dados.convidados
-        .map((c, idx) => ({ nome: c.nome, idx }))
-        .filter(c => !alocados.has(c.nome));
+      normalizarMesas();
+      const alocados = new Set(dados.mesas.flatMap(m => m.assentosPessoaIds));
+      return participantesMesas().filter(x => x.elegivel && !alocados.has(x.id));
     }
     // Calcula a posição (x, y) de cada cadeira conforme o formato da mesa.
     // Retorna um array de {x, y} relativo ao container, já considerando o
@@ -7849,6 +7975,8 @@
         aviso.style.color = 'var(--cor-alerta)';
         aviso.textContent = `${semMesa.length} convidado(s) ainda sem mesa.`;
       }
+      const pendentes = participantesMesas().filter(x => x.p.mesaPendente);
+      if (pendentes.length) aviso.textContent += ` Revise ${pendentes.length} indicação(ões) de mesa antiga sem vaga ou correspondência.`;
       container.appendChild(aviso);
       // desenha cada mesa
       dados.mesas.forEach((mesa, mesaIdx) => {
@@ -7861,8 +7989,8 @@
         }
         const ocupados = mesa.assentos.filter(a => a !== null).length;
         const nomeFormato = { redonda: 'Redonda', quadrada: 'Quadrada', retangular: 'Retangular' }[mesa.formato] || 'Redonda';
-        const tituloMesa = mesa.ehMesaNoivos ? `♥ ${mesa.nome} (Noivos)` : mesa.nome;
-        wrap.innerHTML = `<h4>${tituloMesa}</h4>` +
+        const tituloMesa = mesa.ehMesaNoivos ? `♥ ${textoHtmlSeguro(mesa.nome)} (Noivos)` : mesa.nome;
+        wrap.innerHTML = `<h4>${textoHtmlSeguro(tituloMesa)}</h4>` +
           `<div class="mesa-info">${nomeFormato} · ${ocupados}/${mesa.capacidade} lugares</div>`;
         const canvas = document.createElement('div');
         canvas.className = 'mesa-canvas';
@@ -7925,7 +8053,7 @@
       if (!ocupante) {
         // cadeira livre: escolher um convidado sem mesa
         const semMesa = convidadosSemMesa();
-        menu.innerHTML = `<h4>${mesa.nome} — Cadeira ${cadeiraIdx + 1} (livre)</h4>`;
+        menu.innerHTML = `<h4>${textoHtmlSeguro(mesa.nome)} — Cadeira ${cadeiraIdx + 1} (livre)</h4>`;
         if (semMesa.length === 0) {
           const p = document.createElement('p');
           p.style.fontSize = '0.9rem';
@@ -7938,7 +8066,7 @@
           const select = document.createElement('select');
           select.id = 'selectConvidadoCadeira';
           select.innerHTML = '<option value="">Escolha um convidado...</option>' +
-            semMesa.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
+            semMesa.map(c => `<option value="${textoHtmlSeguro(c.id)}">${textoHtmlSeguro(c.nome)}${c.titular ? " — acompanhante de " + textoHtmlSeguro(c.titular) : ""}</option>`).join('');
           menu.appendChild(select);
           const btnAdd = document.createElement('button');
           btnAdd.className = 'btn-success';
@@ -7946,7 +8074,10 @@
           btnAdd.onclick = () => {
             const nome = select.value;
             if (!nome) { notificar('Escolha um convidado'); return; }
-            mesa.assentos[cadeiraIdx] = nome;
+            const pessoa = semMesa.find(p => p.id === nome);
+            if (!pessoa) return;
+            mesa.assentos[cadeiraIdx] = pessoa.nome;
+            mesa.assentosPessoaIds[cadeiraIdx] = pessoa.id;
             salvarDados();
             listarMesas();
             overlay.remove();
@@ -7955,14 +8086,14 @@
         }
       } else {
         // cadeira ocupada: trocar / remover / mover
-        menu.innerHTML = `<h4>${mesa.nome} — Cadeira ${cadeiraIdx + 1}</h4>` +
-          `<p style="font-size:0.9rem; margin:0 0 0.75rem;"><strong>${ocupante}</strong> está sentado(a) aqui.</p>`;
+        menu.innerHTML = `<h4>${textoHtmlSeguro(mesa.nome)} — Cadeira ${cadeiraIdx + 1}</h4>` +
+          `<p style="font-size:0.9rem; margin:0 0 0.75rem;"><strong>${textoHtmlSeguro(ocupante)}</strong> está sentado(a) aqui.</p>`;
         // Trocar pessoa
         const semMesa = convidadosSemMesa();
         if (semMesa.length > 0) {
           const selectTroca = document.createElement('select');
           selectTroca.innerHTML = '<option value="">Trocar por outro convidado...</option>' +
-            semMesa.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
+            semMesa.map(c => `<option value="${textoHtmlSeguro(c.id)}">${textoHtmlSeguro(c.nome)}${c.titular ? " — acompanhante de " + textoHtmlSeguro(c.titular) : ""}</option>`).join('');
           menu.appendChild(selectTroca);
           const btnTrocar = document.createElement('button');
           btnTrocar.className = 'btn-primary';
@@ -7970,7 +8101,10 @@
           btnTrocar.onclick = () => {
             const novo = selectTroca.value;
             if (!novo) { notificar('Escolha um convidado para a troca'); return; }
-            mesa.assentos[cadeiraIdx] = novo;
+            const pessoa = semMesa.find(p => p.id === novo);
+            if (!pessoa) return;
+            mesa.assentos[cadeiraIdx] = pessoa.nome;
+            mesa.assentosPessoaIds[cadeiraIdx] = pessoa.id;
             salvarDados();
             listarMesas();
             overlay.remove();
@@ -7999,7 +8133,9 @@
             const vaga = destino.assentos.indexOf(null);
             if (vaga === -1) { notificar('Essa mesa não tem mais lugares livres'); return; }
             destino.assentos[vaga] = ocupante;
+            destino.assentosPessoaIds[vaga] = mesa.assentosPessoaIds[cadeiraIdx];
             mesa.assentos[cadeiraIdx] = null;
+            mesa.assentosPessoaIds[cadeiraIdx] = null;
             salvarDados();
             listarMesas();
             overlay.remove();
@@ -8012,6 +8148,7 @@
         btnRemover.textContent = 'Remover desta cadeira';
         btnRemover.onclick = () => {
           mesa.assentos[cadeiraIdx] = null;
+          mesa.assentosPessoaIds[cadeiraIdx] = null;
           salvarDados();
           listarMesas();
           overlay.remove();
@@ -8249,6 +8386,7 @@
         : 'Dados do fornecedor transferidos. Defina apenas a forma de pagamento e salve.');
     }
     function limparFormularioDespesa() {
+      cotacaoOrigemDespesa = null;
       despesaEmEdicao = null;
       document.getElementById('categoriaDespesa').selectedIndex = 0;
       document.getElementById('descricaoDespesa').value = '';
@@ -8345,7 +8483,7 @@
         const chkEntrada = document.getElementById('apTemEntrada');
         if (chkEntrada) chkEntrada.checked = !!entrada;
         preencherCampoMoeda('apValorEntrada', entrada ? entrada.valor : 0);
-        const total = Number(d.valorContratado) || 0;
+        const total = calcularTotalDevidoDespesaRapida(d) || 0;
         const percEntrada = document.getElementById('apPercentualEntrada');
         if (percEntrada) percEntrada.value = entrada && total > 0
           ? String(Math.round((Number(entrada.valor || 0) / total * 100) * 100) / 100) : '';
@@ -8543,7 +8681,12 @@
         dados.despesas.push(registro);
       }
 
+      if (cotacaoOrigemDespesa) {
+        const cotacao = (dados.cotacoes || []).find(c => c.id === cotacaoOrigemDespesa);
+        if (cotacao) { cotacao.situacao = 'Selecionado'; cotacao.enviadaEm = new Date().toLocaleDateString('pt-BR'); }
+      }
       salvarDados();
+      listarCotacoes();
       listarDespesas();
       if (typeof listarFornecedores === 'function') listarFornecedores();
       const editandoDespesa = despesaEmEdicao !== null;
@@ -8555,6 +8698,12 @@
     }
     // Filtro ativo da lista de despesas (null = mostrar todas)
     let filtroDespesas = { status: '', vencimento: '' };
+    function despesaPassaFiltro(d) {
+      const sit=situacaoVencimento(d);
+      return (!filtroDespesas.status || (filtroDespesas.status==='Vencido'?sit.tipo==='vencida':d.status===filtroDespesas.status)) && (!filtroDespesas.vencimento || sit.tipo===filtroDespesas.vencimento);
+    }
+    function despesasFiltradas() { return (dados.despesas||[]).filter(despesaPassaFiltro); }
+
     function aplicarFiltroDespesas() {
       filtroDespesas.status = document.getElementById('filtroStatusDespesa').value;
       filtroDespesas.vencimento = document.getElementById('filtroVencimentoDespesa').value;
@@ -8652,9 +8801,7 @@
       dados.despesas.forEach((d, index) => {
         const sit = situacaoVencimento(d);
         // aplica filtro de status
-        if (filtroDespesas.status && d.status !== filtroDespesas.status) return;
-        // aplica filtro de vencimento
-        if (filtroDespesas.vencimento && sit.tipo !== filtroDespesas.vencimento) return;
+        if (!despesaPassaFiltro(d)) return;
         algumaExibida = true;
         const div = document.createElement('div');
         div.className = 'item-lista venc-' + sit.tipo;
@@ -8680,10 +8827,10 @@
         // "Status: ..." só quando NÃO há selo de pagamento (pago/parcial já
         // são mostrados pelo selo). Evita repetir "Pago" no mesmo card.
         const mostraStatus = !quitada && !parcial;
-        div.innerHTML = `<strong>#${d.codigo || String(index + 1)} — ${d.descricao}</strong> - ${d.categoria} ${etiqueta}${selo}<br>` +
+        div.innerHTML = `<strong>#${d.codigo || String(index + 1)} — ${textoHtmlSeguro(d.descricao)}</strong> - ${textoHtmlSeguro(d.categoria)} ${etiqueta}${selo}<br>` +
           `Previsto: ${formatarMoeda(d.valorPrevisto)} | Contratado: ${formatarMoeda(contrato)} | Pago: ${formatarMoeda(pago)}<br>` +
           `Pendência: ${formatarMoeda(saldoPendente)}` +
-          (mostraStatus ? ` | Status: ${d.status}` : '') + ` | Prioridade: ${d.prioridade}` +
+          (mostraStatus ? ` | Status: ${textoHtmlSeguro(d.status)}` : '') + ` | Prioridade: ${textoHtmlSeguro(d.prioridade)}` +
           (d.dataVencimento ? ` | Vencimento: ${d.dataVencimento}` : '') +
           blocoFornecedorContratoDespesa(d);
         const avisoFornecedor = div.querySelector('[data-abrir-fornecedor]');
@@ -9168,7 +9315,6 @@
       despesa.dataVencimento = proxima ? proxima.vencimento : '';
 
       salvarDados();
-      if (typeof atualizarDashboard === 'function') atualizarDashboard();
       listarDespesas();
       if (typeof listarFornecedores === 'function') listarFornecedores();
       fecharModal('modalPagamentoRapidoDespesa', true);
@@ -9880,6 +10026,7 @@
     function limparFormularioCronograma() {
       cronogramaEmEdicao = null;
       document.getElementById('horarioCronograma').value = '';
+      document.getElementById('diaCronograma').value = 'auto';
       document.getElementById('atividadeCronograma').value = '';
       document.getElementById('responsavelCronograma').value = '';
       document.getElementById('observacoesCronograma').value = '';
@@ -9889,6 +10036,7 @@
       if (!item) return;
       cronogramaEmEdicao = index;
       document.getElementById('horarioCronograma').value = item.horario || '';
+      document.getElementById('diaCronograma').value = item.diaEvento == null ? 'auto' : String(item.diaEvento);
       document.getElementById('atividadeCronograma').value = item.atividade || '';
       document.getElementById('responsavelCronograma').value = item.responsavel || '';
       document.getElementById('observacoesCronograma').value = item.observacoes || '';
@@ -9903,7 +10051,8 @@
         notificar('Informe a atividade.');
         return;
       }
-      const registro = { horario, atividade, responsavel, observacoes };
+      const dia = document.getElementById('diaCronograma').value;
+      const registro = { horario, atividade, responsavel, observacoes, diaEvento:dia==='auto'?null:Number(dia) };
       if (cronogramaEmEdicao !== null) {
         dados.cronograma[cronogramaEmEdicao] = registro;
       } else {
@@ -9958,7 +10107,7 @@
       if (resumo) {
         resumo.textContent = total === 0
           ? 'Cronograma vazio. Use "Inserir sugestão padrão" para começar.'
-          : `${total} atividade(s) cadastrada(s).`;
+          : `${total} atividade(s) cadastrada(s). No modo automático, horários antes das 06h ficam no dia seguinte. Você pode ajustar o dia ao editar.`;
       }
       if (total === 0) return;
       // Ordena por horário (atividades sem horário vão para o fim)
@@ -9968,15 +10117,16 @@
           if (!a.horario && !b.horario) return 0;
           if (!a.horario) return 1;
           if (!b.horario) return -1;
-          return a.horario.localeCompare(b.horario);
+          const minutos = item => { const [hh,mm] = item.horario.split(':').map(Number); const dia=item.diaEvento == null ? (hh<6?1:0) : Number(item.diaEvento); return hh*60+mm+dia*1440; };
+          return minutos(a) - minutos(b);
         });
       ordenados.forEach(item => {
         const div = document.createElement('div');
         div.className = 'item-lista';
         const horarioTxt = item.horario ? `<strong style="font-size:1.05rem; color:var(--cor-primaria);">${item.horario}</strong>` : '<em style="color:#888;">sem horário</em>';
-        let html = `${horarioTxt} — <strong>${item.atividade}</strong>`;
-        if (item.responsavel) html += `<br><small>Responsável: ${item.responsavel}</small>`;
-        if (item.observacoes) html += `<br><em style="color:#666;">${item.observacoes}</em>`;
+        let html = `${horarioTxt} — <strong>${textoHtmlSeguro(item.atividade)}</strong>`;
+        if (item.responsavel) html += `<br><small>Responsável: ${textoHtmlSeguro(item.responsavel)}</small>`;
+        if (item.observacoes) html += `<br><em style="color:#666;">${textoHtmlSeguro(item.observacoes)}</em>`;
         div.innerHTML = html;
         const btnEditar = document.createElement('button');
         btnEditar.textContent = 'Editar';
@@ -10367,7 +10517,9 @@
       if (!f) return [];
       const porId = (dados.despesas || []).filter(d => d.idFornecedor && f.id && d.idFornecedor === f.id);
       if (porId.length > 0) return porId;
-      return (dados.despesas || []).filter(d => !d.idFornecedor && d.categoria === f.categoria);
+      const nome = normalizarTextoComparacao(f.nome);
+      if (!nome || dados.fornecedores.filter(outro => normalizarTextoComparacao(outro.nome) === nome).length !== 1) return [];
+      return (dados.despesas || []).filter(d => !d.idFornecedor && normalizarTextoComparacao(d.descricao) === nome);
     }
 
     function fornecedorNoOrcamento(f) {
@@ -10378,16 +10530,16 @@
       const despesas = despesasDoFornecedor(f);
       let pago = 0, temQuitada = false;
       despesas.forEach(d => {
-        const contr = Number(d.valorContratado) || 0;
-        const p = Number(d.valorPago) || 0;
+        const contr = calcularTotalDevidoDespesaRapida(d) || 0;
+        const p = calcularTotalPagoDespesaRapida(d) || 0;
         if (contr > 0 && p >= contr) { temQuitada = true; pago += p; }
       });
       return temQuitada && pago >= (Number(f.valorContratado) || 0);
     }
     function fornecedorParcialNoOrcamento(f) {
       return despesasDoFornecedor(f).some(d => {
-        const contr = Number(d.valorContratado) || 0;
-        const p = Number(d.valorPago) || 0;
+        const contr = calcularTotalDevidoDespesaRapida(d) || 0;
+        const p = calcularTotalPagoDespesaRapida(d) || 0;
         return p > 0 && p < contr;
       });
     }
@@ -10448,7 +10600,7 @@
         div.className = 'item-lista';
         // O status exibido aqui representa somente a etapa de negociação.
         const statusNegociacao = (f.status === 'Pago' || f.status === 'Pago parcial') ? 'Contratado' : (f.status || 'Pesquisado');
-        let html = `<strong>#${f.codigo || String(index + 1)} — ${f.nome}</strong> - ${f.categoria} | Negociação: ${statusNegociacao}`;
+        let html = `<strong>#${f.codigo || String(index + 1)} — ${textoHtmlSeguro(f.nome)}</strong> - ${textoHtmlSeguro(f.categoria)} | Negociação: ${statusNegociacao}`;
         // O módulo Fornecedores exibe somente o valor total contratado.
         // Pagamentos, saldo, parcelas e vencimentos são consultados em Orçamento e Despesas.
         if (f.categoria === 'Buffet' && Number(f.valorPorPessoa) > 0) {
@@ -10458,14 +10610,14 @@
         } else {
           html += `<br>Valor total contratado: ${formatarMoeda(f.valorContratado)}`;
         }
-        if (f.responsavel) html += `<br>Responsável: ${f.responsavel}`;
-        if (f.telefone) html += ` | Telefone: ${f.telefone}`;
+        if (f.responsavel) html += `<br>Responsável: ${textoHtmlSeguro(f.responsavel)}`;
+        if (f.telefone) html += ` | Telefone: ${textoHtmlSeguro(f.telefone)}`;
         if (f.whatsapp) html += ` | WhatsApp: ${f.whatsapp}`;
-        if (f.email) html += `<br>E-mail: ${f.email}`;
+        if (f.email) html += `<br>E-mail: ${textoHtmlSeguro(f.email)}`;
         if (f.contrato) html += `<br>Contrato: ${f.contrato}`;
         if (f.linkContrato) html += ` | <a href="${f.linkContrato}" target="_blank" rel="noopener">Abrir contrato ↗</a>`;
         if (f.dataAssinatura) html += ` | Assinado em: ${f.dataAssinatura}`;
-        if (f.observacoes) html += `<br><em>Obs.: ${f.observacoes}</em>`;
+        if (f.observacoes) html += `<br><em>Obs.: ${textoHtmlSeguro(f.observacoes)}</em>`;
         div.innerHTML = html;
         const btnEditar = document.createElement('button');
         btnEditar.textContent = 'Editar';
@@ -10976,6 +11128,7 @@ const REAIS = c => Math.round(c) / 100;
 // valor manualmente. Redistribuir por cima disso apagaria decisão humana.
 function parcelaBloqueada(p) {
   if (!p) return true;
+  if (p.cancelada || numeroFinanceiroPagamentoRapido(p.valorPago) > 0) return true;
   if (p.pagamento && typeof dataValida === 'function' && dataValida(p.pagamento)) return true;
   return !!p.fixada;
 }
@@ -10989,6 +11142,9 @@ function redistribuirValoresParcelas(parcelas, indice, novoValorReais, totalReai
   if (novoC < 0) return { parcelas, erro: 'O valor da parcela não pode ser negativo.' };
 
   if (indice !== null && indice >= 0 && indice < lista.length) {
+    if (novoC < CENT(valorPagoParcelaRapida(lista[indice]))) {
+      return { parcelas, erro: 'O valor da parcela não pode ser menor que o valor já pago.' };
+    }
     lista[indice].valor = REAIS(novoC);
     lista[indice].fixada = true;   // digitar manualmente fixa a parcela
   }
@@ -11040,7 +11196,7 @@ function reorganizarVencimentosApartirDe(parcelas, indice, novaDataBR) {
   if (!novaDataBR || (typeof dataValida === 'function' && !dataValida(novaDataBR))) {
     return { parcelas, erro: 'Data inválida. Use dd/mm/aaaa.' };
   }
-  const paga = p => p.pagamento && typeof dataValida === 'function' && dataValida(p.pagamento);
+  const paga = p => p.cancelada || valorPagoParcelaRapida(p) > 0;
   if (lista[indice] && paga(lista[indice])) {
     return { parcelas, erro: 'Esta parcela já foi paga — o vencimento não é alterado.' };
   }
@@ -11549,7 +11705,6 @@ function atualizarValoresBuffet() {
       if (salvarCerimonia(true) !== true)      { Object.assign(dados, JSON.parse(antes)); return; }
       if (salvarEspaco(true) !== true)         { Object.assign(dados, JSON.parse(antes)); return; }
       salvarDados();
-      if (typeof atualizarDashboard === 'function') atualizarDashboard();
       if (typeof atualizarSnapshotModal === 'function') atualizarSnapshotModal('modalMeuCasamento');
       mostrarAvisoDivergenciaLocalFesta();
       notificar('Dados do casamento salvos com sucesso');
@@ -12296,7 +12451,7 @@ function atualizarValoresBuffet() {
         const parcelas = Array.isArray(d.parcelas) ? d.parcelas : [];
         parcelas.forEach((pc, k) => {
           if (!pc || pc.cancelada) return;
-          if (pc.pagamento && dataValida(pc.pagamento)) return;       // já paga
+          if (saldoParcelaRapida(pc) <= 0.009) return; // quitada por valor
           if (!pc.vencimento || !dataValida(pc.vencimento)) return;   // sem data não há quando enviar
           const lem = pc.lembrete || {};
           if (lem.ativo === false) return;                            // desligado só nesta parcela
@@ -12309,12 +12464,13 @@ function atualizarValoresBuffet() {
             referencia: nomeForn + ' — ' + (pc.rotulo || ('Parcela ' + (k + 1))) + ' de ' + parcelas.length,
             vencimento: pc.vencimento,
             dataPrevista: subtrairDiasBR(pc.vencimento, antec),
+            horaPrevista: cfg.horarioPreferencial || '09:00',
             destinatario: dest,
             telefone: telefoneDestinatario(dest),
             texto: 'Lembrete de pagamento\n' +
                    'Fornecedor: ' + nomeForn + '\n' +
                    'Parcela: ' + (k + 1) + ' de ' + parcelas.length + '\n' +
-                   'Valor: ' + formatarMoeda(Number(pc.valor) || 0) + '\n' +
+                   'Saldo a pagar: ' + formatarMoeda(saldoParcelaRapida(pc)) + '\n' +
                    'Vencimento: ' + pc.vencimento +
                    (pix.chave ? '\nChave PIX: ' + pix.chave : '') +
                    (pix.favorecido ? '\nFavorecido: ' + pix.favorecido : '')
@@ -12328,16 +12484,22 @@ function atualizarValoresBuffet() {
         if (c.status === 'Cancelada' || c.status === 'Cancelado') return;
         if (c.status === 'Concluída' || c.status === 'Concluído') return;
         if (!c.data || !dataValida(c.data)) return;
-        const dias = (c.lembrete.unidade === 'horas')
-          ? Math.floor((Number(c.lembrete.antecedencia) || 0) / 24)
-          : (Number(c.lembrete.antecedencia) || 0);
+        const [dia, mes, ano] = c.data.split('/').map(Number);
+        const [hora, minuto] = String(c.hora || cfg.horarioPreferencial || '09:00').split(':').map(Number);
+        const envio = new Date(ano, mes - 1, dia, hora, minuto);
+        const antecedencia = Math.max(0, Number(c.lembrete.antecedencia) || 0);
+        if (c.lembrete.unidade === 'horas') envio.setHours(envio.getHours() - antecedencia);
+        else envio.setDate(envio.getDate() - antecedencia);
+        const dataEnvio = `${String(envio.getDate()).padStart(2,'0')}/${String(envio.getMonth()+1).padStart(2,'0')}/${envio.getFullYear()}`;
+        const horaEnvio = `${String(envio.getHours()).padStart(2,'0')}:${String(envio.getMinutes()).padStart(2,'0')}`;
         const dest = c.lembrete.destinatario || cfg.destinatarioPadrao;
         itens.push({
           chave: 'compromisso:' + (c.id || i),
           tipo: 'Compromisso',
           referencia: c.titulo || 'Compromisso',
           vencimento: c.data,
-          dataPrevista: subtrairDiasBR(c.data, dias),
+          dataPrevista: dataEnvio,
+          horaPrevista: horaEnvio,
           destinatario: dest,
           telefone: telefoneDestinatario(dest),
           texto: 'Lembrete de compromisso\n' +
@@ -12360,7 +12522,7 @@ function atualizarValoresBuffet() {
         if (!pa || !pb) return 0;
         const [d1,m1,a1] = pa.split('/').map(Number);
         const [d2,m2,a2] = pb.split('/').map(Number);
-        return new Date(a1,m1-1,d1) - new Date(a2,m2-1,d2);
+        return (new Date(a1,m1-1,d1) - new Date(a2,m2-1,d2)) || String(a.horaPrevista || '').localeCompare(String(b.horaPrevista || ''));
       });
     }
 
@@ -12375,7 +12537,7 @@ function atualizarValoresBuffet() {
         return;
       }
       const esc = v => String(v === undefined || v === null ? '' : v)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
       const hoje = new Date(); hoje.setHours(0,0,0,0);
       let html = '<p style="font-size:0.88rem; color:#777;">' + itens.length + ' lembrete(s) na fila' +
         (cfg.ativo ? '' : ' — <strong style="color:#c0392b;">lembretes desativados nas configurações</strong>') + '.</p>';
@@ -12391,7 +12553,7 @@ function atualizarValoresBuffet() {
         }
         html += '<tr title="' + esc(it.texto) + '">' +
           '<td style="padding:0.3rem; border-bottom:1px solid #f0f0f0; white-space:nowrap; color:' +
-            (atrasado ? '#c0392b' : 'inherit') + ';">' + esc(it.dataPrevista || '—') +
+            (atrasado ? '#c0392b' : 'inherit') + ';">' + esc(it.dataPrevista || '—') + ' ' + esc(it.horaPrevista || '') +
             (atrasado ? ' (passou)' : '') + '</td>' +
           '<td style="padding:0.3rem; border-bottom:1px solid #f0f0f0;">' + esc(it.tipo) + '</td>' +
           '<td style="padding:0.3rem; border-bottom:1px solid #f0f0f0;">' + esc(it.referencia) + '</td>' +
@@ -12419,16 +12581,19 @@ function atualizarValoresBuffet() {
       try {
         setIndicadorSync('salvando', 'Publicando fila...');
         for (const it of itens) {
-          const { data: existente } = await supabaseClient
+          const { data: existente, error: erroConsulta } = await supabaseClient
             .from('dados_casamento').select('id')
-            .eq('"Dados"->>_tipo', 'notificacao')
-            .eq('"Dados"->>chave', it.chave)
+            .eq('Dados->>_tipo', 'notificacao')
+            .eq('Dados->>chave', it.chave)
             .limit(1);
+          if (erroConsulta) throw erroConsulta;
           const payload = { _tipo: 'notificacao', ...it, publicadoEm: new Date().toISOString() };
           if (existente && existente.length) {
-            await supabaseClient.from('dados_casamento').update({ "Dados": payload }).eq('id', existente[0].id);
+            const {error} = await supabaseClient.from('dados_casamento').update({ "Dados": payload }).eq('id', existente[0].id);
+            if (error) throw error;
           } else {
-            await supabaseClient.from('dados_casamento').insert({ "Dados": payload });
+            const {error} = await supabaseClient.from('dados_casamento').insert({ "Dados": payload });
+            if (error) throw error;
           }
         }
         setIndicadorSync('ok', 'Sincronizado');
@@ -12436,7 +12601,7 @@ function atualizarValoresBuffet() {
       } catch (e) {
         console.error('Falha ao publicar a fila:', e);
         setIndicadorSync('erro', 'Erro ao publicar');
-        notificar('Não foi possível publicar a fila: ' + (e.message || e));
+        notificar('A publicação não foi concluída. Parte da fila pode ter sido gravada; tente novamente. Erro: ' + (e.message || e), 'erro');
       }
     }
 
@@ -12447,6 +12612,7 @@ function atualizarValoresBuffet() {
     // contratar não pode alterar valor contratado nem parcelas já lançadas.
     // =====================================================================
     let cotacaoEmEdicao = null;
+    let cotacaoOrigemDespesa = null;
 
     function garantirCotacoes() {
       if (!Array.isArray(dados.cotacoes)) dados.cotacoes = [];
@@ -12723,10 +12889,7 @@ function atualizarValoresBuffet() {
                    '\nServiço: ' + (c.descricao || '') +
                    '\nValor: ' + formatarMoeda(Number(c.valor) || 0) + aviso)) return;
 
-      c.situacao = 'Selecionado';
-      c.enviadaEm = new Date().toLocaleDateString('pt-BR');
-      salvarDados();
-      listarCotacoes();
+      // A seleção será confirmada somente ao salvar a contratação.
 
       // Abre o formulário de despesa pré-preenchido com a CÓPIA dos dados.
       if (typeof mostrarSecao === 'function') mostrarSecao('secaoOrcamento');
@@ -12737,6 +12900,7 @@ function atualizarValoresBuffet() {
         abrirFormularioDespesa();
       }
       transferirCotacaoParaFornecedorContratado(c);
+      cotacaoOrigemDespesa = c.id;
       notificar('Fornecedor e cotação transferidos. Defina apenas a forma de pagamento e salve.');
     }
 
@@ -12794,8 +12958,8 @@ function atualizarValoresBuffet() {
       if (!el) return;
       let totalContratado = 0, totalPago = 0, totalPrevisto = 0;
       dados.despesas.forEach(d => {
-        totalContratado += Number(d.valorContratado) || 0;
-        totalPago += Number(d.valorPago) || 0;
+        totalContratado += calcularTotalDevidoDespesaRapida(d) || 0;
+        totalPago += calcularTotalPagoDespesaRapida(d) || 0;
         totalPrevisto += Number(d.valorPrevisto) || 0;
       });
       const orcamento = Number(dados.orcamentoTotal) || 0;
@@ -12842,7 +13006,7 @@ function atualizarValoresBuffet() {
       const mapa = {};
       (dados.despesas || []).forEach(d => {
         const c = d.categoria || 'Outros';
-        mapa[c] = (mapa[c] || 0) + (Number(d.valorContratado) || 0);
+        mapa[c] = (mapa[c] || 0) + (calcularTotalDevidoDespesaRapida(d) || 0);
       });
       return mapa;
     }
@@ -13025,6 +13189,7 @@ function atualizarValoresBuffet() {
       window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank');
       // Registra o envio do convite (data de hoje) e atualiza as listas.
       const hojeC = new Date();
+      if (!confirm('Confirma que você enviou o convite pelo WhatsApp?')) return;
       c.conviteEnviadoEm = `${String(hojeC.getDate()).padStart(2,'0')}/${String(hojeC.getMonth()+1).padStart(2,'0')}/${hojeC.getFullYear()}`;
       salvarDados();
       if (document.getElementById('listaConvidados')) listarConvidados();
@@ -13145,7 +13310,7 @@ blocoHistoria +
 blocoPresentes +
 blocoRsvp +
 '<footer class="rodape">' + esc(noivos) + (data ? ' &nbsp;·&nbsp; ' + esc(data) : '') + '</footer>\n' +
-'<script>function copiarPix(){var c=document.getElementById("pixChave");if(!c)return;navigator.clipboard.writeText(c.textContent).then(function(){notificar("Chave Pix copiada!");});}<\/script>\n' +
+'<script>function copiarPix(){var c=document.getElementById("pixChave");if(!c)return;navigator.clipboard.writeText(c.textContent).then(function(){alert("Chave Pix copiada!");});}<\/script>\n' +
 '</body></html>';
 
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
@@ -13275,15 +13440,15 @@ blocoRsvp +
         const cabecalho = ['Descrição','Categoria','Valor previsto','Valor contratado',
           'Valor pago','Pendência','Vencimento','Situação','Status','Prioridade'];
         const linhas = [cabecalho.map(esc).join(';')];
-        dados.despesas.forEach(d => {
+        despesasFiltradas().forEach(d => {
           const sit = situacaoVencimento(d);
-          const pendencia = (Number(d.valorContratado) || 0) - (Number(d.valorPago) || 0);
+          const pendencia = (calcularTotalDevidoDespesaRapida(d) || 0) - (calcularTotalPagoDespesaRapida(d) || 0);
           linhas.push([
             d.descricao,
             d.categoria,
             formatarMoeda(d.valorPrevisto),
-            formatarMoeda(d.valorContratado),
-            formatarMoeda(d.valorPago),
+            formatarMoeda(calcularTotalDevidoDespesaRapida(d)),
+            formatarMoeda(calcularTotalPagoDespesaRapida(d)),
             formatarMoeda(pendencia),
             d.dataVencimento || '',
             sit.rotulo,
@@ -13338,24 +13503,13 @@ blocoRsvp +
         }
         // Aplica os dados importados sobre o objeto existente, preservando
         // chaves ausentes com valores padrão.
-        const padrao = {
-          dataCasamento: '', horaCasamento: '', localCasamento: '', enderecoCasamento: '', celebrante: '',
-          localFesta: '', enderecoFesta: '', buffetNoivos: 2, buffetFilhos: 0, orcamentoTotal: 0, metasCategorias: {}, categoriasFornecedor: [],
-          compromissos: [], convidados: [], mesas: [], despesas: [], fornecedores: [],
-          listaEspera: [], padrinhos: [], cronograma: [],
-          espaco: {}, site: {}, noiva: {}, noivo: {},
-          cerimonia: {}, observacoesGerais: '', _schemaVersion: 0, _migracaoAvisos: {},
-          _planoUnificacao: { decisoes: {}, atualizadoEm: null }, cotacoes: [],
-          notificacoes: { whatsappNoiva:'', whatsappNoivo:'', horarioPreferencial:'09:00',
-                          ativo:false, destinatarioPadrao:'Ambos', antecedenciaPadrao:10, estado:{} }
-        };
-        Object.keys(padrao).forEach(k => {
-          dados[k] = (importado[k] !== undefined) ? importado[k] : padrao[k];
-        });
+        try { aplicarDadosCarregados(importado); }
+        catch (erro) { notificar('Arquivo inválido: ' + erro.message, 'erro'); return; }
         // Onda 1: um JSON antigo pode ter estrutura antiga. Reaplica a migração
         // (síncrona) antes de gravar, para o arquivo importado já entrar no
         // formato atual.
         if (typeof aplicarMigracaoEstrutura === 'function') aplicarMigracaoEstrutura();
+        if (typeof aplicarMigracaoV4 === 'function') aplicarMigracaoV4();
         salvarDados();
         inicializar();
         notificar('Dados importados com sucesso.');
@@ -13576,8 +13730,8 @@ blocoRsvp +
       // entram apenas como visão operacional separada, sem somar (evita dobra).
       let _totContratado = 0, _totPago = 0, _fornOrcado = 0;
       (dados.despesas || []).forEach(d => {
-        _totContratado += Number(d.valorContratado) || 0;
-        _totPago += Number(d.valorPago) || 0;
+        _totContratado += calcularTotalDevidoDespesaRapida(d) || 0;
+        _totPago += calcularTotalPagoDespesaRapida(d) || 0;
       });
       (dados.fornecedores || []).forEach(f => { _fornOrcado += Number(f.valorContratado) || 0; });
       subTitulo('Convidados');
@@ -13755,7 +13909,7 @@ blocoRsvp +
         despArr.forEach((d, idx) => {
           const txt = (d.categoria || '') + (d.descricao ? '\n' + d.descricao : '');
           linhaTabela(
-            [idx + 1, txt, d.status || '', formatarMoeda(d.valorContratado), formatarMoeda(d.valorPago), d.dataVencimento || '—'],
+            [idx + 1, txt, d.status || '', formatarMoeda(calcularTotalDevidoDespesaRapida(d)), formatarMoeda(calcularTotalPagoDespesaRapida(d)), d.dataVencimento || '—'],
             largD,
             { fundo: idx % 2 === 0 }
           );
@@ -14668,19 +14822,6 @@ blocoRsvp +
       }
     }
 
-    // Soma meses a uma data dd/mm/aaaa, preservando o dia (ajusta fim de mês).
-    function somarMesesData(ddmmaaaa, meses) {
-      const m = String(ddmmaaaa || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-      if (!m) return '';
-      let dia = Number(m[1]), mes = Number(m[2]) - 1, ano = Number(m[3]);
-      const d = new Date(ano, mes + meses, 1);
-      const ultimoDia = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-      d.setDate(Math.min(dia, ultimoDia));
-      const dd = String(d.getDate()).padStart(2, '0');
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      return `${dd}/${mm}/${d.getFullYear()}`;
-    }
-
     // GERADOR: monta as parcelas (entrada + saldo igualmente dividido) e joga
     // na lista inline, que é a fonte da verdade ao salvar.
     function salvarParcelamentoFornecedor() {
@@ -15123,6 +15264,9 @@ blocoRsvp +
   (function () {
     const V4_SCHEMA = 4;
     let filtroPessoasV4 = { grupo:'convidados-noiva', busca:'', lado:'', confirmacao:'' };
+    let paginaPessoasV8 = 0, timerBuscaPessoasV8 = null;
+    const TAM_PAGINA_PESSOAS = 50;
+    window.mudarPaginaPessoasV8 = function(delta) { paginaPessoasV8 = Math.max(0,paginaPessoasV8+delta); listarConvidados(); };
     let comprovantesTemporariosV4 = [];
 
     const escV4 = (v) => String(v == null ? '' : v)
@@ -15282,6 +15426,8 @@ blocoRsvp +
       return true;
     }
 
+    window.aplicarMigracaoV4 = aplicarMigracaoV4;
+
     const migrarEstruturaBaseV4 = typeof migrarEstrutura === 'function' ? migrarEstrutura : null;
     if (migrarEstruturaBaseV4) migrarEstrutura = async function () {
       await migrarEstruturaBaseV4.apply(this,arguments);
@@ -15423,9 +15569,11 @@ blocoRsvp +
     window.atualizarIdadeNascimentoV4 = atualizarIdadeNascimentoV4;
 
     function popularMesasPessoaV4(selecionada) {
+      normalizarMesas();
       const sel=document.getElementById('mesaConvidado'); if(!sel)return;
-      sel.innerHTML='<option value="">Sem mesa</option>'+(dados.mesas||[]).map(m=>`<option value="${escV4(m.nome||m.numero||'')}">${escV4(m.nome||('Mesa '+(m.numero||'')))}</option>`).join('');
-      sel.value=selecionada||'';
+      sel.innerHTML='<option value="">Sem mesa</option>'+dados.mesas.map(m=>`<option value="${escV4(m.id)}">${escV4(m.nome)}</option>`).join('');
+      const mesa=dados.mesas.find(m=>m.id===selecionada)||dados.mesas.find(m=>m.nome===selecionada);
+      sel.value=mesa?mesa.id:'';
     }
 
     function prepararNavegacaoV4() {
@@ -15537,10 +15685,10 @@ blocoRsvp +
       if(id==='secaoNotificacoes'){ carregarConfigNotificacoes(); renderizarFilaNotificacoes(); }
     };
 
-    window.selecionarGrupoPessoasV4 = function(g){ filtroPessoasV4.grupo=g; filtroPessoasV4.lado=''; listarConvidados(); };
-    window.filtroPessoasV4Busca = function(v){ filtroPessoasV4.busca=String(v||'').toLowerCase(); listarConvidados(); };
+    window.selecionarGrupoPessoasV4 = function(g){ paginaPessoasV8=0; filtroPessoasV4.grupo=g; filtroPessoasV4.lado=''; listarConvidados(); };
+    window.filtroPessoasV4Busca = function(v){ paginaPessoasV8=0; filtroPessoasV4.busca=String(v||'').toLowerCase(); clearTimeout(timerBuscaPessoasV8); timerBuscaPessoasV8=setTimeout(listarConvidados,180); };
     window.filtroPessoasV4Lado = function(v){ filtroPessoasV4.lado=v; listarConvidados(); };
-    window.filtroPessoasV4Confirmacao = function(v){ filtroPessoasV4.confirmacao=v; listarConvidados(); };
+    window.filtroPessoasV4Confirmacao = function(v){ paginaPessoasV8=0; filtroPessoasV4.confirmacao=v; listarConvidados(); };
     window.novoConvidadoV4 = function(){
       limparFormularioConvidado(); convidadoEmEdicao=null; acompanhantesAtuais=[]; renderizarAcompanhantes();
       const grupo=filtroPessoasV4.grupo;
@@ -15563,7 +15711,7 @@ blocoRsvp +
       editarConvidadoBaseV4.apply(this,arguments); const p=dados.convidados[index]; if(!p)return;
       setElV4('grupoFamiliarConvidado',p.grupoFamiliar); setElV4('statusListaConvidado',p.statusLista||'Lista principal'); setElV4('funcaoConvidado',p.funcao||funcaoPorCategoriaV4(p.categoria));
       setElV4('tipoPessoaConvidado',tipoPessoaV4(p)); setElV4('dataNascimentoConvidado',p.dataNascimento); setElV4('restricoesAlimentaresConvidado',p.restricoesAlimentares);
-      setElV4('statusPresencaConvidado',normalizarConfirmacaoV4(p.status)); popularMesasPessoaV4(p.mesa); alternarCamposPessoaV4();
+      setElV4('statusPresencaConvidado',normalizarConfirmacaoV4(p.status)); popularMesasPessoaV4(p.mesaId || p.mesa); alternarCamposPessoaV4();
     };
 
     function consolidarAcompanhantesPadrinhosV4(registro, indiceTitular) {
@@ -15621,12 +15769,15 @@ blocoRsvp +
       if(registro.funcao==='Madrinha') registro.categoria='Madrinhas';
       if(['Padrinho','Madrinha'].includes(registro.funcao)) registro.statusLista='Lista principal';
       if(registro.tipoPessoa==='Criança' && registro.categoria==='Outros') registro.categoria='Crianças';
+      const mesaSelecionada = valorElV4('mesaConvidado');
+      if (!validarMesaPessoa(registro, mesaSelecionada)) return;
       consolidarAcompanhantesPadrinhosV4(registro, convidadoEmEdicao);
       if(convidadoEmEdicao!=null) dados.convidados[convidadoEmEdicao]=registro; else dados.convidados.push(registro);
       // Se uma versão anterior havia promovido esta acompanhante para um
       // cadastro independente, o novo salvamento elimina a duplicidade.
       removerTitularesDuplicadosDosAcompanhantesV4(registro);
-      dados._pessoasUnificadasV4=true; sincronizarEspelhosLegadosV4(); recalcularBuffetsSalvos(); salvarDados(); atualizarDashboard(); listarConvidados(); listarMesas();
+      atribuirMesaPessoa(registro, mesaSelecionada);
+      dados._pessoasUnificadasV4=true; sincronizarEspelhosLegadosV4(); recalcularBuffetsSalvos(); salvarDados(); listarConvidados(); listarMesas();
       fecharModal('modalFormConvidado',true); limparFormularioConvidado(); notificar('Cadastro salvo com sucesso.','sucesso');
     };
 
@@ -15672,7 +15823,7 @@ blocoRsvp +
           <td data-label="Ações"><button class="btn-primary btn-pequeno" onclick="editarConvidado(${index})">Editar</button> <button class="btn-danger btn-pequeno" onclick="excluirPessoaV4(${index})">Excluir</button></td></tr>`;
       }).join('')+'</tbody></table>';
     };
-    window.excluirPessoaV4=function(index){ const p=dados.convidados[index]; if(!p)return; if(!confirm(`Excluir o cadastro de "${p.nome}"?`))return; dados.convidados.splice(index,1); sincronizarEspelhosLegadosV4(); recalcularBuffetsSalvos(); salvarDados(); atualizarDashboard(); listarConvidados(); listarMesas(); };
+    window.excluirPessoaV4=function(index){ const p=dados.convidados[index]; if(!p)return; if(!confirm(`Excluir o cadastro de "${p.nome}"?`))return; dados.convidados.splice(index,1); sincronizarEspelhosLegadosV4(); recalcularBuffetsSalvos(); salvarDados(); listarConvidados(); listarMesas(); };
 
     calcularConvidadosPagantes = function(){
       let total=0;
@@ -15797,14 +15948,24 @@ blocoRsvp +
     lerParcelasApagarDoForm=function(){
       return Array.from(document.querySelectorAll('#apListaParcelas [data-ap-parcela]')).map((row,i)=>{const get=n=>row.querySelector(`[data-campo="${n}"]`);const val=n=>get(n)?get(n).value:'';const original=(document.getElementById('apListaParcelas')._parcelasOriginais||[])[i]||{};return{...original,
         rotulo:val('rotulo')||((i+1)+'ª parcela'),valor:moedaParaNumero(val('valor')),valorPago:moedaParaNumero(val('valorPago')),vencimento:val('vencimento'),pagamento:val('pagamento'),modalidade:val('modalidade'),pagador:val('pagador'),
-        fixada:!!original.fixada,cancelada:!!(get('cancelada')&&get('cancelada').checked),lembrete:{ativo:val('lembreteAtivo')==='true',antecedencia:Math.max(0,Number(val('lembreteAntecedencia'))||10),destinatario:val('lembreteDestinatario')||'Ambos'}
+        fixada:!!original.fixada,cancelada:!!(get('cancelada')&&get('cancelada').checked),lembrete:{ativo:val('lembreteAtivo')==='true',antecedencia:Math.max(0,Number(val('lembreteAntecedencia') || 0)),destinatario:val('lembreteDestinatario')||'Ambos'}
       };});
     };
 
     // CSV adicionais.
     function baixarCsvV4(nome,cab,linhas){const esc=v=>'"'+String(v??'').replace(/"/g,'""')+'"';const txt='\uFEFF'+[cab,...linhas].map(r=>r.map(esc).join(';')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/csv;charset=utf-8'}));a.download=nome;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
-    window.exportarCsvConvidadosV4=function(){baixarCsvV4('convidados-unificados.csv',['Nome','Telefone','Lado','Grupo familiar','Categoria','Função','Tipo','Situação na lista','Confirmação','Acompanhantes','Mesa','Restrições'],(dados.convidados||[]).map(p=>[p.nome,p.telefone,p.lado,p.grupoFamiliar,p.categoria,p.funcao,tipoPessoaV4(p),p.statusLista,normalizarConfirmacaoV4(p.status),(p.acompanhantes||[]).map(a=>a.nome).join(', '),p.mesa,p.restricoesAlimentares]));};
-    window.exportarCsvOrcamentadorV4=function(){baixarCsvV4('orcamentador-casamento.csv',['Fornecedor/Descrição','Categoria','Contratado','Pago','Saldo','Próximo vencimento','Situação','Contrato'],(dados.despesas||[]).map((d,i)=>{const r=linhaFinanceiraV6(d,i);return[r.descricao,r.categoria,r.contratado,r.pago,r.saldo,r.proximo,r.situacao,r.contrato];}));};
+    window.exportarCsvConvidadosV4=function(){
+      if (filtroPessoasV4.grupo==='criancas') {
+        const lista=coletarCriancasConvidadosV6().filter(c => (!filtroPessoasV4.lado||c.lado===filtroPessoasV4.lado)&&(!filtroPessoasV4.confirmacao||c.confirmacao===filtroPessoasV4.confirmacao)&&(!filtroPessoasV4.busca||[c.nome,c.responsavel,c.grupo,c.parentesco,c.origem].join(' ').toLowerCase().includes(filtroPessoasV4.busca)));
+        baixarCsvV4('criancas.csv',['Nome','Idade','Responsável','Lado','Confirmação','Mesa'],lista.map(c=>[c.nome,c.idade,c.responsavel,c.lado,c.confirmacao,c.mesa]));return;
+      }
+      if (filtroPessoasV4.grupo==='padrinhos') {
+        const lista=obterPadrinhosUnicosV7().filter(padrinhoPassaFiltroV8);
+        baixarCsvV4('padrinhos.csv',['Nome','Papel','Lado','Entra com','Titular'],lista.map(p=>[p.nome,p.papel,p.lado,p.entraCom,p.vinculoTitularNome]));return;
+      }
+      baixarCsvV4('convidados-unificados.csv',['Nome','Telefone','Lado','Grupo familiar','Categoria','Função','Tipo','Situação na lista','Confirmação','Acompanhantes','Mesa','Restrições'],pessoasFiltradasV4().map(({p})=>[p.nome,p.telefone,p.lado,p.grupoFamiliar,p.categoria,p.funcao,tipoPessoaV4(p),p.statusLista,normalizarConfirmacaoV4(p.status),(p.acompanhantes||[]).map(a=>a.nome).join(', '),p.mesa,p.restricoesAlimentares]));
+    };
+    window.exportarCsvOrcamentadorV4=function(){baixarCsvV4('orcamentador-casamento.csv',['Fornecedor/Descrição','Categoria','Contratado','Pago','Saldo','Próximo vencimento','Situação','Contrato'],despesasFiltradas().map((d,i)=>{const r=linhaFinanceiraV6(d,i);return[r.descricao,r.categoria,r.contratado,r.pago,r.saldo,r.proximo,r.situacao,r.contrato];}));};
 
     function valorPagoFinanceiroV6(d){
       return calcularTotalPagoDespesaRapida(d);
@@ -15844,7 +16005,7 @@ blocoRsvp +
       const CORES={escuro:[31,33,38],ouro:[185,150,71],ouroClaro:[245,239,225],texto:[48,51,57],muted:[105,110,120],
         borda:[224,225,228],verde:[47,125,79],vermelho:[192,72,60],branco:[255,255,255],linha:[248,249,250]};
       const moeda=v=>(Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-      const linhas=(dados.despesas||[]).filter(Boolean).map(linhaFinanceiraV6);
+      const linhas=despesasFiltradas().map(linhaFinanceiraV6);
       const orcamento=Number(dados.orcamentoTotal)||0;
       const contratado=linhas.reduce((n,l)=>n+l.contratado,0);
       const pago=linhas.reduce((n,l)=>n+l.pago,0);
@@ -16118,8 +16279,17 @@ blocoRsvp +
         });
       });
     }
+    function padrinhoPassaFiltroV8(p) {
+      const titular = dados.convidados.find(t => t.id===p.id || t.id===p.vinculoTitularId || normalizarNomeV4(t.nome)===normalizarNomeV4(p.nome));
+      if (filtroPessoasV4.lado && p.lado!==filtroPessoasV4.lado) return false;
+      if (filtroPessoasV4.confirmacao && normalizarConfirmacaoV4((titular||p).status)!==filtroPessoasV4.confirmacao) return false;
+      const texto=[p.nome,p.telefone,p.vinculoTitularNome,(titular||{}).grupoFamiliar].join(' ').toLowerCase();
+      return !filtroPessoasV4.busca || texto.includes(filtroPessoasV4.busca);
+    }
     function listarParesPadrinhosV7(cont){
       const org=organizarParesPadrinhosV7();
+      org.pares=org.pares.filter(par=>par.some(padrinhoPassaFiltroV8));
+      org.semPar=org.semPar.filter(padrinhoPassaFiltroV8);
       window._paresPadrinhosV7=org.pares.map(([a,b])=>[a.nome,b.nome]);
       const opcoes='<option value="">Selecione</option>'+org.semPar.map(p=>
         `<option value="${escV4(p.nome)}">${escV4(p.nome)} — ${escV4(detalhePadrinhoV7(p))}</option>`
@@ -16264,6 +16434,9 @@ blocoRsvp +
       }
 
       const itens=pessoasFiltradasV4();
+      const paginas = Math.max(1, Math.ceil(itens.length/TAM_PAGINA_PESSOAS));
+      paginaPessoasV8 = Math.min(paginaPessoasV8, paginas-1);
+      const inicioPagina = paginaPessoasV8*TAM_PAGINA_PESSOAS;
       const aviso = filtroPessoasV4.grupo==='padrinhos'
         ? `<p class="v5-aviso">Padrinhos e madrinhas são um <strong>papel</strong> de quem já está cadastrado em Convidados. Esta aba é um filtro: ninguém é somado ao buffet por aparecer aqui.</p>` : '';
       if(!itens.length){
@@ -16277,7 +16450,8 @@ blocoRsvp +
         `<p style="margin:0 0 8px;font-size:.85rem;color:var(--ui-texto-2,#6B7078)">
           ${itens.length} titular(es) + ${totalAcomp} acompanhante(s) = <strong>${itens.length+totalAcomp}</strong> pessoa(s) nesta lista.</p>
          <div class="v5-lista">`+
-        itens.map(({p,index},i)=>{
+        itens.slice(inicioPagina,inicioPagina+TAM_PAGINA_PESSOAS).map(({p,index},numeroLocal)=>{
+          const i=inicioPagina+numeroLocal;
           const st=normalizarConfirmacaoV4(p.status);
           const cl=st==='Confirmado'?'ok':(['Recusado','Cancelado'].includes(st)?'erro':'');
           const acs=acompDeV5(p);
@@ -16308,7 +16482,7 @@ blocoRsvp +
               <button class="btn-primary btn-pequeno" onclick="editarConvidado(${index})">Editar</button>
               <button class="btn-danger btn-pequeno" onclick="excluirPessoaV4(${index})">Excluir</button>
             </div></div>`;
-        }).join('')+'</div>';
+        }).join('')+'</div>'+(paginas>1?`<div class="v4-toolbar" aria-label="Paginação de convidados"><button onclick="mudarPaginaPessoasV8(-1)" ${paginaPessoasV8===0?'disabled':''}>Anterior</button><span>Página ${paginaPessoasV8+1} de ${paginas} · ${itens.length} cadastros</span><button onclick="mudarPaginaPessoasV8(1)" ${paginaPessoasV8===paginas-1?'disabled':''}>Próxima</button></div>`:'');
     };
 
     // Gráficos compactos: o cartão nunca cresce com a quantidade de dados.
@@ -16335,6 +16509,9 @@ blocoRsvp +
       setTimeout(equalizarAlturaGraficosV5,0);
       aplicarMigracaoV4(); sincronizarEspelhosLegadosV4(); popularMesasPessoaV4('');
       document.querySelectorAll('#secaoListaEspera,#secaoCriancas,#secaoPadrinhos').forEach(x=>{x.style.display='none';x.setAttribute('data-legado','true');});
+      setElV4('buscaPessoasV4', filtroPessoasV4.busca);
+      setElV4('confirmacaoPessoasV4', filtroPessoasV4.confirmacao);
+      listarConvidados();
       mostrarSecao('secaoDadosCasamento');
     }
     const inicializarBaseV4=inicializar;
