@@ -3904,15 +3904,14 @@
           <small style="color:#777; display:block; margin-top:0.25rem;">Depois de hospedar o site, cole o link aqui. Ele será incluído nos convites de WhatsApp.</small>
         </div>
         <div class="actions">
-          <button class="btn-success" onclick="salvarSiteCasamento()">Salvar</button>
-          <button class="btn-primary" onclick="gerarSitePublico()" style="margin-left:0.5rem;">Gerar site (baixar HTML)</button>
+          <button class="btn-success" onclick="salvarSiteCasamento()">Salvar alterações</button>
+          <button class="btn-secondary" onclick="gerarSitePublico(true)">Pré-visualizar</button><button class="btn-secondary" onclick="gerarSitePublico()">Baixar HTML</button>
         </div>
         <div style="margin-top:1rem; padding:0.85rem 1rem; background:var(--cor-off-white); border:1px solid var(--cor-borda-suave); border-radius:6px; font-size:0.88rem; color:#6b5a42; line-height:1.5;">
-          <strong>Como publicar o site:</strong><br>
-          1. Clique em <em>Salvar</em> e depois em <em>Gerar site</em> — um arquivo <code>site-casamento.html</code> será baixado.<br>
-          2. Acesse <strong>app.netlify.com/drop</strong> e arraste o arquivo para a página (grátis, sem cadastro para teste).<br>
-          3. Copie o link gerado, cole no campo acima e salve. Pronto: é esse link que você envia aos convidados.<br>
-          <span style="color:#999;">Sempre que mudar as informações, gere o arquivo de novo e suba a versão nova.</span>
+          <strong>Editar → Pré-visualizar → Baixar HTML</strong><br>
+          Salve as alterações e confira a prévia. Depois, baixe o HTML e substitua o arquivo na hospedagem do site dos convidados.<br>
+          <strong>Salvar aqui não atualiza o site publicado.</strong> Após publicar, informe o endereço no campo acima.
+
         </div>
       </section>
     </div>
@@ -4899,10 +4898,11 @@
     };
 
     const DADOS_PADRAO = JSON.parse(JSON.stringify(dados));
-    function aplicarDadosCarregados(origem) {
+    function prepararDadosCarregados(origem) {
       if (!origem || typeof origem !== 'object' || Array.isArray(origem) || origem._tipo) {
         throw new Error('Conteúdo inválido para os dados do casamento.');
       }
+      origem = JSON.parse(JSON.stringify(origem));
       const novo = JSON.parse(JSON.stringify(DADOS_PADRAO));
       Object.keys(origem).forEach(k => {
         if (!['__proto__', 'prototype', 'constructor'].includes(k)) novo[k] = origem[k];
@@ -4916,8 +4916,57 @@
       ['espaco','site','noiva','noivo','metasCategorias','cerimonia','_migracaoAvisos','_planoUnificacao','notificacoes'].forEach(k => {
         if (!novo[k] || typeof novo[k] !== 'object' || Array.isArray(novo[k])) novo[k] = {};
       });
+      const registro = x => x && typeof x === 'object' && !Array.isArray(x);
+      function listaRegistros(v, caminho) {
+        if (!Array.isArray(v) || v.some(x=>!registro(x))) throw new Error('Lista inválida: '+caminho);
+        const ids = new Set();
+        v.forEach(x=>{ if (x.id != null && x.id !== '') {
+          const id=String(x.id);
+          if (!['string','number'].includes(typeof x.id) || ids.has(id)) throw new Error('ID inválido ou duplicado: '+caminho+' / '+id);
+          ids.add(id);
+        }});
+      }
+      ['compromissos','convidados','mesas','despesas','fornecedores','padrinhos','cronograma','listaEspera','cotacoes'].forEach(k=>listaRegistros(novo[k],k));
+      function validarValores(x,caminho) {
+        ['valor','valorPago','valorContratado'].forEach(k=>{
+          const v=x[k]; if(v == null || v === '') return;
+          if (!['number','string'].includes(typeof v) || !/^(?:R\$\s*)?\d+(?:(?:[.,]\d+))*$/.test(String(v).trim()) || !Number.isFinite(moedaParaNumero(v)) || moedaParaNumero(v)<0)
+            throw new Error('Valor inválido: '+caminho+'.'+k);
+        });
+      }
+      novo.despesas.forEach((d,i)=>{
+        validarValores(d,'despesas['+i+']');
+        if(d.parcelas === undefined) return;
+        listaRegistros(d.parcelas,'despesas['+i+'].parcelas');
+        d.parcelas.forEach((pc,j)=>{
+          validarValores(pc,'parcela '+j);
+          ['vencimento','pagamento','ultimoPagamento'].forEach(k=>{if(pc[k] && (typeof pc[k]!=='string' || !dataValida(pc[k]))) throw new Error('Data inválida na parcela: '+k);});
+          if(pc.lembrete != null && !registro(pc.lembrete)) throw new Error('Lembrete inválido na parcela.');
+          if(pc.historicoPagamentos !== undefined) {
+            listaRegistros(pc.historicoPagamentos,'historicoPagamentos');
+            pc.historicoPagamentos.forEach(h=>{validarValores(h,'historicoPagamentos');if(h.data && !dataValida(h.data)) throw new Error('Data inválida no histórico de pagamentos.');});
+          }
+        });
+      });
+      ['convidados','listaEspera'].forEach(k=>{
+        const ids=new Set();
+        function conferirId(x){if(x.id != null && x.id !== ''){const id=String(x.id);if(ids.has(id)) throw new Error('ID de pessoa duplicado em '+k+': '+id);ids.add(id);}}
+        novo[k].forEach(p=>{
+          conferirId(p);
+          if (Array.isArray(p.acompanhantes)) {listaRegistros(p.acompanhantes,k+'.acompanhantes');p.acompanhantes.forEach(conferirId);}
+          else if(p.acompanhantes != null && (!Number.isInteger(Number(p.acompanhantes)) || Number(p.acompanhantes)<0 || Number(p.acompanhantes)>10000)) throw new Error('Acompanhantes inválidos em '+k);
+        });
+      });
+      novo.mesas.forEach(m=>['assentos','assentosPessoaIds'].forEach(k=>{
+        if(m[k] !== undefined && (!Array.isArray(m[k]) || m[k].some(x=>x!=null && !['string','number'].includes(typeof x)))) throw new Error('Assentos inválidos: '+k);
+      }));
+      return novo;
+    }
+    function aplicarDadosCarregados(origem) {
+      const novo = prepararDadosCarregados(origem);
       Object.keys(dados).forEach(k => delete dados[k]);
       Object.assign(dados, novo);
+      normalizarPreferenciasSite();
     }
 
     // ----- Indicador de sincronização -----
@@ -4980,34 +5029,9 @@
           if (typeof dados[k] !== 'object' || dados[k] === null) dados[k] = {};
         });
         if (typeof dados.observacoesGerais !== 'string') dados.observacoesGerais = '';
-        // Migração: "Ambos" foi removido. Converte para 'Noiva' por padrão.
-        (dados.convidados || []).forEach(c => { if (c && c.lado === 'Ambos') c.lado = 'Noiva'; });
-        (dados.padrinhos || []).forEach(p => { if (p && p.lado === 'Ambos') p.lado = 'Noiva'; });
-        (dados.listaEspera || []).forEach(le => { if (le && le.lado === 'Ambos') le.lado = 'Noiva'; });
-
-        // Correção v3: elimina imediatamente qualquer parcelamento/pagamento
-        // legado ainda salvo dentro de fornecedores. Orçamento e Despesas é a única
-        // fonte financeira. A limpeza é persistida na nuvem antes de renderizar,
-        // inclusive ao usar o botão "Recarregar da nuvem".
-        let limpouFinanceiroFornecedor = false;
-        if (typeof removerFinanceiroLegadoDosFornecedores === 'function') {
-          limpouFinanceiroFornecedor = removerFinanceiroLegadoDosFornecedores();
-        }
-        if (limpouFinanceiroFornecedor && nuvemRowId) {
-          const { error: erroLimpezaFornecedor } = await supabaseClient
-            .from('dados_casamento')
-            .update({ "Dados": dados })
-            .eq('id', nuvemRowId);
-          if (erroLimpezaFornecedor) throw erroLimpezaFornecedor;
-        }
-
-        // Onda 1: migração de estrutura (idempotente, com backup prévio).
-        // Falha aqui não impede o uso: os campos novos são opcionais e a
-        // migração é tentada de novo no próximo carregamento.
-        if (typeof migrarEstrutura === 'function') {
-          try { await migrarEstrutura(); }
-          catch (eMig) { console.error('Migração de estrutura falhou (dados intactos):', eMig); }
-        }
+        // A migração só inicia após o backup do conteúdo original.
+        if (typeof migrarEstrutura === 'function') await migrarEstrutura();
+        garantirIdentidadesLembretes();
 
         ultimaSync = new Date();
         setIndicadorSync('ok', 'Sincronizado');
@@ -5439,6 +5463,7 @@
       if (_timerSalvarNuvem) clearTimeout(_timerSalvarNuvem);
       _timerSalvarNuvem = null;
       const versao = versaoDestaGravacao == null ? _versaoSalvamentoSolicitada : versaoDestaGravacao;
+      garantirIdentidadesLembretes();
       const conteudo = JSON.parse(JSON.stringify(dados));
       // Serializa as gravações para uma resposta antiga não substituir a mais recente.
       const tarefa = _filaSalvamentoNuvem.then(() => executarSalvamentoNuvem(versao, conteudo));
@@ -5469,6 +5494,10 @@
           _haAlteracoesNaoSincronizadas = false;
           setIndicadorSync('ok', 'Sincronizado');
           finalizarNotificacoesDeSalvamento(true);
+        }
+        if(versaoAlvo===_versaoSalvamentoSolicitada){
+          try { await reconciliarFilaPublicada(conteudo,versaoAlvo); }
+          catch(erroFila) { console.error('Falha ao atualizar lembretes publicados:',erroFila);notificar('Dados salvos, mas os lembretes publicados não foram atualizados. Tente salvar novamente antes do envio.','erro'); }
         }
         fazerBackupAutomatico(); // fire-and-forget: 1x por dia, nunca bloqueia o save
         return true;
@@ -5574,6 +5603,8 @@
       if (!confirm(`Restaurar o backup de ${dataTxt}?\n\nOs dados ATUAIS serão substituídos pelos do backup. Antes disso, o sistema guardará automaticamente um instantâneo do estado atual (rotulado "pré-restauração"), então é possível voltar atrás.`)) return;
       setIndicadorSync('salvando', 'Restaurando...');
       try {
+        if (_haAlteracoesNaoSincronizadas && !await salvarNaNuvemAgora()) throw new Error('Salve as alterações pendentes antes de restaurar.');
+        await _filaSalvamentoNuvem;
         // 1. Instantâneo de segurança do estado ATUAL (restauração reversível)
         if (!await fazerBackupAutomatico(true, 'pré-restauração')) {
           throw new Error('O backup de segurança não foi confirmado. Os dados atuais foram preservados.');
@@ -5585,6 +5616,9 @@
         const cont = data && data[0] && data[0].Dados && data[0].Dados.conteudo;
         if (!cont) throw new Error('Backup sem conteúdo.');
         // 3. Aplica campo a campo (sem trocar a referência de `dados`)
+        const estadoAnterior = JSON.parse(JSON.stringify(dados));
+        let restaurado;
+        try {
         aplicarDadosCarregados(cont);
         ['compromissos','convidados','mesas','despesas','fornecedores',
          'padrinhos','cronograma','listaEspera','categoriasFornecedor'].forEach(k => {
@@ -5598,9 +5632,22 @@
         // Versão síncrona — o backup de segurança já foi feito no passo 1.
         if (typeof aplicarMigracaoEstrutura === 'function') aplicarMigracaoEstrutura();
         if (typeof aplicarMigracaoV4 === 'function') aplicarMigracaoV4();
-        // 4. Grava na linha principal e recarrega a interface
-        const ok = await salvarNaNuvemAgora();
-        if (!ok) throw new Error('Falha ao gravar os dados restaurados.');
+        garantirIdentidadesLembretes();
+        restaurado = JSON.parse(JSON.stringify(dados));
+        } finally {
+          Object.keys(dados).forEach(k=>delete dados[k]); Object.assign(dados,estadoAnterior);
+        }
+        // Mantém o estado atual visível até o servidor confirmar a substituição.
+        const versaoAntes = _versaoSalvamentoSolicitada;
+        const tarefa = _filaSalvamentoNuvem.then(()=>executarSalvamentoNuvem(versaoAntes,restaurado));
+        _filaSalvamentoNuvem = tarefa.catch(()=>false);
+        const ok = await tarefa;
+        if (!ok) throw new Error('Falha ao gravar os dados restaurados. Os dados atuais foram preservados.');
+        if (_versaoSalvamentoSolicitada !== versaoAntes) {
+          await salvarNaNuvemAgora();
+          throw new Error('Houve uma edição durante a restauração. As alterações atuais foram mantidas.');
+        }
+        aplicarDadosCarregados(restaurado);
         fecharModal('modalBackupsAuto', true);
         if (typeof inicializar === 'function') inicializar();
         notificar('Backup restaurado com sucesso.');
@@ -5641,10 +5688,10 @@
     // Sem horário, assume o começo do dia — assim a contagem nunca "pula"
     // para negativo antes da data marcada.
     function momentoCasamentoV7() {
-      const dataEvento = (dados.cerimonia || {}).data || dados.dataCasamento;
+      const dataEvento = (dados.cerimonia || {}).data || dataEventoIntegrada();
       if (!dataValida(dataEvento)) return null;
       const [dia, mes, ano] = dataEvento.split('/').map(Number);
-      const hora = String(((dados.cerimonia || {}).hora) || dados.horaCasamento || '').trim();
+      const hora = String(((dados.cerimonia || {}).hora) || horaEventoIntegrada() || '').trim();
       let h = 0, m = 0;
       const bate = /^(\d{1,2}):(\d{2})$/.exec(hora);
       if (bate) {
@@ -5705,9 +5752,9 @@
       const p = partesContagemV7(Math.abs(restante));
       const mesmoDia = alvo.getFullYear() === agora.getFullYear() &&
         alvo.getMonth() === agora.getMonth() && alvo.getDate() === agora.getDate();
-      const horaInformada = String(((dados.cerimonia || {}).hora) || dados.horaCasamento || '').trim();
-      const dataHoraLegivel = dataPorExtensoComDiaSemana(dados.dataCasamento) + (horaInformada ? ' às ' + horaInformada : '');
-      const [diaIso, mesIso, anoIso] = dados.dataCasamento.split('/');
+      const horaInformada = String(((dados.cerimonia || {}).hora) || horaEventoIntegrada() || '').trim();
+      const dataHoraLegivel = dataPorExtensoComDiaSemana(dataEventoIntegrada()) + (horaInformada ? ' às ' + horaInformada : '');
+      const [diaIso, mesIso, anoIso] = dataEventoIntegrada().split('/');
       const dataIso = `${anoIso}-${mesIso}-${diaIso}` + (horaInformada ? 'T' + horaInformada : '');
       if (legenda) { legenda.textContent = dataHoraLegivel.toLocaleUpperCase('pt-BR'); legenda.setAttribute('datetime', dataIso); }
 
@@ -5779,14 +5826,14 @@
 
     function atualizarContadorDias() {
       const elemento = document.getElementById('contadorDias');
-      const dataEvento = (dados.cerimonia || {}).data || dados.dataCasamento;
+      const dataEvento = (dados.cerimonia || {}).data || dataEventoIntegrada();
       if (!dataEvento) {
         if (elemento) elemento.textContent = 'Data do casamento não definida';
         atualizarContagemRegressiva();
         return;
       }
       // O cabeçalho exibe apenas a data, evitando repetir os dias do card.
-      const hora = String(((dados.cerimonia || {}).hora) || dados.horaCasamento || '').trim();
+      const hora = String(((dados.cerimonia || {}).hora) || horaEventoIntegrada() || '').trim();
       const mensagem = dataPorExtenso(dataEvento) + (hora ? ' · ' + hora : '');
       if (elemento) elemento.textContent = mensagem;
       iniciarContagemRegressiva();
@@ -5909,7 +5956,7 @@
       // Progresso geral: cálculo simplificado com base em percentuais das listas não vazias
       let totalItens = 7; // Casamento (data), convidados, mesas, despesas, fornecedores, noiva, noivo
       let concluidos = 0;
-      if (dados.dataCasamento) concluidos++;
+      if (dataEventoIntegrada()) concluidos++;
       if (dados.convidados.length) concluidos++;
       if (dados.mesas.length) concluidos++;
       if (dados.despesas.length) concluidos++;
@@ -6079,7 +6126,14 @@
             // Só recupera o campo legado para uma parcela única sem o campo próprio.
             const pagador = Object.prototype.hasOwnProperty.call(p, 'pagador') ? p.pagador :
               (d.parcelas.length === 1 ? d.pagador : '');
-            adicionar(d, indice, p, i, centavos, pagador);
+            let restante = centavos;
+            (p.historicoPagamentos || []).forEach(h => {
+              if (!h || restante <= 0) return;
+              const valor = Math.min(restante, Math.max(0, centavosPagamento(h.valor)));
+              adicionar(d, indice, {...p, pagamento:h.data, modalidade:h.modalidade || p.modalidade}, i, valor, h.pagador);
+              restante -= valor;
+            });
+            adicionar(d, indice, p, i, restante, pagador);
           });
           const detalhado = d.parcelas.reduce((n,p)=>n+centavosPagamento(valorPagoParcelaRapida(p)),0);
           const residual = centavosPagamento(calcularTotalPagoDespesaRapida(d))-detalhado;
@@ -6602,6 +6656,14 @@
     // Local/endereço da cerimônia migraram para salvarCerimonia().
     // localFesta/enderecoFesta deixaram de ser digitados: derivam do espaço.
     // `silencioso` = true quando chamada pelo botão único da aba.
+    function dataEventoIntegrada() { return (dados.cerimonia || {}).data || dados.dataCasamento || ''; }
+    function horaEventoIntegrada() { return (dados.cerimonia || {}).hora || dados.horaCasamento || ''; }
+    function sincronizarCamposEvento(origem) {
+      const pares=[['dataCasamento','dataCerimonia'],['horaCasamento','horaCerimonia']];
+      pares.forEach(ids=>{if(ids.includes(origem)){const el=document.getElementById(origem);ids.forEach(id=>{const alvo=document.getElementById(id);if(alvo)alvo.value=el.value;});}});
+    }
+    document.addEventListener('change',e=>sincronizarCamposEvento(e.target.id));
+
     function salvarDadosCasamento(silencioso) {
       const valorDataCasamento = document.getElementById('dataCasamento').value.trim();
       const data = /^\d{4}-\d{2}-\d{2}$/.test(valorDataCasamento)
@@ -6769,7 +6831,7 @@
         else if (st === 'Cancelada' || st === 'Cancelado') return false;
 
         const dt = dataCompromissoParaDate(c);
-        if (visualizacaoAgenda === 'proximos' && dt && dt < hoje) return false;
+        if (visualizacaoAgenda === 'proximos' && ((dt && dt < hoje) || st === 'Concluída' || st === 'Concluído')) return false;
         if (dDe && dt && dt < dDe) return false;
         if (dAte && dt && dt > dAte) return false;
         if (cat && (c.categoria || 'Outros') !== cat) return false;
@@ -7715,7 +7777,8 @@
           }
         };
         div.appendChild(btnEditar);
-        div.appendChild(btnExcluir);
+        const mais=document.createElement('details');mais.className='ux-mais';
+        const resumo=document.createElement('summary');resumo.textContent='Mais ações';mais.append(resumo,btnExcluir);div.appendChild(mais);
         lista.appendChild(div);
       });
       if (!algumExibido) {
@@ -8827,12 +8890,13 @@
         // "Status: ..." só quando NÃO há selo de pagamento (pago/parcial já
         // são mostrados pelo selo). Evita repetir "Pago" no mesmo card.
         const mostraStatus = !quitada && !parcial;
-        div.innerHTML = `<strong>#${d.codigo || String(index + 1)} — ${textoHtmlSeguro(d.descricao)}</strong> - ${textoHtmlSeguro(d.categoria)} ${etiqueta}${selo}<br>` +
-          `Previsto: ${formatarMoeda(d.valorPrevisto)} | Contratado: ${formatarMoeda(contrato)} | Pago: ${formatarMoeda(pago)}<br>` +
-          `Pendência: ${formatarMoeda(saldoPendente)}` +
-          (mostraStatus ? ` | Status: ${textoHtmlSeguro(d.status)}` : '') + ` | Prioridade: ${textoHtmlSeguro(d.prioridade)}` +
-          (d.dataVencimento ? ` | Vencimento: ${d.dataVencimento}` : '') +
-          blocoFornecedorContratoDespesa(d);
+        div.classList.add('ux-financeiro');
+        div.innerHTML = `<div class="ux-fin-nome"><strong>${textoHtmlSeguro(d.descricao)}</strong><small>#${d.codigo || index+1} · ${textoHtmlSeguro(d.categoria)}</small>${selo}</div>` +
+          `<div class="ux-fin-num"><small>Contratado</small><strong>${formatarMoeda(contrato)}</strong></div>` +
+          `<div class="ux-fin-num"><small>Pago</small><strong>${formatarMoeda(pago)}</strong></div>` +
+          `<div class="ux-fin-num ux-fin-saldo"><small>Saldo a pagar</small><strong>${formatarMoeda(saldoPendente)}</strong></div>` +
+          `<div class="ux-fin-venc"><small>Vencimento</small>${etiqueta || '<span>Quitado</span>'}</div>` +
+          `<details class="ux-fin-detalhes"><summary>Detalhes do contrato</summary><p>Previsto: ${formatarMoeda(d.valorPrevisto)} · Prioridade: ${textoHtmlSeguro(d.prioridade || 'Não informada')}</p>${blocoFornecedorContratoDespesa(d)}</details>`;
         const avisoFornecedor = div.querySelector('[data-abrir-fornecedor]');
         if (avisoFornecedor) avisoFornecedor.onclick = () => {
           const indiceAtual = dados.despesas.indexOf(d);
@@ -9285,6 +9349,13 @@
       if (!pagador) { notificar('Informe quem realizou o pagamento.', 'atencao'); return; }
 
       const pagoAntes = valorPagoParcelaRapida(parcela);
+      if (!Array.isArray(parcela.historicoPagamentos)) parcela.historicoPagamentos = [];
+      const historicoTotal = parcela.historicoPagamentos.reduce((n,h)=>n+centavosPagamento(h.valor),0);
+      const legadoCentavos = centavosPagamento(pagoAntes) - historicoTotal;
+      if (legadoCentavos > 0) parcela.historicoPagamentos.push({
+        id:novoIdPessoa(), valor:legadoCentavos/100, data:parcela.ultimoPagamento || parcela.pagamento || '',
+        modalidade:parcela.modalidade || '', pagador:parcela.pagador || '', legado:true
+      });
       const pagoDepois = Math.round((pagoAntes + valor) * 100) / 100;
       const valorParcela = numeroFinanceiroPagamentoRapido(parcela.valor);
       const quitouParcela = pagoDepois >= valorParcela - 0.009;
@@ -10093,7 +10164,15 @@
         { horario: '23:00', atividade: 'Pista de dança aberta', responsavel: 'DJ', observacoes: '' },
         { horario: '01:00', atividade: 'Encerramento', responsavel: 'DJ / Cerimonialista', observacoes: 'Bem-casados na saída' }
       ];
-      sugestao.forEach(s => dados.cronograma.push(s));
+      const horaBase=horaEventoIntegrada();
+      if(!/^\d{2}:\d{2}$/.test(horaBase)) { notificar('Informe o horário da cerimônia antes de gerar a sugestão.'); return; }
+      const [h,m]=horaBase.split(':').map(Number), base=h*60+m;
+      sugestao.forEach(item=>{
+        const [hh,mm]=item.horario.split(':').map(Number);
+        const original=hh*60+mm+(hh<6?1440:0);
+        const total=base+original-(16*60+30), dia=Math.floor(total/1440), minutos=((total%1440)+1440)%1440;
+        dados.cronograma.push({...item,horario:String(Math.floor(minutos/60)).padStart(2,'0')+':'+String(minutos%60).padStart(2,'0'),diaEvento:dia});
+      });
       salvarDados();
       listarCronograma();
       notificar('Sugestão padrão adicionada. Ajuste os horários e responsáveis conforme seu evento.');
@@ -11590,7 +11669,12 @@ function atualizarValoresBuffet() {
         return el && String(el.value || '').trim() !== '';
       });
       if (!nome) {
-        if (!algumPreenchido) return true; // bloco vazio: nada a salvar
+        if (!algumPreenchido) {
+          dados.espaco = {nome:'',endereco:''}; sincronizarLocalFestaComEspaco();
+          if (dados._migracaoAvisos) delete dados._migracaoAvisos.localFesta;
+          if (!silencioso) { salvarDados(); notificar('Informações do espaço removidas.'); }
+          return true;
+        }
         notificar('O nome do espaço é obrigatório quando algum dado da recepção é informado.');
         return false;
       }
@@ -11645,8 +11729,8 @@ function atualizarValoresBuffet() {
     // Carrega os dados principais do casamento nos campos da agenda
     function carregarCamposCasamento() {
       const setCampo = (id, valor) => { const el = document.getElementById(id); if (el) el.value = valor || ''; };
-      setCampo('dataCasamento', dados.dataCasamento);
-      setCampo('horaCasamento', dados.horaCasamento);
+      setCampo('dataCasamento', dataEventoIntegrada());
+      setCampo('horaCasamento', horaEventoIntegrada());
       setCampo('localCasamento', dados.localCasamento);
       setCampo('enderecoCasamento', dados.enderecoCasamento);
       setCampo('celebrante', dados.celebrante);
@@ -11714,8 +11798,8 @@ function atualizarValoresBuffet() {
     // origem está vazia.
     function sincronizarLocalFestaComEspaco() {
       const esp = dados.espaco || {};
-      if (esp.nome) dados.localFesta = esp.nome;
-      if (esp.endereco) dados.enderecoFesta = esp.endereco;
+      if (Object.prototype.hasOwnProperty.call(esp,'nome')) dados.localFesta = esp.nome || '';
+      if (Object.prototype.hasOwnProperty.call(esp,'endereco')) dados.enderecoFesta = esp.endereco || '';
     }
 
     // ----- Migração de estrutura -----
@@ -11959,17 +12043,15 @@ function atualizarValoresBuffet() {
         });
       });
 
-      // 8) Crianças sem idade — a idade define quem paga buffet
-      conv.forEach(c => {
-        if (c && c.categoria === 'Crianças' && (c.idade === undefined || c.idade === null)) {
-          r.criancasSemIdade.push({ nome: c.nome, base: 'Convidados' });
-        }
-      });
-      esp.forEach(e => {
-        if (e && e.categoria === 'Crianças' && (e.idade === undefined || e.idade === null)) {
-          r.criancasSemIdade.push({ nome: e.nome, base: 'Lista de espera' });
-        }
-      });
+      // Inclui titulares e acompanhantes, independentemente da categoria familiar.
+      function verificarIdade(p,base) {
+        if (!p) return;
+        const crianca=p.tipoPessoa==='Criança'||p.tipo==='Criança'||p.categoria==='Crianças';
+        if(crianca && (p.idade==null || String(p.idade).trim()==='')) r.criancasSemIdade.push({nome:p.nome,base});
+        (Array.isArray(p.acompanhantes)?p.acompanhantes:[]).forEach(a=>verificarIdade(a,base+' — acompanhante de '+p.nome));
+      }
+      conv.forEach(p=>verificarIdade(p,'Convidados'));
+      if(!dados._pessoasUnificadasV4) esp.forEach(p=>verificarIdade(p,'Lista de espera'));
 
       // 9) Sanidade: registros sem id após a migração
       [['Convidados', conv], ['Lista de espera', esp], ['Padrinhos', pad]].forEach(([base, arr]) => {
@@ -12378,18 +12460,18 @@ function atualizarValoresBuffet() {
     // parcela deixaria a fila apontando para a data velha. O que é gravado é
     // só o ESTADO de cada item (enviado/quando), por chave determinística.
     // =====================================================================
-    function configNotificacoes() {
-      if (typeof dados.notificacoes !== 'object' || dados.notificacoes === null) {
-        dados.notificacoes = {
+    function configNotificacoes(origem = dados) {
+      if (typeof origem.notificacoes !== 'object' || origem.notificacoes === null) {
+        origem.notificacoes = {
           whatsappNoiva: '', whatsappNoivo: '', horarioPreferencial: '09:00',
           ativo: false, destinatarioPadrao: 'Ambos', antecedenciaPadrao: 10,
           estado: {}   // chave -> { situacao, enviadoEm }
         };
       }
-      if (typeof dados.notificacoes.estado !== 'object' || dados.notificacoes.estado === null) {
-        dados.notificacoes.estado = {};
+      if (typeof origem.notificacoes.estado !== 'object' || origem.notificacoes.estado === null) {
+        origem.notificacoes.estado = {};
       }
-      return dados.notificacoes;
+      return origem.notificacoes;
     }
 
     function carregarConfigNotificacoes() {
@@ -12431,22 +12513,49 @@ function atualizarValoresBuffet() {
       return `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`;
     }
 
-    function telefoneDestinatario(dest) {
-      const c = configNotificacoes();
+    function telefoneDestinatario(dest, c = configNotificacoes()) {
       if (dest === 'Noiva') return c.whatsappNoiva || '';
       if (dest === 'Noivo') return c.whatsappNoivo || '';
       return [c.whatsappNoiva, c.whatsappNoivo].filter(Boolean).join(', ');
     }
 
+    function garantirIdentidadesLembretes(origem = dados) {
+      const estado=configNotificacoes(origem).estado, contagens=new Map(), vistos=new Set();
+      (origem.despesas||[]).forEach(d=>(d.parcelas||[]).forEach((pc,k)=>{
+        const antiga='parcela:'+(d.idFornecedor||d.descricao||'')+':'+k;
+        contagens.set(antiga,(contagens.get(antiga)||0)+1);
+      }));
+      function id(x){
+        if(!x._idLembrete || vistos.has(x._idLembrete)) x._idLembrete=novoIdPessoa();
+        vistos.add(x._idLembrete);return x._idLembrete;
+      }
+      (origem.despesas||[]).forEach(d=>{
+        id(d);
+        (d.parcelas||[]).forEach((pc,k)=>{
+          id(pc);
+          const chave='parcela-id:'+d._idLembrete+':'+pc._idLembrete;
+          if(!pc._lembreteEstadoMigrado) {
+            const antiga='parcela:'+(d.idFornecedor||d.descricao||'')+':'+k;
+            if(contagens.get(antiga)===1) {
+              pc._chaveLembreteLegada=antiga;
+              if(!estado[chave] && estado[antiga]) estado[chave]={...estado[antiga]};
+            }
+            pc._lembreteEstadoMigrado=true;
+          }
+        });
+      });
+    }
+
     // Monta a fila. Chave determinística por origem: reprocessar não duplica.
-    function montarFilaNotificacoes() {
-      const cfg = configNotificacoes();
+    function montarFilaNotificacoes(origem = dados) {
+      garantirIdentidadesLembretes(origem);
+      const cfg = configNotificacoes(origem);
       const itens = [];
 
       // ---- Parcelas em aberto (seção 15.2) ----
-      (dados.despesas || []).forEach(d => {
+      (origem.despesas || []).forEach(d => {
         if (!d || d.status === 'Cancelado') return;
-        const forn = (dados.fornecedores || []).find(f => f && f.id === d.idFornecedor);
+        const forn = (origem.fornecedores || []).find(f => f && f.id === d.idFornecedor);
         const nomeForn = forn ? forn.nome : (d.descricao || 'Fornecedor');
         const parcelas = Array.isArray(d.parcelas) ? d.parcelas : [];
         parcelas.forEach((pc, k) => {
@@ -12459,14 +12568,15 @@ function atualizarValoresBuffet() {
           const dest = lem.destinatario || cfg.destinatarioPadrao;
           const pix = d.pix || {};
           itens.push({
-            chave: 'parcela:' + (d.idFornecedor || d.descricao || '') + ':' + k,
+            chave: 'parcela-id:' + d._idLembrete + ':' + pc._idLembrete,
+            chaveLegada: pc._chaveLembreteLegada || '',
             tipo: 'Parcela',
             referencia: nomeForn + ' — ' + (pc.rotulo || ('Parcela ' + (k + 1))) + ' de ' + parcelas.length,
             vencimento: pc.vencimento,
             dataPrevista: subtrairDiasBR(pc.vencimento, antec),
             horaPrevista: cfg.horarioPreferencial || '09:00',
             destinatario: dest,
-            telefone: telefoneDestinatario(dest),
+            telefone: telefoneDestinatario(dest,cfg),
             texto: 'Lembrete de pagamento\n' +
                    'Fornecedor: ' + nomeForn + '\n' +
                    'Parcela: ' + (k + 1) + ' de ' + parcelas.length + '\n' +
@@ -12479,7 +12589,7 @@ function atualizarValoresBuffet() {
       });
 
       // ---- Compromissos com lembrete (seção 15.3) ----
-      (dados.compromissos || []).forEach((c, i) => {
+      (origem.compromissos || []).forEach((c, i) => {
         if (!c || !c.lembrete || !c.lembrete.ativo) return;
         if (c.status === 'Cancelada' || c.status === 'Cancelado') return;
         if (c.status === 'Concluída' || c.status === 'Concluído') return;
@@ -12501,7 +12611,7 @@ function atualizarValoresBuffet() {
           dataPrevista: dataEnvio,
           horaPrevista: horaEnvio,
           destinatario: dest,
-          telefone: telefoneDestinatario(dest),
+          telefone: telefoneDestinatario(dest,cfg),
           texto: 'Lembrete de compromisso\n' +
                  (c.titulo || '') + '\n' +
                  'Data: ' + c.data + (c.hora ? ' às ' + c.hora : '') +
@@ -12570,6 +12680,27 @@ function atualizarValoresBuffet() {
     // Materializa a fila em LINHAS PRÓPRIAS no Supabase (_tipo: 'notificacao').
     // Motivo: um processo no servidor consegue ler linhas por SQL; não consegue
     // vasculhar o JSON gigante da linha principal. Idempotente pela chave.
+    async function reconciliarFilaPublicada(origem,versao) {
+      const fila=montarFilaNotificacoes(origem), ativos=new Map();
+      if((origem.notificacoes||{}).ativo) fila.forEach(it=>{ativos.set(it.chave,it);if(it.chaveLegada)ativos.set(it.chaveLegada,it);});
+      const registros=[];
+      for(let inicio=0;;inicio+=500){
+        const {data,error}=await supabaseClient.from('dados_casamento').select('id, "Dados"').eq('Dados->>_tipo','notificacao').order('id',{ascending:true}).range(inicio,inicio+499);
+        if(error)throw error;registros.push(...(data||[]));if(!data||data.length<500)break;
+      }
+      for(const row of registros){
+        if(versao!==_versaoSalvamentoSolicitada)return;
+        const antigo=row.Dados||{};
+        if(antigo.situacao!=='Pendente')continue; // histórico enviado/cancelado é preservado
+        const atual=ativos.get(antigo.chave);
+        const novo=atual?{...antigo,...atual}:{...antigo,situacao:'Cancelado',motivoCancelamento:'Origem quitada, removida, concluída ou lembrete desativado'};
+        if(JSON.stringify(novo)===JSON.stringify(antigo))continue;
+        novo.atualizadoEm=new Date().toISOString();
+        const {error}=await supabaseClient.from('dados_casamento').update({'Dados':novo}).eq('id',row.id).eq('Dados->>situacao','Pendente');
+        if(error)throw error;
+      }
+    }
+
     async function publicarFilaNotificacoes() {
       const cfg = configNotificacoes();
       if (!cfg.ativo) { notificar('Ative os lembretes nas configurações antes de publicar a fila.'); return; }
@@ -12579,6 +12710,7 @@ function atualizarValoresBuffet() {
       if (!confirm('Publicar ' + itens.length + ' lembrete(s) na fila do servidor?\n\n' +
                    'Isto NÃO envia mensagem — apenas grava a fila para um processo futuro consumir.')) return;
       try {
+        if (!await salvarNaNuvemAgora()) throw new Error('Não foi possível salvar as referências dos lembretes.');
         setIndicadorSync('salvando', 'Publicando fila...');
         for (const it of itens) {
           const { data: existente, error: erroConsulta } = await supabaseClient
@@ -12587,9 +12719,17 @@ function atualizarValoresBuffet() {
             .eq('Dados->>chave', it.chave)
             .limit(1);
           if (erroConsulta) throw erroConsulta;
+          let registroExistente=existente && existente[0];
+          if(!registroExistente && it.chaveLegada) {
+            const {data:legados,error:erroLegado}=await supabaseClient.from('dados_casamento').select('id')
+              .eq('Dados->>_tipo','notificacao').eq('Dados->>chave',it.chaveLegada).limit(2);
+            if(erroLegado) throw erroLegado;
+            if(legados && legados.length>1) throw new Error('Há lembretes legados duplicados para esta parcela. Revise a fila antes de publicar.');
+            registroExistente=legados && legados[0];
+          }
           const payload = { _tipo: 'notificacao', ...it, publicadoEm: new Date().toISOString() };
-          if (existente && existente.length) {
-            const {error} = await supabaseClient.from('dados_casamento').update({ "Dados": payload }).eq('id', existente[0].id);
+          if (registroExistente) {
+            const {error} = await supabaseClient.from('dados_casamento').update({ "Dados": payload }).eq('id', registroExistente.id);
             if (error) throw error;
           } else {
             const {error} = await supabaseClient.from('dados_casamento').insert({ "Dados": payload });
@@ -13125,8 +13265,54 @@ function atualizarValoresBuffet() {
       renderizarMetasCategorias();
     }
     // ===== Site do casamento =====
+    function baseCamposSite() {
+      return {nomeNoivos:[(dados.noiva||{}).nome,(dados.noivo||{}).nome].filter(Boolean).join(' & '),
+        localCerimonia:dados.localCasamento||'',localFesta:(dados.espaco||{}).nome||dados.localFesta||''};
+    }
+    function normalizarPreferenciasSite() {
+      dados.site=dados.site||{};const base=baseCamposSite();
+      dados.site.personalizar=dados.site.personalizar||{};
+      Object.keys(base).forEach(k=>{
+        if(!Object.prototype.hasOwnProperty.call(dados.site.personalizar,k))
+          dados.site.personalizar[k]=!!(dados.site[k] && dados.site[k]!==base[k]);
+      });
+    }
+    function campoSitePersonalizado(k) {
+      const site=dados.site||{}, flags=site.personalizar||{};
+      return Object.prototype.hasOwnProperty.call(flags,k)?!!flags[k]:!!(site[k] && site[k]!==baseCamposSite()[k]);
+    }
+    function valoresSiteIntegrados() {
+      const site={...(dados.site||{})}, base=baseCamposSite();
+      Object.keys(base).forEach(k=>{if(!campoSitePersonalizado(k))site[k]=base[k];});
+      return site;
+    }
+    function prepararCamposIntegradosSite() {
+      ['nomeNoivos','localCerimonia','localFesta'].forEach(k=>{
+        const campo=document.getElementById(k+'Site');if(!campo)return;
+        let check=document.getElementById('personalizarSite_'+k);
+        if(!check){
+          const label=document.createElement('label');label.style.cssText='display:flex;gap:8px;align-items:center;margin:6px 0';
+          check=document.createElement('input');check.type='checkbox';check.id='personalizarSite_'+k;
+          label.append(check,document.createTextNode('Personalizar este texto no site'));campo.insertAdjacentElement('afterend',label);
+          check.addEventListener('change',()=>{campo.readOnly=!check.checked;if(!check.checked)campo.value=baseCamposSite()[k];});
+        }
+        check.checked=campoSitePersonalizado(k);campo.readOnly=!check.checked;
+      });
+    }
+
+    function confirmarPresencaRecebida(indice) {
+      const pessoa=dados.convidados[indice];if(!pessoa)return;
+      if(pessoa.statusLista!=='Lista principal'){notificar('Mova a pessoa para a lista principal antes de confirmar.');return;}
+      if(!confirm('Você conferiu a confirmação de '+pessoa.nome+' e a presença dos acompanhantes no cadastro?'))return;
+      pessoa.status='Confirmado';pessoa.confirmacaoConferidaEm=new Date().toISOString();
+      recalcularBuffetsSalvos();salvarDados();listarConvidados();
+      notificar('Presença confirmada após conferência.');
+    }
+
     function salvarSiteCasamento() {
       dados.site = {
+        ...(dados.site||{}),
+        personalizar:Object.fromEntries(['nomeNoivos','localCerimonia','localFesta'].map(k=>[k,!!document.getElementById('personalizarSite_'+k)?.checked])),
         nomeNoivos: document.getElementById('nomeNoivosSite').value.trim(),
         mensagem: document.getElementById('mensagemSite').value,
         historia: document.getElementById('historiaSite').value,
@@ -13144,7 +13330,7 @@ function atualizarValoresBuffet() {
     // Recarrega os campos do site a partir dos dados salvos (corrige o
     // comportamento antigo em que os campos voltavam vazios ao reabrir a seção).
     function carregarCamposSite() {
-      const s = dados.site || {};
+      const s = valoresSiteIntegrados();
       const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
       set('nomeNoivosSite', s.nomeNoivos);
       set('mensagemSite', s.mensagem);
@@ -13155,6 +13341,7 @@ function atualizarValoresBuffet() {
       set('chavePixSite', s.chavePix);
       set('whatsappNoivosSite', s.whatsappNoivos);
       set('urlSite', s.urlSite);
+      prepararCamposIntegradosSite();
     }
 
     // ----- Utilidades de WhatsApp -----
@@ -13176,9 +13363,9 @@ function atualizarValoresBuffet() {
         notificar('Este convidado não tem telefone cadastrado. Edite o convidado e informe o WhatsApp.');
         return;
       }
-      const s = dados.site || {};
+      const s = valoresSiteIntegrados();
       const noivos = s.nomeNoivos || 'os noivos';
-      const data = dados.dataCasamento ? (' no dia ' + dados.dataCasamento) : '';
+      const data = dataEventoIntegrada() ? (' no dia ' + dataEventoIntegrada()) : '';
       const linkSite = s.urlSite ? ('\n\nTodos os detalhes e confirmação de presença: ' + s.urlSite) : '';
       const primeiroNome = (c.nome || '').split(' ')[0] || '';
       const msg =
@@ -13202,8 +13389,8 @@ function atualizarValoresBuffet() {
     }
 
     // ----- Gerador do site público (arquivo HTML para hospedar) -----
-    function gerarSitePublico() {
-      const s = dados.site || {};
+    function gerarSitePublico(preVisualizar = false) {
+      const s = valoresSiteIntegrados();
       if (!s.nomeNoivos) {
         if (!confirm('O nome dos noivos está vazio. Recomendo salvar o site antes de gerar.\n\nGerar mesmo assim?')) return;
       }
@@ -13214,8 +13401,8 @@ function atualizarValoresBuffet() {
       const mapsLink = (q) => q ? ('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q)) : '';
 
       const noivos = s.nomeNoivos || 'Nós dois';
-      const data = dados.dataCasamento || '';
-      const hora = dados.horaCasamento || '';
+      const data = dataEventoIntegrada() || '';
+      const hora = horaEventoIntegrada() || '';
       const cerimoniaLocal = s.localCerimonia || dados.localCasamento || '';
       const cerimoniaEnd = dados.enderecoCasamento || '';
       const festaLocal = s.localFesta || dados.localFesta || '';
@@ -13258,7 +13445,7 @@ function atualizarValoresBuffet() {
       const blocoRsvp = rsvpHref ? (
         '<section class="bloco bloco-rsvp"><h2>Confirme sua presença</h2>' +
           '<p class="texto">Ficaremos felizes em ter você conosco. Toque no botão abaixo para confirmar pelo WhatsApp.</p>' +
-          '<a class="botao-rsvp" target="_blank" href="' + rsvpHref + '">Confirmar presença</a>' +
+          '<a class="botao-rsvp" target="_blank" href="' + rsvpHref + '">Confirmar pelo WhatsApp</a><p>Envie sua mensagem. Sua presença será registrada após a conferência dos noivos.</p>' +
         '</section>')
         : '<section class="bloco bloco-rsvp"><h2>Confirme sua presença</h2><p class="texto">Em breve disponibilizaremos a confirmação de presença.</p></section>';
 
@@ -13313,6 +13500,12 @@ blocoRsvp +
 '<script>function copiarPix(){var c=document.getElementById("pixChave");if(!c)return;navigator.clipboard.writeText(c.textContent).then(function(){alert("Chave Pix copiada!");});}<\/script>\n' +
 '</body></html>';
 
+      if(preVisualizar){
+        let modal=document.getElementById('modalPreviaSiteUX');
+        if(!modal){modal=document.createElement('div');modal.id='modalPreviaSiteUX';modal.className='modal';
+          modal.innerHTML='<div class="modal-content ux-previa"><button class="close-btn" aria-label="Fechar prévia" onclick="fecharModal(\'modalPreviaSiteUX\',true)">×</button><h2>Pré-visualização do site</h2><p>Prévia das informações salvas. Os botões de envio ficam desativados nesta prévia.</p><iframe title="Prévia do site do casamento" sandbox=""></iframe></div>';document.body.appendChild(modal);}
+        modal.querySelector('iframe').srcdoc=html;abrirModal(modal.id);return;
+      }
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -13482,7 +13675,7 @@ blocoRsvp +
       evento.target.value = '';
       if (!arquivo) return;
       const leitor = new FileReader();
-      leitor.onload = function(e) {
+      leitor.onload = async function(e) {
         let importado;
         try {
           importado = JSON.parse(e.target.result);
@@ -13498,21 +13691,37 @@ blocoRsvp +
           notificar('Arquivo inválido: a estrutura de dados não corresponde a um backup deste sistema.');
           return;
         }
-        if (!confirm('A importação vai SUBSTITUIR todos os dados atuais por este arquivo. Esta ação não pode ser desfeita. Deseja continuar?')) {
+        if (!confirm('A importação vai SUBSTITUIR todos os dados atuais por este arquivo. Um backup de segurança será criado antes da substituição. Deseja continuar?')) {
           return;
         }
-        // Aplica os dados importados sobre o objeto existente, preservando
-        // chaves ausentes com valores padrão.
-        try { aplicarDadosCarregados(importado); }
+        try { prepararDadosCarregados(importado); }
         catch (erro) { notificar('Arquivo inválido: ' + erro.message, 'erro'); return; }
-        // Onda 1: um JSON antigo pode ter estrutura antiga. Reaplica a migração
-        // (síncrona) antes de gravar, para o arquivo importado já entrar no
-        // formato atual.
-        if (typeof aplicarMigracaoEstrutura === 'function') aplicarMigracaoEstrutura();
-        if (typeof aplicarMigracaoV4 === 'function') aplicarMigracaoV4();
-        salvarDados();
-        inicializar();
-        notificar('Dados importados com sucesso.');
+        let anterior;
+        try {
+          if (_haAlteracoesNaoSincronizadas && !await salvarNaNuvemAgora()) throw new Error('Salve as alterações pendentes antes de importar.');
+          await _filaSalvamentoNuvem;
+          if (!await fazerBackupAutomatico(true,'pré-importação')) throw new Error('O backup de segurança não foi confirmado.');
+          anterior=JSON.parse(JSON.stringify(dados));
+          let preparado;
+          try {
+            aplicarDadosCarregados(importado);
+            aplicarMigracaoEstrutura(); aplicarMigracaoV4(); garantirIdentidadesLembretes();
+            preparado=JSON.parse(JSON.stringify(dados));
+          } finally {
+            Object.keys(dados).forEach(k=>delete dados[k]);Object.assign(dados,anterior);
+          }
+          const versaoAntes=_versaoSalvamentoSolicitada;
+          const tarefa=_filaSalvamentoNuvem.then(()=>executarSalvamentoNuvem(versaoAntes,preparado));
+          _filaSalvamentoNuvem=tarefa.catch(()=>false);
+          if(!await tarefa) throw new Error('Não foi possível gravar a importação. Os dados atuais foram preservados.');
+          if(_versaoSalvamentoSolicitada!==versaoAntes) {
+            await salvarNaNuvemAgora();
+            throw new Error('Houve uma edição durante a importação. As alterações atuais foram mantidas.');
+          }
+          aplicarDadosCarregados(preparado); inicializar();
+          notificar('Dados importados com sucesso.');
+        } catch(erro) { notificar('Não foi possível importar: '+erro.message,'erro'); }
+
       };
       leitor.onerror = function() {
         notificar('Não foi possível ler o arquivo.');
@@ -13699,7 +13908,7 @@ blocoRsvp +
       doc.setFontSize(11);
       doc.setFont('times', 'italic');
       doc.setTextColor(COR_TEXTO_CLARO[0], COR_TEXTO_CLARO[1], COR_TEXTO_CLARO[2]);
-      const dataCas = dados.dataCasamento ? dataPorExtenso(dados.dataCasamento) : 'Data do casamento não definida';
+      const dataCas = dataEventoIntegrada() ? dataPorExtenso(dataEventoIntegrada()) : 'Data do casamento não definida';
       doc.text(dataCas, larguraPagina / 2, y + 130, { align: 'center' });
       // Ornamento dourado central
       doc.setDrawColor(COR_CHAMPAGNE[0], COR_CHAMPAGNE[1], COR_CHAMPAGNE[2]);
@@ -13929,8 +14138,8 @@ blocoRsvp +
       // ===== Seção: Agenda do casamento =====
       novaPagina();
       tituloSecao('Agenda do casamento');
-      linhaInfo('Data', dados.dataCasamento || '—');
-      linhaInfo('Hora', dados.horaCasamento || '—');
+      linhaInfo('Data', dataEventoIntegrada() || '—');
+      linhaInfo('Hora', horaEventoIntegrada() || '—');
       linhaInfo('Local da cerimônia', dados.localCasamento || '—');
       linhaInfo('Endereço da cerimônia', dados.enderecoCasamento || '—');
       linhaInfo('Celebrante', dados.celebrante || '—');
@@ -14102,7 +14311,7 @@ blocoRsvp +
       doc.text('Gerada em ' + hojeC.toLocaleDateString(CONFIG_SISTEMA.geral.idioma), W - M, y + 4, { align: 'right' });
       y += 10;
 
-      const lista = dados.convidados || [];
+      const lista = typeof window.convidadosParaPdfV4 === 'function' ? window.convidadosParaPdfV4() : (dados.convidados || []);
       let totalListados = 0;
       let totalAcomp = 0;
       let totalCriancasAcomp = 0;
@@ -15134,9 +15343,7 @@ blocoRsvp +
       if (typeof garantirIdsFornecedores === 'function' && garantirIdsFornecedores()) {
         precisaSalvarMigracao = true;
       }
-      if (typeof removerFinanceiroLegadoDosFornecedores === 'function' && removerFinanceiroLegadoDosFornecedores()) {
-        precisaSalvarMigracao = true;
-      }
+      // Preserva os campos financeiros legados para consulta e recuperação.
       // Onda 2b: o pagamento agora vive em Orçamento e Despesas. Fornecedores com status
       // de pagamento antigo viram "Contratado" (status de negociação).
       (dados.fornecedores || []).forEach(f => {
@@ -15346,8 +15553,33 @@ blocoRsvp +
       return p;
     }
 
+    function sincronizarVinculosPadrinhosV8() {
+      const pessoas=[];
+      (dados.convidados||[]).forEach(p=>{pessoas.push(p);(Array.isArray(p.acompanhantes)?p.acompanhantes:[]).forEach(a=>pessoas.push(a));});
+      const porId=new Map();
+      pessoas.forEach(p=>{if(!p.id)p.id=novoIdPessoa();porId.set(String(p.id),p);});
+      function buscar(nome){
+        const atuais=pessoas.filter(p=>normalizarNomeV4(p.nome)===normalizarNomeV4(nome));
+        if(atuais.length===1)return atuais[0];
+        const antigos=(dados.padrinhos||[]).filter(p=>normalizarNomeV4(p.nome)===normalizarNomeV4(nome));
+        return antigos.length===1?porId.get(String(antigos[0].id)):null;
+      }
+      pessoas.forEach(p=>{
+        const legado=p._dadosPadrinhoLegado||p;
+        const id=p.entraComId||legado.entraComId;
+        const nome=Object.prototype.hasOwnProperty.call(legado,'entraCom')?legado.entraCom:p.entraCom;
+        const par=id?porId.get(String(id)):(nome?buscar(nome):null);
+        if(id || nome || Object.prototype.hasOwnProperty.call(p,'entraComId')) {
+          p.entraComId=par&&par!==p?par.id:'';
+          p.entraCom=par&&par!==p?par.nome:(id?'':nome||'');
+          if(p._dadosPadrinhoLegado) p._dadosPadrinhoLegado={...p._dadosPadrinhoLegado,entraCom:p.entraCom,entraComId:p.entraComId};
+        }
+      });
+    }
+
     function sincronizarEspelhosLegadosV4() {
       if (!dados || !dados._pessoasUnificadasV4) return;
+      sincronizarVinculosPadrinhosV8();
       const pessoas = Array.isArray(dados.convidados) ? dados.convidados : [];
       const padrinhosAnteriores = Array.isArray(dados.padrinhos) ? dados.padrinhos : [];
       dados.listaEspera = pessoas.filter(p => p.statusLista === 'Lista de espera').map(p => ({...p, status:confirmacaoLegadaV4(p.status)}));
@@ -15428,18 +15660,19 @@ blocoRsvp +
 
     window.aplicarMigracaoV4 = aplicarMigracaoV4;
 
-    const migrarEstruturaBaseV4 = typeof migrarEstrutura === 'function' ? migrarEstrutura : null;
-    if (migrarEstruturaBaseV4) migrarEstrutura = async function () {
-      await migrarEstruturaBaseV4.apply(this,arguments);
+    migrarEstrutura = async function () {
       if ((Number(dados._schemaVersion)||0) >= V4_SCHEMA && dados._pessoasUnificadasV4) return false;
-      const backupOk = await fazerBackupAutomatico(true,'pré-migração v4 — unificação de pessoas e campos complementares');
-      if (!backupOk) { console.warn('Migração v4 adiada porque o backup não foi confirmado.'); return false; }
-      aplicarMigracaoV4();
-      if (supabaseClient && nuvemRowId) {
-        const {error}=await supabaseClient.from('dados_casamento').update({'Dados':dados}).eq('id',nuvemRowId);
-        if (error) throw error;
+      if (!await fazerBackupAutomatico(true,'pré-migração v4'))
+        throw new Error('Migração adiada: não foi possível confirmar o backup. Tente carregar novamente.');
+      const anterior=JSON.parse(JSON.stringify(dados));
+      try {
+        aplicarMigracaoEstrutura(); aplicarMigracaoV4();
+        if (!await salvarNaNuvemAgora()) throw new Error('Não foi possível salvar a migração.');
+        return true;
+      } catch(e) {
+        Object.keys(dados).forEach(k=>delete dados[k]);Object.assign(dados,anterior);
+        throw e;
       }
-      return true;
     };
 
     const salvarDadosBaseV4 = salvarDados;
@@ -15587,7 +15820,7 @@ blocoRsvp +
         <button data-secao="secaoFinanceiro" onclick="mostrarSecao('secaoFinanceiro')">$ Financeiro</button>
         <button data-secao="secaoSite" onclick="mostrarSecao('secaoSite')">⌂ Site do Casamento</button>
         <button data-secao="secaoNotificacoes" onclick="mostrarSecao('secaoNotificacoes')">⚙ Configurações e Notificações</button>
-        <div class="v4-sync-info">Fonte oficial: Supabase<br>Item 16.3 não aplicado.</div>`;
+        `;
     }
 
     function prepararConvidadosV4() {
@@ -15840,14 +16073,14 @@ blocoRsvp +
     const carregarCasamentoBaseV4=carregarCamposCasamento;
     carregarCamposCasamento=function(){
       carregarCasamentoBaseV4.apply(this,arguments); const c=dados.cerimonia||{}, r=dados.regrasBuffet||{};
-      setElV4('dataCerimonia',c.data||dados.dataCasamento||''); setElV4('horaCerimonia',c.hora||dados.horaCasamento||'');
+      setElV4('dataCerimonia',c.data||dataEventoIntegrada()||''); setElV4('horaCerimonia',c.hora||horaEventoIntegrada()||'');
       setElV4('idadeIsentaBuffet',r.idadeIsentaAte??7); setElV4('idadeParcialBuffet',r.idadeParcialAte??7); setElV4('percentualParcialBuffet',r.percentualParcial??50); setElV4('idadeIntegralBuffet',r.idadeIntegralApartir??8);
       atualizarTextoRegraBuffetV4();
     };
     const salvarCerimoniaBaseV4=salvarCerimonia;
     salvarCerimonia=function(silencioso){
       if(salvarCerimoniaBaseV4(true)!==true)return false; const d=valorElV4('dataCerimonia'); if(d&&!dataValida(d)){notificar('A data da cerimônia é inválida.','atencao');return false;}
-      dados.cerimonia={...(dados.cerimonia||{}),data:d,hora:valorElV4('horaCerimonia')}; if(silencioso)return true; salvarDados(); return true;
+      dados.cerimonia={...(dados.cerimonia||{}),data:d,hora:valorElV4('horaCerimonia')}; dados.dataCasamento=d; dados.horaCasamento=dados.cerimonia.hora; if(silencioso)return true; salvarDados(); return true;
     };
     const salvarDadosCasamentoBaseV4=salvarDadosCasamento;
     salvarDadosCasamento=function(silencioso){
@@ -15954,6 +16187,11 @@ blocoRsvp +
 
     // CSV adicionais.
     function baixarCsvV4(nome,cab,linhas){const esc=v=>'"'+String(v??'').replace(/"/g,'""')+'"';const txt='\uFEFF'+[cab,...linhas].map(r=>r.map(esc).join(';')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/csv;charset=utf-8'}));a.download=nome;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
+    window.convidadosParaPdfV4=function(){
+      if(filtroPessoasV4.grupo==='criancas') return coletarCriancasConvidadosV6().filter(c=>(!filtroPessoasV4.lado||c.lado===filtroPessoasV4.lado)&&(!filtroPessoasV4.confirmacao||c.confirmacao===filtroPessoasV4.confirmacao)&&(!filtroPessoasV4.busca||[c.nome,c.responsavel,c.grupo,c.parentesco,c.origem].join(' ').toLowerCase().includes(filtroPessoasV4.busca))).map(c=>({...c,acompanhantes:[]}));
+      if(filtroPessoasV4.grupo==='padrinhos') return obterPadrinhosUnicosV7().filter(padrinhoPassaFiltroV8).map(p=>({...p,acompanhantes:[]}));
+      return pessoasFiltradasV4().map(({p})=>p);
+    };
     window.exportarCsvConvidadosV4=function(){
       if (filtroPessoasV4.grupo==='criancas') {
         const lista=coletarCriancasConvidadosV6().filter(c => (!filtroPessoasV4.lado||c.lado===filtroPessoasV4.lado)&&(!filtroPessoasV4.confirmacao||c.confirmacao===filtroPessoasV4.confirmacao)&&(!filtroPessoasV4.busca||[c.nome,c.responsavel,c.grupo,c.parentesco,c.origem].join(' ').toLowerCase().includes(filtroPessoasV4.busca)));
@@ -16013,7 +16251,7 @@ blocoRsvp +
       const percentual=contratado>0?(pago/contratado)*100:0;
       const agora=new Date();
       const gerado=agora.toLocaleDateString('pt-BR')+' às '+agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-      const dataEvento=dados.dataCasamento&&dataValida(dados.dataCasamento)?dataPorExtenso(dados.dataCasamento):'Data do casamento não definida';
+      const dataEvento=dataEventoIntegrada()&&dataValida(dataEventoIntegrada())?dataPorExtenso(dataEventoIntegrada()):'Data do casamento não definida';
       let y=0;
 
       function cabecalho(continuacao){
@@ -16268,14 +16506,16 @@ blocoRsvp +
     }
     function definirEntraComPadrinhoV7(nome,par){
       const chave=normalizarNomeV4(nome);
-      (dados.padrinhos||[]).forEach(p=>{ if(p&&normalizarNomeV4(p.nome)===chave) p.entraCom=par||''; });
+      const alvo=(dados.convidados||[]).flatMap(p=>[p,...(Array.isArray(p.acompanhantes)?p.acompanhantes:[])]).find(p=>normalizarNomeV4(p.nome)===normalizarNomeV4(par));
+      const parId=alvo?alvo.id:'';
+      (dados.padrinhos||[]).forEach(p=>{ if(p&&normalizarNomeV4(p.nome)===chave) { p.entraCom=par||''; p.entraComId=parId; } });
       (dados.convidados||[]).forEach(titular=>{
         if(normalizarNomeV4(titular.nome)===chave){
-          titular.entraCom=par||'';
-          titular._dadosPadrinhoLegado={...(titular._dadosPadrinhoLegado||{}),entraCom:par||''};
+          titular.entraCom=par||''; titular.entraComId=parId;
+          titular._dadosPadrinhoLegado={...(titular._dadosPadrinhoLegado||{}),entraCom:par||'',entraComId:parId};
         }
         (Array.isArray(titular.acompanhantes)?titular.acompanhantes:[]).forEach(a=>{
-          if(a&&normalizarNomeV4(a.nome)===chave) a.entraCom=par||'';
+          if(a&&normalizarNomeV4(a.nome)===chave) { a.entraCom=par||''; a.entraComId=parId; }
         });
       });
     }
@@ -16466,6 +16706,8 @@ blocoRsvp +
               </div>
               <span class="v5-tag ${cl}">${escV4(st)}</span>
             </div>
+            <div class="v5-meta">${acs.length} acompanhante(s) · Mesa: ${escV4(p.mesa||'não definida')}</div>
+            <details class="ux-pessoa-detalhes"><summary>Contato e acompanhantes</summary>
             <div class="v5-meta">
               ${escV4(p.telefone||'sem telefone')} · ${escV4(p.grupoFamiliar||'sem grupo')} · Mesa: ${escV4(p.mesa||'não definida')}
               ${p.statusLista==='Lista de espera'?' · <em>lista de espera</em>':''}
@@ -16478,9 +16720,11 @@ blocoRsvp +
                     <span class="rel">— ${escV4(a.parentesco||'parentesco não informado')} · ${escV4(a.tipo||'Adulto')}${idadeTxt(a)}${a.papelPadrinho?' · '+escV4(a.papelPadrinho):''}</span>
                   </span></div>`).join('')}
             </div>`:''}
+            </details>
             <div class="v5-acoes">
               <button class="btn-primary btn-pequeno" onclick="editarConvidado(${index})">Editar</button>
-              <button class="btn-danger btn-pequeno" onclick="excluirPessoaV4(${index})">Excluir</button>
+              ${p.statusLista==='Lista principal' && p.status!=='Confirmado'?`<button class="btn-success btn-pequeno" onclick="confirmarPresencaRecebida(${index})">Conferir confirmação recebida</button>`:''}
+              <details class="ux-mais"><summary>Mais ações</summary><button class="btn-danger btn-pequeno" onclick="excluirPessoaV4(${index})">Excluir</button></details>
             </div></div>`;
         }).join('')+'</div>'+(paginas>1?`<div class="v4-toolbar" aria-label="Paginação de convidados"><button onclick="mudarPaginaPessoasV8(-1)" ${paginaPessoasV8===0?'disabled':''}>Anterior</button><span>Página ${paginaPessoasV8+1} de ${paginas} · ${itens.length} cadastros</span><button onclick="mudarPaginaPessoasV8(1)" ${paginaPessoasV8===paginas-1?'disabled':''}>Próxima</button></div>`:'');
     };
@@ -16507,7 +16751,7 @@ blocoRsvp +
       prepararNavegacaoV4(); prepararConvidadosV4(); prepararFinanceiroV4(); prepararCamposV4();
       if(typeof prepararModalDespesaV7==='function') prepararModalDespesaV7();
       setTimeout(equalizarAlturaGraficosV5,0);
-      aplicarMigracaoV4(); sincronizarEspelhosLegadosV4(); popularMesasPessoaV4('');
+      sincronizarEspelhosLegadosV4(); popularMesasPessoaV4('');
       document.querySelectorAll('#secaoListaEspera,#secaoCriancas,#secaoPadrinhos').forEach(x=>{x.style.display='none';x.setAttribute('data-legado','true');});
       setElV4('buscaPessoasV4', filtroPessoasV4.busca);
       setElV4('confirmacaoPessoasV4', filtroPessoasV4.confirmacao);
@@ -17319,6 +17563,156 @@ blocoRsvp +
   </script>
 
   <div id="areaNotificacoes" role="status" aria-live="polite"></div>
+
+  <style id="rolagemModaisDesktop">
+    @media (min-width: 851px) {
+      html.modal-desktop-aberto,
+      html.modal-desktop-aberto body { overflow: hidden !important; }
+    }
+  </style>
+  <script>
+  // A página ao fundo só volta a rolar quando o último modal é fechado.
+  (function () {
+    function sincronizarRolagemDesktop() {
+      const aberto = Array.from(document.querySelectorAll('.modal')).some(m =>
+        m.style.display && m.style.display !== 'none');
+      document.documentElement.classList.toggle('modal-desktop-aberto', aberto);
+    }
+    const observador = new MutationObserver(sincronizarRolagemDesktop);
+    observador.observe(document.body, {
+      subtree: true, childList: true, attributes: true, attributeFilter: ['style']
+    });
+    sincronizarRolagemDesktop();
+  })();
+  </script>
+<style id="estilosUX">
+:root { --ui-marca:#7B5C1F; --ui-texto-2:#555B63; }
+button,input,select,textarea { font-family:'Inter',Arial,sans-serif; }
+button,.btn-primary,.btn-success,.btn-secondary,.btn-danger { text-transform:none; letter-spacing:normal; font-size:.9rem; line-height:1.35; }
+button:focus-visible,summary:focus-visible,a:focus-visible { outline:3px solid #2866A5; outline-offset:3px; }
+label { text-transform:none; letter-spacing:normal; font-size:.9rem; color:#4B5058; }
+small,.v4-campo-ajuda,.v5-meta,.v5-ident small,.v4-kpi span { font-size:.85rem; line-height:1.45; }
+.etiqueta-venc,.v5-tag { font-size:.8rem; }
+summary { cursor:pointer; font-weight:600; }
+.ux-financeiro { display:grid;grid-template-columns:minmax(180px,2fr) repeat(3,minmax(105px,1fr)) minmax(140px,1.2fr);align-items:start;gap:12px;padding:18px !important; }
+.ux-financeiro small { display:block;color:#555B63;margin:0 0 5px; }
+.ux-fin-nome { min-width:0;overflow-wrap:anywhere; }.ux-fin-nome strong { display:block; }
+.ux-fin-num strong { font-variant-numeric:tabular-nums;white-space:nowrap; }
+.ux-fin-saldo strong { font-size:1.12rem; }.ux-fin-venc button { white-space:normal; }
+.ux-fin-detalhes { grid-column:1/-1;border-top:1px solid #DDE0E4;padding-top:10px; }
+.ux-financeiro > button { margin:0 !important; }.ux-financeiro > .btn-primary { background:white;color:#353941;border-color:#C4C8CF; }
+.ux-mais { align-self:start;min-width:110px; }.ux-mais summary { padding:8px 10px;border:1px solid #C4C8CF;border-radius:7px;color:#4B5058;background:white; }
+.ux-mais .btn-danger { margin:8px 0 0 !important; }
+.ux-pessoa-detalhes { margin:0 12px 12px 52px; }.ux-pessoa-detalhes summary { color:#555B63;font-size:.85rem; }
+.ux-pessoa-detalhes .v5-meta,.ux-pessoa-detalhes .v5-acomp { padding-left:0;margin-left:0; }
+.v5-cab { padding-bottom:7px; }.v5-acoes { padding-top:4px; }.v5-acoes > .btn-primary { background:#fff;color:#333;border-color:#C4C8CF; }
+.ux-form-acoes { position:sticky;bottom:0;z-index:4;display:flex;align-items:center;flex-wrap:wrap;gap:8px;background:#fff;padding:12px !important;margin-top:20px;border-top:1px solid #DDE0E4;box-shadow:0 -3px 12px #00000008; }
+.ux-form-estado { margin-right:auto;font-size:.85rem;color:#555B63; }.ux-form-estado[data-pendente="true"] { color:#825114;font-weight:600; }
+.ux-previa { width:min(1200px,96vw);max-width:1200px;height:90vh;box-sizing:border-box; }
+.ux-previa iframe { width:100%;height:calc(100% - 110px);border:1px solid #CCD0D6;border-radius:8px;background:#fff; }
+.ux-filtros { margin:12px 0;border:1px solid var(--ui-borda);border-radius:8px;padding:12px;background:#fff; }
+.ux-filtros > summary { display:none; }.ux-filtros-resumo { display:block;font-size:.85rem;color:#555B63;margin:8px 0; }
+.ux-dica-abas { display:none; }.ux-secao-dirty { color:#825114; }
+@media(min-width:851px){
+ .ux-autenticado > header { padding:18px 22px; }.ux-autenticado > header img { max-height:48px;width:auto; }
+ .ux-autenticado > header h1 { font-size:2rem;margin:6px 0; }
+ .card-contagem .cr-placa-dia { transform:scale(.88); }.card-contagem .cr-conteudo { gap:.4rem; }
+}
+@media(max-width:1100px) and (min-width:851px){
+ .ux-financeiro { grid-template-columns:repeat(3,minmax(0,1fr)); }.ux-fin-nome { grid-column:1/-1; }
+}
+@media(max-width:850px){
+ .ux-financeiro { grid-template-columns:repeat(2,minmax(0,1fr));gap:12px; }.ux-fin-nome { grid-column:1/-1; }.ux-fin-saldo { order:1; }.ux-fin-venc { order:2; }.ux-fin-num:not(.ux-fin-saldo) { order:3; }.ux-fin-detalhes { order:4; }.ux-financeiro > button,.ux-financeiro > .ux-mais { order:5; }
+ .ux-fin-num strong { white-space:normal;overflow-wrap:anywhere; }.ux-pessoa-detalhes { margin-left:12px; }
+ .ux-form-acoes { position:static;padding-bottom:max(12px,env(safe-area-inset-bottom)) !important; }.ux-form-acoes button { flex:1 1 130px; }.ux-form-estado { width:100%; }
+ .ux-filtros > summary { display:list-item;min-height:32px; }.ux-filtros:not([open]) > :not(summary) { display:none; }
+ .ux-filtros select,.ux-filtros input { width:100%;min-width:0 !important; }
+ .ux-dica-abas { display:block;color:#555B63;font-size:.85rem;margin:0 0 8px; }
+ .v4-subtabs { scrollbar-width:thin !important; }.v4-subtabs::-webkit-scrollbar { display:block !important;height:5px; }.v4-subtabs::-webkit-scrollbar-thumb { background:#B5A47D;border-radius:5px; }
+ .ux-previa iframe { min-height:380px;height:65vh; }.v5-acoes .ux-mais { flex:1 1 130px; }
+}
+</style>
+<script>
+(function(){
+ const nomes={secaoDadosCasamento:'Dados do casamento',secaoAgenda:'Agenda',secaoConvidados:'Convidados',secaoCronograma:'Cronograma',secaoMesas:'Mesas',secaoFinanceiro:'Financeiro',secaoSite:'Site dos convidados',secaoNotificacoes:'Configurações'};
+ const pendentes=new Set();let secaoAtual='';
+ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ window.uxNavegar=function(id){
+   const modal=document.getElementById('modalMeuCasamento');
+   if(!id){fecharModal('modalMeuCasamento');if(modal.style.display==='none'){secaoAtual='';marcarNavegacao();}return;}
+   if(modal.style.display==='none'||!modal.style.display)abrirModal('modalMeuCasamento');
+   mostrarSecao(id);
+ };
+ function marcarNavegacao(){document.querySelectorAll('.ux-nav button').forEach(b=>{if(b.dataset.secao===secaoAtual)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});}
+ function autenticar(){const login=document.getElementById('telaSenha');document.body.classList.toggle('ux-autenticado',!!login&&login.style.display==='none');}
+ function montarNavegacao(){
+   const login=document.getElementById('telaSenha');
+   if(login&&!login.dataset.uxObservado){new MutationObserver(autenticar).observe(login,{attributes:true,attributeFilter:['style']});login.dataset.uxObservado='true';}
+   autenticar();
+ }
+
+ function formularios(){
+   for(const id of ['secaoDadosCasamento','secaoSite','secaoNotificacoes']){
+     const sec=document.getElementById(id);if(!sec)continue;
+     const save=Array.from(sec.querySelectorAll('button')).find(b=>/^salvar(TudoDadosCasamento|SiteCasamento|ConfigNotificacoes)/.test(b.getAttribute('onclick')||''));
+     if(!save)continue;let bar=save.parentElement;
+     if(!bar.classList.contains('actions')&&!bar.classList.contains('ux-form-acoes')){bar=document.createElement('div');save.before(bar);bar.appendChild(save);}
+     bar.classList.add('ux-form-acoes');save.textContent='Salvar alterações';
+     if(!bar.querySelector('.ux-form-estado')){const status=document.createElement('span');status.className='ux-form-estado';status.setAttribute('role','status');status.textContent='Sem alterações pendentes';bar.prepend(status);
+       const cancel=document.createElement('button');cancel.type='button';cancel.className='btn-secondary';cancel.textContent='Cancelar';cancel.onclick=()=>{
+         if(pendentes.has(id)&&!confirm('Descartar as alterações deste formulário?'))return;
+         if(id==='secaoDadosCasamento')carregarCamposCasamento();if(id==='secaoSite')carregarCamposSite();if(id==='secaoNotificacoes')carregarConfigNotificacoes();pendentes.delete(id);status.textContent='Sem alterações pendentes';delete status.dataset.pendente;
+       };bar.append(cancel);
+     }
+   }
+ }
+ function prepararFiltros(){
+   const grupos=[['filtroAgDe','Agenda'],['confirmacaoPessoasV4','Convidados'],['filtroStatusDespesa','Financeiro']];
+   grupos.forEach(([id,nome])=>{const campo=document.getElementById(id);if(!campo||campo.closest('.ux-filtros'))return;
+     let alvo=id==='filtroAgDe'?campo.closest('.linha-campo'):id==='filtroStatusDespesa'?campo.closest('.barra-filtro'):campo;
+     if(!alvo)return;const box=document.createElement('details');box.dataset.nome=nome;box.className='ux-filtros';box.open=window.innerWidth>850;const sum=document.createElement('summary');sum.textContent='Filtrar '+nome;box.append(sum);alvo.before(box);box.append(alvo);
+   });
+   document.querySelectorAll('.v4-subtabs').forEach(nav=>{if(nav.previousElementSibling?.classList.contains('ux-dica-abas'))return;const dica=document.createElement('p');dica.className='ux-dica-abas';dica.textContent='Deslize as abas para ver todas as opções →';nav.before(dica);});
+ }
+ function atualizarFiltros(){document.querySelectorAll('.ux-filtros').forEach(box=>{const campos=Array.from(box.querySelectorAll('input,select')).filter(e=>e.value);const sum=box.querySelector('summary');sum.textContent='Filtrar '+box.dataset.nome+(campos.length?' · '+campos.length+' ativo(s)':'');let resumo=box.querySelector('.ux-filtros-resumo');if(!resumo){resumo=document.createElement('span');resumo.className='ux-filtros-resumo';box.append(resumo);}resumo.textContent=campos.length?campos.map(e=>e.tagName==='SELECT'?e.selectedOptions[0]?.textContent:e.value).join(' · '):'Todos os resultados';});}
+ document.addEventListener('input',e=>{const sec=e.target.closest('.secao');if(!sec)return;const status=sec.querySelector('.ux-form-estado');if(status&&!e.target.closest('.ux-filtros')){pendentes.add(sec.id);status.textContent='Alterações não salvas';status.dataset.pendente='true';}});
+ document.addEventListener('change',atualizarFiltros);
+ const secaoBase=mostrarSecao;mostrarSecao=function(id){if(secaoAtual===id&&pendentes.has(id))return;if(secaoAtual!==id&&!descartarAtual())return;const r=secaoBase.apply(this,arguments);secaoAtual=id;marcarNavegacao();formularios();prepararFiltros();atualizarFiltros();return r;};
+ const fecharBase=fecharModal;fecharModal=function(id){if(id==='modalMeuCasamento'&&!descartarAtual())return;const r=fecharBase.apply(this,arguments);if(id==='modalMeuCasamento'&&document.getElementById(id).style.display==='none'){secaoAtual='';marcarNavegacao();}return r;};
+ const initBase=inicializar;inicializar=function(){const r=initBase.apply(this,arguments);montarNavegacao();formularios();prepararFiltros();atualizarFiltros();return r;};
+
+ function limparEstado(id,texto='Sem alterações pendentes'){
+   pendentes.delete(id);const status=document.querySelector('#'+id+' .ux-form-estado');if(status){status.textContent=texto;delete status.dataset.pendente;}
+ }
+ function descartarAtual(){
+   if(!pendentes.has(secaoAtual))return true;
+   if(!confirm('Há alterações não salvas. Deseja descartá-las e sair desta aba?'))return false;
+   if(secaoAtual==='secaoDadosCasamento')carregarCamposCasamento();
+   if(secaoAtual==='secaoSite')carregarCamposSite();
+   if(secaoAtual==='secaoNotificacoes')carregarConfigNotificacoes();
+   limparEstado(secaoAtual);atualizarSnapshotModal('modalMeuCasamento');return true;
+ }
+ const gravacoes=new Map();
+ for(const [nome,id] of [['salvarTudoDadosCasamento','secaoDadosCasamento'],['salvarSiteCasamento','secaoSite'],['salvarConfigNotificacoes','secaoNotificacoes']]){
+   const base=window[nome];window[nome]=function(){const antes=_versaoSalvamentoSolicitada;const r=base.apply(this,arguments);
+     if(_versaoSalvamentoSolicitada>antes){gravacoes.set(id,{versao:_versaoSalvamentoSolicitada,snapshot:tirarSnapshot(id)});const status=document.querySelector('#'+id+' .ux-form-estado');if(status)status.textContent='Salvando alterações…';}return r;
+   };
+ }
+ const salvarNuvemBase=executarSalvamentoNuvem;
+ executarSalvamentoNuvem=async function(versao,conteudo){const ok=await salvarNuvemBase.apply(this,arguments);
+   for(const [id,g] of gravacoes){if(g.versao>versao)continue;
+     if(tirarSnapshot(id)!==g.snapshot)continue;
+     if(ok){limparEstado(id,'Alterações salvas');gravacoes.delete(id);}
+     else {const status=document.querySelector('#'+id+' .ux-form-estado');if(status)status.textContent='Falha ao salvar. Tente novamente.';}
+   }
+   if(ok&&!pendentes.size)atualizarSnapshotModal('modalMeuCasamento');return ok;
+ };
+ const listarBase=listarDespesas;listarDespesas=function(){const aberto=document.querySelector('.ux-filtros[data-nome="Financeiro"]')?.open;const r=listarBase.apply(this,arguments);prepararFiltros();atualizarFiltros();const box=document.querySelector('.ux-filtros[data-nome="Financeiro"]');if(box&&aberto!==undefined)box.open=aberto;return r;};
+ const media=window.matchMedia('(max-width:850px)');if(media.addEventListener)media.addEventListener('change',e=>document.querySelectorAll('.ux-filtros').forEach(box=>box.open=!e.matches));
+ const gerarBase=gerarSitePublico;gerarSitePublico=function(){if(pendentes.has('secaoSite')){notificar('Salve as alterações do site antes de visualizar ou baixar.');return;}return gerarBase.apply(this,arguments);};
+ montarNavegacao();
+})();
+</script>
 </body>
 
 </html>
