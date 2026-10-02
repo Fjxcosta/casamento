@@ -5632,6 +5632,7 @@
         // Versão síncrona — o backup de segurança já foi feito no passo 1.
         if (typeof aplicarMigracaoEstrutura === 'function') aplicarMigracaoEstrutura();
         if (typeof aplicarMigracaoV4 === 'function') aplicarMigracaoV4();
+        if (typeof aplicarMigracaoV5 === 'function') aplicarMigracaoV5();
         garantirIdentidadesLembretes();
         restaurado = JSON.parse(JSON.stringify(dados));
         } finally {
@@ -13705,7 +13706,7 @@ blocoRsvp +
           let preparado;
           try {
             aplicarDadosCarregados(importado);
-            aplicarMigracaoEstrutura(); aplicarMigracaoV4(); garantirIdentidadesLembretes();
+            aplicarMigracaoEstrutura(); aplicarMigracaoV4(); aplicarMigracaoV5(); garantirIdentidadesLembretes();
             preparado=JSON.parse(JSON.stringify(dados));
           } finally {
             Object.keys(dados).forEach(k=>delete dados[k]);Object.assign(dados,anterior);
@@ -15470,6 +15471,7 @@ blocoRsvp +
   // =====================================================================
   (function () {
     const V4_SCHEMA = 4;
+    const V5_SCHEMA = 5;
     let filtroPessoasV4 = { grupo:'convidados-noiva', busca:'', lado:'', confirmacao:'' };
     let paginaPessoasV8 = 0, timerBuscaPessoasV8 = null;
     const TAM_PAGINA_PESSOAS = 50;
@@ -15660,13 +15662,32 @@ blocoRsvp +
 
     window.aplicarMigracaoV4 = aplicarMigracaoV4;
 
+    // V5 corrige dados já salvos em que uma madrinha/padrinho constava duas
+    // vezes: como acompanhante e como convidado independente. O papel continua
+    // no cadastro de acompanhante; a linha independente duplicada é removida.
+    function aplicarMigracaoV5() {
+      if (dados._migracaoAcompanhantesUnicosV5) return false;
+      if (!Array.isArray(dados.convidados)) dados.convidados = [];
+      const quantidadeAntes = dados.convidados.length;
+      dados.convidados.slice().forEach(registro => {
+        if (registro) removerTitularesDuplicadosDosAcompanhantesV4(registro);
+      });
+      const removidos = quantidadeAntes - dados.convidados.length;
+      dados._schemaVersion = Math.max(Number(dados._schemaVersion) || 0, V5_SCHEMA);
+      dados._migracaoAcompanhantesUnicosV5 = true;
+      if (dados._pessoasUnificadasV4) sincronizarEspelhosLegadosV4();
+      if (removidos && typeof recalcularBuffetsSalvos === 'function') recalcularBuffetsSalvos();
+      return true;
+    }
+    window.aplicarMigracaoV5 = aplicarMigracaoV5;
+
     migrarEstrutura = async function () {
-      if ((Number(dados._schemaVersion)||0) >= V4_SCHEMA && dados._pessoasUnificadasV4) return false;
-      if (!await fazerBackupAutomatico(true,'pré-migração v4'))
+      if ((Number(dados._schemaVersion)||0) >= V5_SCHEMA && dados._pessoasUnificadasV4 && dados._migracaoAcompanhantesUnicosV5) return false;
+      if (!await fazerBackupAutomatico(true,'pré-migração v5'))
         throw new Error('Migração adiada: não foi possível confirmar o backup. Tente carregar novamente.');
       const anterior=JSON.parse(JSON.stringify(dados));
       try {
-        aplicarMigracaoEstrutura(); aplicarMigracaoV4();
+        aplicarMigracaoEstrutura(); aplicarMigracaoV4(); aplicarMigracaoV5();
         if (!await salvarNaNuvemAgora()) throw new Error('Não foi possível salvar a migração.');
         return true;
       } catch(e) {
